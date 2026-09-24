@@ -60,9 +60,65 @@ struct SettingsView: View {
                 Toggle("逐字歌词（卡拉OK）", isOn: $settings.verbatimLyrics)
                 Toggle("AMLL 沉浸式歌词（流动背景+扫光）", isOn: $settings.useAMLLImmersive)
                 if settings.useAMLLImmersive {
-                    Text("通过 WKWebView 嵌入开源 AMLL 组件，首次使用需联网加载；播放页将切换为 AMLL 流动背景和逐字扫光歌词")
+                    Text("通过 WKWebView 嵌入开源 AMLL 组件；播放页将切换为 AMLL 流动背景和逐字扫光歌词")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    // 歌词顶部位置
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("歌词顶部位置")
+                            Spacer()
+                            Text("\(settings.amllLyricTop)px")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.amllLyricTop) },
+                            set: { settings.amllLyricTop = Int($0) }
+                        ), in: 50...400, step: 5)
+                    }
+                    .padding(.top, 4)
+
+                    // 歌词底部位置
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("歌词底部位置")
+                            Spacer()
+                            Text("\(settings.amllLyricBottom)px")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.amllLyricBottom) },
+                            set: { settings.amllLyricBottom = Int($0) }
+                        ), in: 100...500, step: 5)
+                    }
+
+                    // 歌词字号
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("歌词字号")
+                            Spacer()
+                            Text("\(settings.amllFontSize)pt")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.amllFontSize) },
+                            set: { settings.amllFontSize = Int($0) }
+                        ), in: 14...40, step: 1)
+                    }
+
+                    // 歌词字重
+                    Picker("歌词字重", selection: Binding(
+                        get: { settings.amllFontWeight },
+                        set: { settings.amllFontWeight = $0 }
+                    )) {
+                        Text("常规").tag(400)
+                        Text("中等").tag(500)
+                        Text("半粗").tag(600)
+                        Text("粗体").tag(700)
+                        Text("特粗").tag(800)
+                        Text("超粗").tag(900)
+                    }
                 }
                 Picker("日文歌词读音", selection: $settings.lyricsAnnotation) {
                     ForEach(LyricsAnnotation.allCases) { annotation in

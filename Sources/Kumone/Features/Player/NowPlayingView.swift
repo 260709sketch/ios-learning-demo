@@ -278,8 +278,9 @@ struct NowPlayingView: View {
         let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
 
         return ZStack {
-            // 底层：AMLL WebView（流动背景 + 逐字歌词）
+            // 底层：AMLL WebView（流动背景 + 逐字歌词，大封面状态隐藏歌词）
             AMLLLyricsView(
+                showLyrics: !showsExpandedArtwork,
                 onSeek: { time in
                     player.seek(to: time)
                 }
@@ -300,11 +301,20 @@ struct NowPlayingView: View {
                 .padding(.bottom, 14)
 
                 ZStack {
-                    // 大封面占位（和原来的沉浸模式一致）
-                    immersiveArtworkContent(artworkDimension: artworkDimension)
-                        .opacity(showsExpandedArtwork ? 1 : 0)
-                        .allowsHitTesting(showsExpandedArtwork)
-                        .accessibilityHidden(!showsExpandedArtwork)
+                    // 大封面占位（AMLL 模式下不显示迷你歌词，只有封面占位）
+                    VStack(spacing: 18) {
+                        Spacer(minLength: 8)
+                        Color.clear
+                            .frame(width: artworkDimension, height: artworkDimension)
+                            .anchorPreference(
+                                key: ImmersiveArtworkFramePreferenceKey.self,
+                                value: .bounds
+                            ) { [.expanded: $0] }
+                        Spacer(minLength: 0)
+                    }
+                    .opacity(showsExpandedArtwork ? 1 : 0)
+                    .allowsHitTesting(showsExpandedArtwork)
+                    .accessibilityHidden(!showsExpandedArtwork)
 
                     if showQueueOnMobile {
                         CompactQueueContent()

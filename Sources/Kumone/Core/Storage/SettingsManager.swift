@@ -100,6 +100,10 @@ final class SettingsManager: ObservableObject {
         static let annotation = "settings.lyricsAnnotation"
         static let verbatimLyrics = "settings.verbatimLyrics"
         static let useAMLLImmersive = "settings.useAMLLImmersive"
+        static let amllLyricTop = "settings.amllLyricTop"
+        static let amllLyricBottom = "settings.amllLyricBottom"
+        static let amllFontSize = "settings.amllFontSize"
+        static let amllFontWeight = "settings.amllFontWeight"
         static let volume = "settings.volume"
         static let fmMode = "settings.fmMode"
         static let unblock = "settings.enableUnblock"
@@ -189,6 +193,20 @@ final class SettingsManager: ObservableObject {
         didSet { UserDefaults.standard.set(useAMLLImmersive, forKey: Keys.useAMLLImmersive) }
     }
 
+    // MARK: AMLL 自定义布局
+    @Published var amllLyricTop: Int {
+        didSet { UserDefaults.standard.set(amllLyricTop, forKey: Keys.amllLyricTop) }
+    }
+    @Published var amllLyricBottom: Int {
+        didSet { UserDefaults.standard.set(amllLyricBottom, forKey: Keys.amllLyricBottom) }
+    }
+    @Published var amllFontSize: Int {
+        didSet { UserDefaults.standard.set(amllFontSize, forKey: Keys.amllFontSize) }
+    }
+    @Published var amllFontWeight: Int {
+        didSet { UserDefaults.standard.set(amllFontWeight, forKey: Keys.amllFontWeight) }
+    }
+
     /// Resolve gray tracks from third-party sources (UnblockNeteaseMusic-style).
     @Published var enableUnblock: Bool {
         didSet { UserDefaults.standard.set(enableUnblock, forKey: Keys.unblock) }
@@ -257,6 +275,10 @@ final class SettingsManager: ObservableObject {
             ?? (defaults.bool(forKey: Keys.showRomaji) ? .romaji : .off)
         verbatimLyrics = defaults.object(forKey: Keys.verbatimLyrics) as? Bool ?? true
         useAMLLImmersive = defaults.object(forKey: Keys.useAMLLImmersive) as? Bool ?? false
+        amllLyricTop = defaults.object(forKey: Keys.amllLyricTop) as? Int ?? 170
+        amllLyricBottom = defaults.object(forKey: Keys.amllLyricBottom) as? Int ?? 230
+        amllFontSize = defaults.object(forKey: Keys.amllFontSize) as? Int ?? 22
+        amllFontWeight = defaults.object(forKey: Keys.amllFontWeight) as? Int ?? 700
         enableUnblock = defaults.object(forKey: Keys.unblock) as? Bool ?? true
         if let rawSourceIDs = defaults.stringArray(forKey: Keys.unblockSources) {
             enabledAudioSourceIDs = Set(rawSourceIDs.compactMap(AudioSourceID.init))

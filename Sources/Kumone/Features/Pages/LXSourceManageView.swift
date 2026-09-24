@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 /// LX 自定义音源管理：导入（URL / 粘贴脚本 / 文件）、激活、自动换源、音源测试。
 struct LXSourceManageView: View {
@@ -8,7 +9,7 @@ struct LXSourceManageView: View {
     @State private var showScriptSheet = false
     @State private var scriptInput = ""
     @State private var importing = false
-    @State private var showFileImporter = false
+    @State private var showFilePicker = false
     @State private var importError: String?
     @State private var testingIDs = Set<String>()
 
@@ -58,7 +59,7 @@ struct LXSourceManageView: View {
                     Label("粘贴脚本文本导入", systemImage: "doc.on.clipboard")
                 }
                 Button {
-                    showFileImporter = true
+                    showFilePicker = true
                 } label: {
                     Label("从文件导入（.js）", systemImage: "folder")
                 }
@@ -103,18 +104,17 @@ struct LXSourceManageView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .task { store.loadPersistedList() }
-        .fileImporter(
-            isPresented: $showFileImporter,
-            allowedContentTypes: [
-                .sourceCode,
-                .plainText,
-                .json,
-                .data,
-                .item
-            ],
-            allowsMultipleSelection: false
-        ) { result in
-            handleFile(result)
+        .fullScreenCover(isPresented: $showFilePicker) {
+            SourceDocumentPicker(
+                onPick: { url in
+                    showFilePicker = false
+                    handlePickedFile(url)
+                },
+                onCancel: {
+                    showFilePicker = false
+                }
+            )
+            .ignoresSafeArea()
         }
         .sheet(isPresented: $showScriptSheet) {
             ScriptInputSheet(script: $scriptInput) {
@@ -147,40 +147,62 @@ struct LXSourceManageView: View {
         }
     }
 
-    private func handleFile(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else {
-                importError = "未选择文件"
+    private func handlePickedFile(_ url: URL) {
+        // asCopy:true 时系统已复制到临时目录，可直接读取，无需 security-scoped
+        do {
+            let script = try String(contentsOf: url, encoding: .utf8)
+            guard !script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                importError = "文件内容为空"
                 return
             }
-            // 只允许 .js 文件
-            guard url.pathExtension.lowercased() == "js" else {
-                importError = "请选择 .js 格式的音源脚本文件"
-                return
-            }
-            // 启动 security-scoped 访问（不检查返回值，非 scoped URL 也可直接读）
-            url.startAccessingSecurityScopedResource()
-            defer { url.stopAccessingSecurityScopedResource() }
-            do {
-                let script = try String(contentsOf: url, encoding: .utf8)
-                guard !script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                    importError = "文件内容为空"
-                    return
+            importError = nil
+            Task {
+                do {
+                    try await store.importScript(script)
+                } catch {
+                    importError = "导入失败：\(error.localizedDescription)"
                 }
-                importError = nil
-                Task {
-                    do {
-                        try await store.importScript(script)
-                    } catch {
-                        importError = "导入失败：\(error.localizedDescription)"
-                    }
-                }
-            } catch {
-                importError = "无法读取文件：\(error.localizedDescription)"
             }
-        case .failure(let error):
-            importError = error.localizedDescription
+        } catch {
+            importError = "无法读取文件：\(error.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - 文件选择器（UIDocumentPickerViewController + asCopy:true）
+
+/// 用 UIKit 的 UIDocumentPickerViewController 以复制模式打开文件。
+/// asCopy:true 时系统自动把文件复制到临时目录，返回的 URL 可直接读取，
+/// 不需要 startAccessingSecurityScopedResource()，这是 .js 文件能成功导入的关键。
+private struct SourceDocumentPicker: UIViewControllerRepresentable {
+    let onPick: (URL) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [.json, .plainText, .item],
+            asCopy: true
+        )
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: SourceDocumentPicker
+        init(_ parent: SourceDocumentPicker) { self.parent = parent }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { return }
+            parent.onPick(url)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.onCancel()
         }
     }
 }

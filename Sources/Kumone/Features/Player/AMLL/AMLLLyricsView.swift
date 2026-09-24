@@ -18,13 +18,21 @@ import Combine
 /// - setFontStyle(fontSize, inactiveFontSize, fontWeight, lineMargin)
 struct AMLLLyricsView: View {
     @EnvironmentObject private var player: PlayerService
+    @EnvironmentObject private var settings: SettingsManager
 
     /// 歌词点击/seek 回调（时间，秒）
     var onSeek: ((TimeInterval) -> Void)?
+    /// 是否显示歌词（大封面状态下隐藏）
+    var showLyrics: Bool = true
 
     var body: some View {
         AMLLWebViewRepresentable(
             player: player,
+            lyricTop: settings.amllLyricTop,
+            lyricBottom: settings.amllLyricBottom,
+            fontSize: settings.amllFontSize,
+            fontWeight: settings.amllFontWeight,
+            showLyrics: showLyrics,
             onSeek: onSeek
         )
         .ignoresSafeArea()
@@ -35,6 +43,11 @@ struct AMLLLyricsView: View {
 
 private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     let player: PlayerService
+    let lyricTop: Int
+    let lyricBottom: Int
+    let fontSize: Int
+    let fontWeight: Int
+    let showLyrics: Bool
     let onSeek: ((TimeInterval) -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -45,12 +58,24 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         context.coordinator.createWebView()
     }
-    func updateUIView(_ webView: WKWebView, context: Context) {}
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.applyLayout(
+            top: lyricTop, bottom: lyricBottom,
+            fontSize: fontSize, fontWeight: fontWeight,
+            showLyrics: showLyrics
+        )
+    }
     #elseif os(macOS)
     func makeNSView(context: Context) -> WKWebView {
         context.coordinator.createWebView()
     }
-    func updateNSView(_ webView: WKWebView, context: Context) {}
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.applyLayout(
+            top: lyricTop, bottom: lyricBottom,
+            fontSize: fontSize, fontWeight: fontWeight,
+            showLyrics: showLyrics
+        )
+    }
     #endif
 
     #if os(iOS)
@@ -80,10 +105,43 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
     private var timeSyncTimer: Timer?
     private var lastAlbumTrackId: Int?
 
+    // 最后一次布局参数
+    private var layoutTop = 170
+    private var layoutBottom = 230
+    private var layoutFontSize = 22
+    private var layoutFontWeight = 700
+    private var layoutShowLyrics = true
+
     init(player: PlayerService, onSeek: ((TimeInterval) -> Void)?) {
         self.player = player
         self.onSeek = onSeek
         super.init()
+    }
+
+    /// 应用歌词布局（位置、字号、字重、显示/隐藏）
+    func applyLayout(top: Int, bottom: Int, fontSize: Int, fontWeight: Int, showLyrics: Bool) {
+        layoutTop = top
+        layoutBottom = bottom
+        layoutFontSize = fontSize
+        layoutFontWeight = fontWeight
+        layoutShowLyrics = showLyrics
+
+        // 通过 JS 直接操作 DOM 设置歌词容器位置和显示状态
+        let js = """
+        (function() {
+            var el = document.getElementById('lyrics');
+            if (el) {
+                el.style.top = '\(top)px';
+                el.style.bottom = '\(bottom)px';
+                el.style.display = '\(showLyrics ? 'block' : 'none')';
+            }
+        })();
+        true;
+        """
+        callJSRaw(js)
+
+        // 字体样式
+        callJS("setFontStyle", args: [fontSize, max(Int(Double(fontSize) * 0.7), 12), fontWeight, 16])
     }
 
     // MARK: - 创建 WebView
@@ -196,8 +254,12 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 歌词居中对齐
         callJS("setAlignPosition", args: [0.5])
 
-        // 字体样式：fontSize=22, inactiveFontSize=16, fontWeight=700, lineMargin=16
-        callJS("setFontStyle", args: [22, 16, 700, 16])
+        // 应用自定义布局（位置、字号、字重、显示状态）
+        applyLayout(
+            top: layoutTop, bottom: layoutBottom,
+            fontSize: layoutFontSize, fontWeight: layoutFontWeight,
+            showLyrics: layoutShowLyrics
+        )
 
         // 监听 PlayerService 变化
         setupObservers()
@@ -321,6 +383,23 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let calls = pendingCalls
         pendingCalls.removeAll()
         calls.forEach { $0() }
+    }
+
+    /// 直接执行任意 JS 字符串（用于 DOM 操作）。未 ready 时排队。
+    private func callJSRaw(_ script: String) {
+        let block = { [weak self] in
+            guard let webView = self?.webView else { return }
+            webView.evaluateJavaScript(script) { _, error in
+                if let error {
+                    NSLog("[AMLL] JS 执行失败: \(error.localizedDescription)")
+                }
+            }
+        }
+        if isReady {
+            block()
+        } else {
+            pendingCalls.append(block)
+        }
     }
 
     // MARK: - 清理
