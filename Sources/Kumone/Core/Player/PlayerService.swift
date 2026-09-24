@@ -621,13 +621,15 @@ final class PlayerService: ObservableObject {
         let quality = SettingsManager.shared.audioQuality.rawValue
         let allowsUnblock = SettingsManager.shared.canResolveUnblockedTracks
         let cacheEnabled = SettingsManager.shared.enableAudioCache
+        let hasLXSource = LXSourceStore.shared.activeSourceID != nil
+        let useAnySource = allowsUnblock || hasLXSource
 
         if cacheEnabled {
             do {
                 if let cached = try await AudioCache.shared.entry(
                     for: track.id,
                     requestedQuality: quality,
-                    allowsUnblock: allowsUnblock
+                    allowsUnblock: useAnySource
                 ) {
                     guard generation == resolveGeneration else { return }
                     let lease = await AudioCache.shared.retain(cached)
@@ -653,6 +655,12 @@ final class PlayerService: ObservableObject {
             }
         }
 
+        // 有 LX 自定义音源激活时，所有歌曲优先直接走音源，
+        // 跳过网易云官方解析（避免 VIP/灰色歌曲因官方返回试听地址而不触发换源）
+        if hasLXSource {
+            if await resolveAndLoadUnblocked(track, generation: generation) { return }
+        }
+
         var data = try? await NeteaseAPI.songURL(ids: [track.id], level: quality).first
         if data?.url == nil, quality != AudioQuality.standard.rawValue {
             data = try? await NeteaseAPI.songURL(ids: [track.id], level: AudioQuality.standard.rawValue).first
@@ -665,9 +673,7 @@ final class PlayerService: ObservableObject {
         }
 
         // NetEase refused — try third-party sources (UnblockNeteaseMusic-style)
-        // then the activated LX custom source.
-        let hasLXSource = LXSourceStore.shared.activeSourceID != nil
-        if resolvedURL == nil || data?.freeTrialInfo != nil, allowsUnblock || hasLXSource {
+        if resolvedURL == nil || data?.freeTrialInfo != nil, allowsUnblock {
             if await resolveAndLoadUnblocked(track, generation: generation) { return }
         }
         guard generation == resolveGeneration else { return }
