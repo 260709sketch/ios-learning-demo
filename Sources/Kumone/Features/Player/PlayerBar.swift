@@ -55,9 +55,8 @@ struct PlayerBar: View {
     private var artworkButton: some View {
         Button {
             guard player.hasCurrentTrack else { return }
-            withAnimation(AppAnimation.smooth) {
-                player.showNowPlaying = true
-            }
+            // 不使用 withAnimation，避免与 fullScreenCover 自带动画冲突导致概率性只展开一半
+            player.showNowPlaying = true
         } label: {
             CachedAsyncImage(url: player.currentTrack?.album.picUrl?.resizedImageURL(128))
                 .frame(width: 38, height: 38)

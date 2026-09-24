@@ -57,6 +57,7 @@ public struct IOSMainWindow: View {
             .environmentObject(artworkStore)
             .tint(Theme.accent)
             .preferredColorScheme(settings.appearance.colorScheme)
+            .environment(\.locale, Locale(identifier: "zh_CN"))
             .environment(\.openLogin, { showLogin = true })
             .environment(\.openDestination, openDestination)
             .task {
@@ -601,13 +602,8 @@ struct IOSMiniPlayerBar: View {
     }
 
     private func showNowPlaying() {
-        if #available(iOS 18.0, *) {
-            player.showNowPlaying = true
-        } else {
-            withAnimation(NowPlayingPresentationMetrics.presentationAnimation) {
-                player.showNowPlaying = true
-            }
-        }
+        // 不使用 withAnimation，避免与 fullScreenCover 自带动画冲突导致概率性只展开一半
+        player.showNowPlaying = true
     }
 }
 

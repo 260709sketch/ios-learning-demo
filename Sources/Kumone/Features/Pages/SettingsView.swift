@@ -15,18 +15,22 @@ struct SettingsView: View {
                         Text(quality.displayName).tag(quality)
                     }
                 }
+                Toggle("预加载下一首", isOn: $settings.preloadNextTrack)
+                Text("播放5秒后自动预加载下一首歌，切换时秒开不卡顿")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
                 NavigationLink {
                     LXSourceManageView()
                 } label: {
-                    Label("自定义音源（导入 / 换源 / 测试）", systemImage: "antenna.radiowaves.left.and.right")
+                    Label("自定义音源", systemImage: "antenna.radiowaves.left.and.right")
                 }
                 NavigationLink {
                     LXSourceStatusView()
                 } label: {
-                    Label("音源状态（请求日志 / 返回音质 / URL）", systemImage: "list.bullet.clipboard")
+                    Label("音源状态", systemImage: "list.bullet.clipboard")
                 }
             }
 
@@ -134,6 +138,24 @@ struct SettingsView: View {
                         Text("特粗").tag(800)
                         Text("超粗").tag(900)
                     }
+
+                    // 歌词字体
+                    Picker("歌词字体", selection: Binding(
+                        get: { settings.amllFontFamily },
+                        set: { settings.amllFontFamily = $0 }
+                    )) {
+                        Text("系统默认").tag("")
+                        Text("黑体").tag("PingFang SC")
+                        Text("SF粗体").tag("SF Pro Display")
+                        if !settings.amllFontFamily.isEmpty,
+                           settings.amllFontFamily != "PingFang SC",
+                           settings.amllFontFamily != "SF Pro Display" {
+                            Text("自定义").tag(settings.amllFontFamily)
+                        }
+                    }
+
+                    // 导入自定义字体
+                    FontImportButton()
 
                     // MARK: 播放器组件位置调整
                     Divider()
@@ -479,5 +501,113 @@ struct BottomBarSettingsView: View {
         }
         .navigationTitle("底部栏页面显示")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - 字体导入按钮
+
+/// 导入自定义字体（.ttf/.otf），注册后用于 AMLL 歌词
+struct FontImportButton: View {
+    @EnvironmentObject private var settings: SettingsManager
+    @State private var showPicker = false
+
+    var body: some View {
+        Button {
+            showPicker = true
+        } label: {
+            HStack {
+                Label("导入自定义字体", systemImage: "textformat")
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .sheet(isPresented: $showPicker) {
+            FontPickerViewController { fontName in
+                if let fontName {
+                    settings.amllFontFamily = fontName
+                    ToastCenter.shared.show("字体已导入：\(fontName)")
+                }
+                showPicker = false
+            }
+            .ignoresSafeArea()
+        }
+    }
+}
+
+/// 字体选择器（UIViewControllerRepresentable 封装 UIDocumentPickerViewController）
+struct FontPickerViewController: UIViewControllerRepresentable {
+    let onPick: (String?) -> Void
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [.font],
+            asCopy: true
+        )
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let onPick: (String?) -> Void
+
+        init(onPick: @escaping (String?) -> Void) {
+            self.onPick = onPick
+        }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { onPick(nil); return }
+
+            // 复制到 App 沙盒 Fonts 目录
+            let fontsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Fonts", isDirectory: true)
+            try? FileManager.default.createDirectory(at: fontsDir, withIntermediateDirectories: true)
+
+            let destURL = fontsDir.appendingPathComponent(url.lastPathComponent)
+            do {
+                if FileManager.default.fileExists(atPath: destURL.path) {
+                    try FileManager.default.removeItem(at: destURL)
+                }
+                try FileManager.default.copyItem(at: url, to: destURL)
+            } catch {
+                DispatchQueue.main.async {
+                    ToastCenter.shared.show("字体文件复制失败")
+                }
+                onPick(nil)
+                return
+            }
+
+            // 注册字体
+            var error: Unmanaged<CFError>?
+            CTFontManagerRegisterFontsForURL(destURL as CFURL, .process, &error)
+            if let error = error?.takeRetainedValue() {
+                DispatchQueue.main.async {
+                    ToastCenter.shared.show("字体注册失败")
+                }
+                onPick(nil)
+                return
+            }
+
+            // 获取字体名称
+            if let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(destURL as CFURL) as? [CTFontDescriptor],
+               let firstDescriptor = fontDescriptors.first,
+               let fontName = CTFontDescriptorCopyAttribute(firstDescriptor, kCTFontNameAttribute) as? String {
+                onPick(fontName)
+            } else {
+                // 用文件名（去掉扩展名）作为字体名
+                let fileName = destURL.deletingPathExtension().lastPathComponent
+                onPick(fileName)
+            }
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onPick(nil)
+        }
     }
 }

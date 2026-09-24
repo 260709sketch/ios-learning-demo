@@ -33,6 +33,7 @@ struct AMLLLyricsView: View {
             lyricHorizontal: settings.amllLyricHorizontal,
             fontSize: settings.amllFontSize,
             fontWeight: settings.amllFontWeight,
+            fontFamily: settings.amllFontFamily,
             showLyrics: showLyrics,
             onSeek: onSeek
         )
@@ -51,6 +52,7 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     let lyricHorizontal: Int
     let fontSize: Int
     let fontWeight: Int
+    let fontFamily: String
     let showLyrics: Bool
     let onSeek: ((TimeInterval) -> Void)?
 
@@ -65,7 +67,7 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.applyLayout(
             top: lyricTop, bottom: lyricBottom, horizontal: lyricHorizontal,
-            fontSize: fontSize, fontWeight: fontWeight,
+            fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFamily,
             showLyrics: showLyrics
         )
     }
@@ -76,7 +78,7 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.applyLayout(
             top: lyricTop, bottom: lyricBottom, horizontal: lyricHorizontal,
-            fontSize: fontSize, fontWeight: fontWeight,
+            fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFamily,
             showLyrics: showLyrics
         )
     }
@@ -121,6 +123,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
     private var layoutHorizontal = 0
     private var layoutFontSize = 22
     private var layoutFontWeight = 700
+    private var layoutFontFamily = ""
     private var layoutShowLyrics = true
 
     init(player: PlayerService, onSeek: ((TimeInterval) -> Void)?) {
@@ -129,8 +132,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         super.init()
     }
 
-    /// 应用歌词布局（位置、字号、字重、显示/隐藏）
-    func applyLayout(top: Int, bottom: Int, horizontal: Int, fontSize: Int, fontWeight: Int, showLyrics: Bool) {
+    /// 应用歌词布局（位置、字号、字重、字体、显示/隐藏）
+    func applyLayout(top: Int, bottom: Int, horizontal: Int, fontSize: Int, fontWeight: Int, fontFamily: String, showLyrics: Bool) {
         // 记录切换前的状态，用于检测"从隐藏切到显示"
         let wasHidden = !layoutShowLyrics
         layoutTop = top
@@ -138,6 +141,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         layoutHorizontal = horizontal
         layoutFontSize = fontSize
         layoutFontWeight = fontWeight
+        layoutFontFamily = fontFamily
         layoutShowLyrics = showLyrics
 
         // 通过 JS 直接操作 DOM 设置歌词容器位置和显示状态
@@ -164,6 +168,24 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
         // 字体样式
         callJS("setFontStyle", args: [fontSize, max(Int(Double(fontSize) * 0.7), 12), fontWeight, 16])
+
+        // 字体族（系统默认/黑体/SF粗体/自定义）
+        if !fontFamily.isEmpty {
+            let fontJS = """
+            (function() {
+                var el = document.getElementById('lyrics');
+                if (el) {
+                    el.style.fontFamily = '\(fontFamily)';
+                    var all = el.querySelectorAll('*');
+                    for (var i = 0; i < all.length; i++) {
+                        all[i].style.fontFamily = '\(fontFamily)';
+                    }
+                }
+            })();
+            true;
+            """
+            callJSRaw(fontJS)
+        }
 
         // 关键修复：从隐藏切换到显示时（大封面/播放列表切回歌词），
         // 立即 + 延迟多次强制同步当前播放时间，确保 AMLL 恢复渲染后能跳到当前行
@@ -300,10 +322,10 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 歌词居中对齐
         callJS("setAlignPosition", args: [0.5])
 
-        // 应用自定义布局（位置、字号、字重、显示状态）
+        // 应用自定义布局（位置、字号、字重、字体、显示状态）
         applyLayout(
             top: layoutTop, bottom: layoutBottom, horizontal: layoutHorizontal,
-            fontSize: layoutFontSize, fontWeight: layoutFontWeight,
+            fontSize: layoutFontSize, fontWeight: layoutFontWeight, fontFamily: layoutFontFamily,
             showLyrics: layoutShowLyrics
         )
 

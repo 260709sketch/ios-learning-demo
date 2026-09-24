@@ -93,6 +93,7 @@ final class SettingsManager: ObservableObject {
 
     private enum Keys {
         static let quality = "settings.audioQuality"
+        static let preloadNextTrack = "settings.preloadNextTrack"
         static let appearance = "settings.appearance"
         static let nowPlayingMode = "settings.nowPlayingMode"
         static let showTranslation = "settings.showLyricsTranslation"
@@ -105,6 +106,7 @@ final class SettingsManager: ObservableObject {
         static let amllLyricHorizontal = "settings.amllLyricHorizontal"
         static let amllFontSize = "settings.amllFontSize"
         static let amllFontWeight = "settings.amllFontWeight"
+        static let amllFontFamily = "settings.amllFontFamily"
         static let showVIPBadge = "settings.showVIPBadge"
         // 底部栏隐藏设置（"我的"强制显示，不可隐藏）
         static let hideHomeTab = "settings.hideHomeTab"
@@ -134,6 +136,11 @@ final class SettingsManager: ObservableObject {
 
     @Published var audioQuality: AudioQuality {
         didSet { UserDefaults.standard.set(audioQuality.rawValue, forKey: Keys.quality) }
+    }
+
+    /// 预加载下一首歌（播放5秒后预加载下一首，切换时不卡顿）
+    @Published var preloadNextTrack: Bool {
+        didSet { UserDefaults.standard.set(preloadNextTrack, forKey: Keys.preloadNextTrack) }
     }
 
     static let audioCacheSizeRangeMB = 100...1_000
@@ -224,6 +231,11 @@ final class SettingsManager: ObservableObject {
     }
     @Published var amllFontWeight: Int {
         didSet { UserDefaults.standard.set(amllFontWeight, forKey: Keys.amllFontWeight) }
+    }
+
+    /// AMLL 歌词字体：空=系统默认，"PingFang SC"=黑体，"SF Pro Display"=SF粗体，其他=自定义字体名
+    @Published var amllFontFamily: String {
+        didSet { UserDefaults.standard.set(amllFontFamily, forKey: Keys.amllFontFamily) }
     }
 
     /// 搜索/列表中显示 VIP 歌曲标识（默认关闭，隐藏 VIP 标识）
@@ -329,6 +341,7 @@ final class SettingsManager: ObservableObject {
     private init() {
         let defaults = UserDefaults.standard
         audioQuality = defaults.string(forKey: Keys.quality).flatMap(AudioQuality.init) ?? .exhigh
+        preloadNextTrack = defaults.object(forKey: Keys.preloadNextTrack) as? Bool ?? true
         enableAudioCache = defaults.object(forKey: Keys.enableAudioCache) as? Bool ?? true
         let storedAudioCacheSizeMB = defaults.object(forKey: Keys.audioCacheSizeMB) as? Int
             ?? AudioCache.defaultMaximumSizeMB
@@ -348,6 +361,7 @@ final class SettingsManager: ObservableObject {
         amllLyricHorizontal = defaults.object(forKey: Keys.amllLyricHorizontal) as? Int ?? 0
         amllFontSize = defaults.object(forKey: Keys.amllFontSize) as? Int ?? 22
         amllFontWeight = defaults.object(forKey: Keys.amllFontWeight) as? Int ?? 700
+        amllFontFamily = defaults.string(forKey: Keys.amllFontFamily) ?? ""
         showVIPBadge = defaults.object(forKey: Keys.showVIPBadge) as? Bool ?? false
         hideHomeTab = defaults.object(forKey: Keys.hideHomeTab) as? Bool ?? false
         hideExploreTab = defaults.object(forKey: Keys.hideExploreTab) as? Bool ?? false

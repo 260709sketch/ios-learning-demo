@@ -187,6 +187,14 @@ final class PlayerService: ObservableObject {
     private var scrobbled = false
     private var startScrobbled = false
 
+    // MARK: - 预加载下一首
+    /// 预加载的下一首歌 AVPlayerItem
+    private var preloadedNextItem: AVPlayerItem?
+    /// 预加载的下一首歌 ID
+    private var preloadedNextTrackID: String?
+    /// 当前歌曲是否已触发预加载
+    private var hasPreloadedCurrent = false
+
     private enum ResolvedURLLoadResult {
         case loaded
         case superseded
@@ -253,6 +261,12 @@ final class PlayerService: ObservableObject {
                 if abs(seconds - self.progress) > 0.45 {
                     self.progress = seconds
                     NowPlayingManager.shared.updateElapsed(seconds, rate: self.isPlaying ? 1 : 0)
+                }
+
+                // 播放5秒后预加载下一首歌
+                if seconds > 5 && !self.hasPreloadedCurrent {
+                    self.hasPreloadedCurrent = true
+                    self.preloadNextTrackIfNeeded()
                 }
             }
         }
@@ -599,6 +613,30 @@ final class PlayerService: ObservableObject {
         startScrobbled = false
         isPlaying = true
         lyricsCursor.activeIndex = nil
+        // 重置预加载状态
+        hasPreloadedCurrent = false
+
+        // 如果有预加载的 item 且对应当前歌曲，直接使用（跳过 URL 解析，秒开）
+        if preloadedNextTrackID == track.id, let preloadedItem = preloadedNextItem {
+            preloadedNextItem = nil
+            preloadedNextTrackID = nil
+            AudioSpectrum.shared.beginPreparing()
+            NowPlayingManager.shared.updateMetadata(for: track, duration: track.duration)
+            persistState()
+
+            // 复用预加载的 item
+            if let old = endObserver { NotificationCenter.default.removeObserver(old) }
+            endObserver = NotificationCenter.default.addObserver(
+                forName: AVPlayerItem.didPlayToEndTimeNotification, object: preloadedItem, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.handleItemEnded() }
+            }
+            engine.replaceCurrentItem(with: preloadedItem)
+            engine.play()
+            scrobbleStartIfNeeded()
+            Task { await loadLyrics(for: track, generation: resolveGeneration) }
+            return
+        }
         // Before the URL is even resolved: holds the bars still rather than
         // letting them fall back to the decorative animation for the moment it
         // takes to find out whether this source can be tapped.
@@ -617,7 +655,7 @@ final class PlayerService: ObservableObject {
         }
     }
 
-    private func resolveAndLoad(_ track: Track, generation: Int) async {
+    private func resolveAndLoad(_ track: Track, generation: Int, preloadOnly: Bool = false) async {
         let quality = SettingsManager.shared.audioQuality.rawValue
         let allowsUnblock = SettingsManager.shared.canResolveUnblockedTracks
         let cacheEnabled = SettingsManager.shared.enableAudioCache
@@ -702,6 +740,24 @@ final class PlayerService: ObservableObject {
             ToastCenter.shared.show(String(localized: "VIP 歌曲，当前为试听片段"))
         }
         _ = await loadResolvedURL(track, url: url, durationMS: data?.time, generation: generation)
+    }
+
+    // MARK: - 预加载下一首
+
+    /// 播放5秒后预加载下一首歌，切换时秒开不卡顿
+    private func preloadNextTrackIfNeeded() {
+        guard SettingsManager.shared.preloadNextTrack else { return }
+        guard let nextTrack = upcomingTracks.first else { return }
+        // 已经预加载过同一首，跳过
+        if preloadedNextTrackID == nextTrack.id && preloadedNextItem != nil { return }
+        // 清除旧的预加载
+        preloadedNextItem = nil
+        preloadedNextTrackID = nil
+        // 用独立的 generation 避免和当前播放冲突
+        let preloadGen = resolveGeneration + 100000
+        Task {
+            await resolveAndLoad(nextTrack, generation: preloadGen, preloadOnly: true)
+        }
     }
 
     private func resolveAndLoadUnblocked(
@@ -976,6 +1032,15 @@ final class PlayerService: ObservableObject {
         if resourceLoader != nil {
             pendingAudioResourceLoader = nil
         }
+
+        if preloadOnly {
+            // 预加载模式：存储 item，不替换当前播放项，提前触发元数据加载
+            preloadedNextItem = item
+            preloadedNextTrackID = track.id
+            item.asset.loadValuesAsynchronously(forKeys: ["playable", "duration"]) { _ in }
+            return .loaded
+        }
+
         audioResourceLoader = resourceLoader
         audioCacheLease = cacheLease
         engine.replaceCurrentItem(with: item)
