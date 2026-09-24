@@ -275,7 +275,8 @@ struct NowPlayingView: View {
     /// 歌词状态：小封面+歌曲信息在上，AMLL 大歌词居中，进度条+控制在底部
     #if os(iOS)
     private func amllCompactLayout(size: CGSize) -> some View {
-        let artworkDimension = min(size.width - 64, size.height * 0.42, 320)
+        let baseDimension = min(size.width - 64, size.height * 0.42, 320)
+        let artworkDimension = baseDimension * CGFloat(settings.playerArtworkScale)
         let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
 
         return ZStack {
@@ -296,14 +297,15 @@ struct NowPlayingView: View {
 
                 if showsExpandedArtwork {
                     // 大封面状态：大封面在上，歌曲信息在下（CompactTrackHeader 隐藏小封面占位）
-                    VStack(spacing: 20) {
-                        // 大封面占位（居中）
+                    VStack(spacing: CGFloat(settings.playerTrackInfoSpacing)) {
+                        // 大封面占位（居中，支持顶部偏移）
                         Color.clear
                             .frame(width: artworkDimension, height: artworkDimension)
                             .anchorPreference(
                                 key: ImmersiveArtworkFramePreferenceKey.self,
                                 value: .bounds
                             ) { [.expanded: $0] }
+                            .padding(.top, CGFloat(settings.playerArtworkTopOffset))
 
                         // 歌曲信息（CompactTrackHeader 隐藏小封面占位，只显示歌曲名+歌手+按钮）
                         CompactTrackHeader(
@@ -335,6 +337,7 @@ struct NowPlayingView: View {
                 }
 
                 immersiveControls
+                    .padding(.bottom, CGFloat(settings.playerControlsBottomOffset))
             }
             .frame(width: max(size.width - 64, 0))
             .padding(.horizontal, 32)

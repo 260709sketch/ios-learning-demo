@@ -120,6 +120,68 @@ struct SettingsView: View {
                         Text("特粗").tag(800)
                         Text("超粗").tag(900)
                     }
+
+                    // MARK: 播放器组件位置调整
+                    Divider()
+                    Text("播放器组件位置调整")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    // 大封面顶部偏移
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("大封面上下位置")
+                            Spacer()
+                            Text(settings.playerArtworkTopOffset > 0 ? "+\(settings.playerArtworkTopOffset)" : "\(settings.playerArtworkTopOffset)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerArtworkTopOffset) },
+                            set: { settings.playerArtworkTopOffset = Int($0) }
+                        ), in: -100...100, step: 5)
+                    }
+
+                    // 大封面尺寸
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("大封面尺寸")
+                            Spacer()
+                            Text(String(format: "%.0f%%", settings.playerArtworkScale * 100))
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { settings.playerArtworkScale },
+                            set: { settings.playerArtworkScale = $0 }
+                        ), in: 0.7...1.3, step: 0.05)
+                    }
+
+                    // 歌曲信息与封面间距
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("歌曲信息与封面间距")
+                            Spacer()
+                            Text("\(settings.playerTrackInfoSpacing)px")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerTrackInfoSpacing) },
+                            set: { settings.playerTrackInfoSpacing = Int($0) }
+                        ), in: 0...60, step: 2)
+                    }
+
+                    // 控制区域底部偏移
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("控制条上下位置")
+                            Spacer()
+                            Text(settings.playerControlsBottomOffset > 0 ? "+\(settings.playerControlsBottomOffset)" : "\(settings.playerControlsBottomOffset)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerControlsBottomOffset) },
+                            set: { settings.playerControlsBottomOffset = Int($0) }
+                        ), in: -50...100, step: 5)
+                    }
                 }
                 Picker("日文歌词读音", selection: $settings.lyricsAnnotation) {
                     ForEach(LyricsAnnotation.allCases) { annotation in

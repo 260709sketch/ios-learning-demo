@@ -105,6 +105,11 @@ final class SettingsManager: ObservableObject {
         static let amllFontSize = "settings.amllFontSize"
         static let amllFontWeight = "settings.amllFontWeight"
         static let showVIPBadge = "settings.showVIPBadge"
+        // 播放器组件位置调整
+        static let playerArtworkTopOffset = "settings.playerArtworkTopOffset"
+        static let playerArtworkScale = "settings.playerArtworkScale"
+        static let playerTrackInfoSpacing = "settings.playerTrackInfoSpacing"
+        static let playerControlsBottomOffset = "settings.playerControlsBottomOffset"
         static let volume = "settings.volume"
         static let fmMode = "settings.fmMode"
         static let unblock = "settings.enableUnblock"
@@ -213,6 +218,24 @@ final class SettingsManager: ObservableObject {
         didSet { UserDefaults.standard.set(showVIPBadge, forKey: Keys.showVIPBadge) }
     }
 
+    // MARK: 播放器组件位置调整
+    /// 大封面顶部偏移（-100 ~ 100，正数下移，负数上移）
+    @Published var playerArtworkTopOffset: Int {
+        didSet { UserDefaults.standard.set(playerArtworkTopOffset, forKey: Keys.playerArtworkTopOffset) }
+    }
+    /// 大封面尺寸缩放（0.7 ~ 1.3）
+    @Published var playerArtworkScale: Double {
+        didSet { UserDefaults.standard.set(playerArtworkScale, forKey: Keys.playerArtworkScale) }
+    }
+    /// 歌曲信息与封面间距（0 ~ 60）
+    @Published var playerTrackInfoSpacing: Int {
+        didSet { UserDefaults.standard.set(playerTrackInfoSpacing, forKey: Keys.playerTrackInfoSpacing) }
+    }
+    /// 控制区域底部偏移（-50 ~ 100，正数下移，负数上移）
+    @Published var playerControlsBottomOffset: Int {
+        didSet { UserDefaults.standard.set(playerControlsBottomOffset, forKey: Keys.playerControlsBottomOffset) }
+    }
+
     /// Resolve gray tracks from third-party sources (UnblockNeteaseMusic-style).
     @Published var enableUnblock: Bool {
         didSet { UserDefaults.standard.set(enableUnblock, forKey: Keys.unblock) }
@@ -286,6 +309,10 @@ final class SettingsManager: ObservableObject {
         amllFontSize = defaults.object(forKey: Keys.amllFontSize) as? Int ?? 22
         amllFontWeight = defaults.object(forKey: Keys.amllFontWeight) as? Int ?? 700
         showVIPBadge = defaults.object(forKey: Keys.showVIPBadge) as? Bool ?? false
+        playerArtworkTopOffset = defaults.object(forKey: Keys.playerArtworkTopOffset) as? Int ?? 0
+        playerArtworkScale = defaults.object(forKey: Keys.playerArtworkScale) as? Double ?? 1.0
+        playerTrackInfoSpacing = defaults.object(forKey: Keys.playerTrackInfoSpacing) as? Int ?? 20
+        playerControlsBottomOffset = defaults.object(forKey: Keys.playerControlsBottomOffset) as? Int ?? 0
         enableUnblock = defaults.object(forKey: Keys.unblock) as? Bool ?? true
         if let rawSourceIDs = defaults.stringArray(forKey: Keys.unblockSources) {
             enabledAudioSourceIDs = Set(rawSourceIDs.compactMap(AudioSourceID.init))
