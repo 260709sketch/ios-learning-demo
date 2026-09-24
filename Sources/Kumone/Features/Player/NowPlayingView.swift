@@ -280,10 +280,10 @@ struct NowPlayingView: View {
         return ZStack {
             // 底层：AMLL WebView（流动背景 + 逐字歌词，大封面状态隐藏歌词）
             AMLLLyricsView(
-                showLyrics: !showsExpandedArtwork,
                 onSeek: { time in
                     player.seek(to: time)
-                }
+                },
+                showLyrics: !showsExpandedArtwork
             )
             .ignoresSafeArea()
 
