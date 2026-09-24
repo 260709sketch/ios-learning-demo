@@ -1,14 +1,11 @@
 import SwiftUI
 import KumoneIOSFeature
-import KumoneCore
 
 @main
 struct KumoneIOSApp: App {
     init() {
         // 强制中文本地化，确保系统控件（搜索取消按钮等）显示中文
         UserDefaults.standard.set(["zh_CN", "zh-Hans", "en"], forKey: "AppleLanguages")
-        // 启动时立即加载 LX 音源列表和激活状态，避免第一次播放时音源未就绪
-        _ = LXSourceStore.shared
     }
 
     var body: some Scene {

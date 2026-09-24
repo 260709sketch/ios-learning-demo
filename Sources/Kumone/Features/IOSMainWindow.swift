@@ -46,7 +46,10 @@ public struct IOSMainWindow: View {
         }
     }
 
-    public init() {}
+    public init() {
+        // 启动时立即加载 LX 音源列表和激活状态，避免第一次播放时音源未就绪
+        _ = LXSourceStore.shared
+    }
 
     public var body: some View {
         presentationRoot
