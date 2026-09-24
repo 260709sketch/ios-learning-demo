@@ -18,7 +18,6 @@ import Combine
 /// ```
 struct AMLLLyricsView: View {
     @EnvironmentObject private var player: PlayerService
-    @EnvironmentObject private var settings: SettingsManager
 
     /// 背景流动速度（默认 1.5）
     var flowSpeed: Double = 1.5
@@ -129,21 +128,14 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         #endif
         self.webView = webView
 
-        // 加载本地 HTML
-        if let htmlURL = Bundle.main.url(forResource: "AMLLLyrics", withExtension: "html") {
+        // 加载本地 HTML（SPM 资源在 Bundle.module 中）
+        if let htmlURL = Bundle.module.url(forResource: "AMLLLyrics", withExtension: "html") {
             webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
         } else {
-            // 兜底：如果 bundle 中找不到，尝试从资源目录加载
-            loadFallbackHTML()
+            NSLog("[AMLL] 警告：未在 bundle 中找到 AMLLLyrics.html")
         }
 
         return webView
-    }
-
-    private func loadFallbackHTML() {
-        // 在开发阶段，如果 HTML 未加入 bundle，可以用内嵌的方式加载
-        // 正式使用时请将 AMLLLyrics.html 加入 Copy Bundle Resources
-        NSLog("[AMLL] 警告：未在 bundle 中找到 AMLLLyrics.html，请将其加入 Copy Bundle Resources")
     }
 
     // MARK: - WKNavigationDelegate
