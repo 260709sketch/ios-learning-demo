@@ -270,14 +270,15 @@ struct NowPlayingView: View {
 
     // MARK: - AMLL Immersive Layout
 
-    /// AMLL 沉浸式布局：WKWebView 渲染流动背景 + 逐字扫光歌词，
-    /// 底部叠加 Kumone 原生播放控制条。
+    /// AMLL 沉浸式布局：WKWebView 渲染流动背景 + 逐字扫光歌词作为底层，
+    /// 顶部叠加 Kumone 原生封面/歌曲信息，底部叠加播放控制条。
     #if os(iOS)
     private func amllCompactLayout(size: CGSize) -> some View {
         ZStack(alignment: .bottom) {
+            // 底层：AMLL WebView（流动背景 + 逐字歌词）
             AMLLLyricsView(
-                flowSpeed: 1.5,
-                renderScale: 0.6,
+                flowSpeed: 8,
+                renderScale: 0.5,
                 onLineClick: { index in
                     guard let lyrics = player.lyrics,
                           index >= 0, index < lyrics.lines.count else { return }
@@ -286,13 +287,26 @@ struct NowPlayingView: View {
             )
             .ignoresSafeArea()
 
+            // 上层：原生封面/歌曲信息 + 播放控制
             VStack(spacing: 0) {
-                Spacer()
+                Color.clear.frame(
+                    height: NowPlayingPresentationMetrics.immersiveHeaderTopInset
+                )
+
+                CompactTrackHeader(
+                    showsExpandedArtwork: false,
+                    onOpenDestination: onOpenDestination
+                )
+                .padding(.horizontal, 32)
+                .padding(.bottom, 10)
+
+                Spacer() // 中间区域留给 AMLL 歌词显示
+
                 immersiveControls
                     .padding(.horizontal, 32)
                     .background(
                         LinearGradient(
-                            colors: [.clear, .black.opacity(0.5)],
+                            colors: [.clear, .black.opacity(0.45)],
                             startPoint: .top,
                             endPoint: .bottom
                         )

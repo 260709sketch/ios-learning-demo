@@ -1,6 +1,26 @@
 import Foundation
 import SwiftUI
 
+// MARK: - 请求日志
+
+/// 一次 LX 音源请求的记录，用于音源状态查看。
+struct LXRequestLog: Identifiable, Hashable {
+    let id = UUID()
+    let date: Date
+    let trackName: String
+    let trackArtist: String
+    let requestedQuality: String
+    let actualQuality: String?
+    let url: String?
+    let duration: TimeInterval
+    let success: Bool
+    let errorMessage: String?
+
+    var durationText: String {
+        String(format: "%.1fs", duration)
+    }
+}
+
 /// 音源存储与管理：导入、持久化、切换、自动换源、音源测试。
 @MainActor
 final class LXSourceStore: ObservableObject {
@@ -10,10 +30,25 @@ final class LXSourceStore: ObservableObject {
     @Published var activeSourceID: String?
     @Published var isInitializing = false
     @Published var lastError: String?
+    /// 最近的音源请求日志（最多保留 50 条）。
+    @Published private(set) var requestLogs: [LXRequestLog] = []
 
     private let engine = LXMusicEngine.shared
 
     private init() {}
+
+    /// 记录一次音源请求。
+    func addRequestLog(_ log: LXRequestLog) {
+        requestLogs.insert(log, at: 0)
+        if requestLogs.count > 50 {
+            requestLogs.removeLast()
+        }
+    }
+
+    /// 清空请求日志。
+    func clearRequestLogs() {
+        requestLogs.removeAll()
+    }
 
     // MARK: 路径
 

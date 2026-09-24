@@ -11,7 +11,7 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #000;
+    background: transparent;
     -webkit-user-select: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
@@ -36,20 +36,11 @@
     position: absolute;
     inset: 0;
     z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
-  #lyric-container > div {
-    width: 100%;
-    height: 100%;
-  }
-  /* 覆盖 AMLL 默认样式，适配透明背景 */
-  :root {
-    --amll-lyric-line-text-color: rgba(255, 255, 255, 0.55);
-    --amll-lyric-line-text-color-active: #fff;
-    --amll-lyric-line-translated-color: rgba(255, 255, 255, 0.45);
-    --amll-lyric-line-roman-color: rgba(255, 255, 255, 0.35);
+  /* AMLL 歌词颜色 —— 正确的 CSS 变量名 */
+  .amll-lyric-player {
+    --amll-lp-color: #ffffff;
+    --amll-lp-hover-bg-color: rgba(255,255,255,0.08);
   }
   /* 加载提示 */
   #loading {
@@ -96,8 +87,8 @@ const lyricContainer = document.getElementById('lyric-container');
 function initBackground() {
   bgRender = BackgroundRender.new(MeshGradientRenderer);
   bgRender.setFPS(30);
-  bgRender.setFlowSpeed(1.5);
-  bgRender.setRenderScale(0.6);
+  bgRender.setFlowSpeed(8);
+  bgRender.setRenderScale(0.5);
   bgContainer.appendChild(bgRender.getElement());
 }
 
@@ -107,6 +98,8 @@ function initLyricPlayer() {
   const el = lyricPlayer.getElement();
   el.style.width = '100%';
   el.style.height = '100%';
+  // 歌词偏下显示，给顶部封面/歌曲信息留出空间
+  lyricPlayer.setAlignPosition(0.62);
   lyricContainer.appendChild(el);
 
   // 歌词点击事件 → 通知 Swift
@@ -118,16 +111,16 @@ function initLyricPlayer() {
 // ─── 动画循环 ────────────────────────────────────────────
 function tick(now) {
   if (!lastTime) lastTime = now;
-  const delta = (now - lastTime) / 1000;
+  const delta = now - lastTime; // 毫秒（AMLL update 要求毫秒）
   lastTime = now;
 
   // JS 侧自己维护播放时间递增，Swift 只做周期性校准
   if (isPlaying) {
-    currentTime += delta * 1000;
+    currentTime += delta; // 毫秒
   }
   if (lyricPlayer) {
     lyricPlayer.setCurrentTime(currentTime);
-    lyricPlayer.update(delta);
+    lyricPlayer.update(delta); // delta 单位：毫秒
   }
 
   rafId = requestAnimationFrame(tick);
@@ -166,13 +159,21 @@ window.amll = {
       if (playing) bgRender.resume();
       else bgRender.pause();
     }
+    if (lyricPlayer) {
+      if (playing) lyricPlayer.resume();
+      else lyricPlayer.pause();
+    }
   },
 
   /** 设置专辑封面（data URL 或远程 URL） */
-  setAlbum(imageUrl) {
+  async setAlbum(imageUrl) {
     if (!bgRender) return;
-    if (!imageUrl) return; // 无封面时保留当前背景，不重置
-    bgRender.setAlbum(imageUrl);
+    if (!imageUrl) return;
+    try {
+      await bgRender.setAlbum(imageUrl);
+    } catch (err) {
+      console.error('AMLL setAlbum failed:', err);
+    }
   },
 
   /** 设置背景流动速度 */
@@ -188,6 +189,11 @@ window.amll = {
   /** 设置是否有歌词（影响背景行为） */
   setHasLyric(has) {
     if (bgRender) bgRender.setHasLyric(has);
+  },
+
+  /** 设置歌词垂直位置（0.0-1.0，默认0.5居中） */
+  setLyricAlignPosition(pos) {
+    if (lyricPlayer) lyricPlayer.setAlignPosition(pos);
   },
 
   /** 跳转到指定时间（秒），isSeek=true 时强制立即布局 */

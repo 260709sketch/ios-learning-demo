@@ -23,6 +23,11 @@ struct SettingsView: View {
                 } label: {
                     Label("自定义音源（导入 / 换源 / 测试）", systemImage: "antenna.radiowaves.left.and.right")
                 }
+                NavigationLink {
+                    LXSourceStatusView()
+                } label: {
+                    Label("音源状态（请求日志 / 返回音质 / URL）", systemImage: "list.bullet.clipboard")
+                }
             }
 
             Section("外观") {

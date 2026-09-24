@@ -758,10 +758,19 @@ final class PlayerService: ObservableObject {
         }
         let lxEngine = LXMusicEngine.shared
         let targetQuality = lxEngine.lxQuality(from: SettingsManager.shared.audioQuality)
+        let startTime = Date()
         do {
             let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
             guard generation == resolveGeneration else { return false }
             guard let url = URL(string: result.url.replacingOccurrences(of: "http://", with: "https://")) else {
+                // 记录失败日志
+                let log = LXRequestLog(
+                    date: Date(), trackName: track.name, trackArtist: track.artistNames,
+                    requestedQuality: targetQuality, actualQuality: nil, url: nil,
+                    duration: Date().timeIntervalSince(startTime), success: false,
+                    errorMessage: "返回 URL 无效"
+                )
+                await MainActor.run { lxStore.addRequestLog(log) }
                 return false
             }
 
@@ -776,10 +785,34 @@ final class PlayerService: ObservableObject {
                 durationMS: nil,
                 generation: generation
             )
-            guard case .loaded = loadResult else { return false }
-            ToastCenter.shared.show(String(localized: "已使用自定义音源：\(activeName)"))
+            guard case .loaded = loadResult else {
+                let log = LXRequestLog(
+                    date: Date(), trackName: track.name, trackArtist: track.artistNames,
+                    requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
+                    duration: Date().timeIntervalSince(startTime), success: false,
+                    errorMessage: "音频加载失败"
+                )
+                await MainActor.run { lxStore.addRequestLog(log) }
+                return false
+            }
+
+            // 记录成功日志（不弹 Toast）
+            let log = LXRequestLog(
+                date: Date(), trackName: track.name, trackArtist: track.artistNames,
+                requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
+                duration: Date().timeIntervalSince(startTime), success: true, errorMessage: nil
+            )
+            await MainActor.run { lxStore.addRequestLog(log) }
             return true
         } catch {
+            // 记录失败日志
+            let log = LXRequestLog(
+                date: Date(), trackName: track.name, trackArtist: track.artistNames,
+                requestedQuality: targetQuality, actualQuality: nil, url: nil,
+                duration: Date().timeIntervalSince(startTime), success: false,
+                errorMessage: error.localizedDescription
+            )
+            await MainActor.run { lxStore.addRequestLog(log) }
             return false
         }
     }
