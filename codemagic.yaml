@@ -1,0 +1,46 @@
+workflows:
+  kumone-ios:
+    name: Kumone iOS Build
+    max_build_duration: 30
+    instance_type: mac_mini_m1
+    environment:
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Show Xcode version
+        script: xcodebuild -version
+      - name: Build for iOS Simulator (verify compilation)
+        script: |
+          cd ios
+          xcodebuild \
+            -project KumoneIOS.xcodeproj \
+            -scheme KumoneIOS \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+      - name: Build unsigned IPA
+        script: |
+          cd ios
+          xcodebuild \
+            -project KumoneIOS.xcodeproj \
+            -scheme KumoneIOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build-device \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS=""
+          APP_PATH=$(find build-device -name "KumoneIOS.app" -type d | head -1)
+          echo "App found at: $APP_PATH"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r KumoneIOS-unsigned.ipa Payload
+          ls -lh KumoneIOS-unsigned.ipa
+    artifacts:
+      - ios/KumoneIOS-unsigned.ipa
