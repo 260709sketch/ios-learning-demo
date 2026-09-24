@@ -289,16 +289,28 @@ struct NowPlayingView: View {
             )
             .ignoresSafeArea()
 
-            // 上层：原生元素
+            // 上层：原生元素（保持原布局结构，CompactTrackHeader 一直在顶部提供稳定的 compact anchor）
             VStack(spacing: 0) {
                 Color.clear.frame(
                     height: NowPlayingPresentationMetrics.immersiveHeaderTopInset
                 )
 
-                if showsExpandedArtwork {
-                    // 大封面状态：大封面在上，歌曲信息在下（CompactTrackHeader 隐藏小封面占位）
+                // CompactTrackHeader 一直在顶部（大封面状态下隐藏，但保留在布局中提供 compact anchor）
+                CompactTrackHeader(
+                    showsExpandedArtwork: showsExpandedArtwork,
+                    onOpenDestination: onOpenDestination,
+                    onTapArtwork: collapseImmersiveArtwork
+                )
+                .padding(.bottom, 14)
+                .opacity(showsExpandedArtwork ? 0 : 1)
+                .allowsHitTesting(!showsExpandedArtwork)
+                .accessibilityHidden(showsExpandedArtwork)
+
+                ZStack {
+                    // 大封面状态：大封面 + 歌曲信息（Apple Music 风格）
                     VStack(spacing: CGFloat(settings.playerTrackInfoSpacing)) {
-                        // 大封面占位（居中，支持顶部偏移）
+                        Spacer(minLength: 8)
+                        // 大封面占位（居中，支持顶部偏移，提供 expanded anchor）
                         Color.clear
                             .frame(width: artworkDimension, height: artworkDimension)
                             .anchorPreference(
@@ -317,27 +329,23 @@ struct NowPlayingView: View {
                             rightHorizontalOffset: CGFloat(settings.playerTrackInfoRightOffset)
                         )
                         .offset(y: CGFloat(settings.playerTrackInfoTopOffset))
+                        Spacer(minLength: 0)
                     }
-                    .padding(.top, 8)
-                    Spacer(minLength: 0)
-                } else {
-                    // 歌词/队列状态：CompactTrackHeader 在上（小封面+歌曲信息）
-                    CompactTrackHeader(
-                        showsExpandedArtwork: showsExpandedArtwork,
-                        onOpenDestination: onOpenDestination,
-                        onTapArtwork: collapseImmersiveArtwork
-                    )
-                    .padding(.bottom, 14)
+                    .opacity(showsExpandedArtwork ? 1 : 0)
+                    .allowsHitTesting(showsExpandedArtwork)
+                    .accessibilityHidden(!showsExpandedArtwork)
 
+                    // 队列状态
                     if showQueueOnMobile {
                         CompactQueueContent()
                             .transition(.opacity)
-                    } else {
+                    } else if showLyricsOnMobile {
                         // 歌词区域透明，AMLL 逐字歌词在底层显示
                         Color.clear
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 immersiveControls
                     .padding(.bottom, CGFloat(settings.playerControlsBottomOffset))
@@ -346,29 +354,8 @@ struct NowPlayingView: View {
             }
             .frame(width: max(size.width - 64, 0))
             .padding(.horizontal, 32)
-
-            // 大封面状态下渲染隐藏的 CompactTrackHeader（只为大封面动画提供 compact anchor）
-            if showsExpandedArtwork {
-                VStack(spacing: 0) {
-                    Color.clear.frame(
-                        height: NowPlayingPresentationMetrics.immersiveHeaderTopInset
-                    )
-                    CompactTrackHeader(
-                        showsExpandedArtwork: false,
-                        onOpenDestination: { _ in },
-                        onTapArtwork: {}
-                    )
-                    .padding(.bottom, 14)
-                    Spacer()
-                }
-                .frame(width: max(size.width - 64, 0))
-                .padding(.horizontal, 32)
-                .opacity(0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            }
         }
-        // 大封面渲染（和原来的沉浸模式一致）
+        // 大封面渲染（和原来的沉浸模式一致，compact anchor 来自顶部隐藏的 CompactTrackHeader）
         .overlayPreferenceValue(ImmersiveArtworkFramePreferenceKey.self) { frames in
             GeometryReader { proxy in
                 if let compactAnchor = frames[.compact],
