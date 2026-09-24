@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ─── iOS 模拟器构建（验证编译通过，不需要证书）───
-  ios-simulator-build:
-    name: iOS Simulator Build
+  # ─── iOS 真机 generic 构建（验证编译通过，不需要证书/模拟器 runtime）───
+  ios-build:
+    name: iOS Build
     runs-on: macos-15
     steps:
       - name: Checkout
@@ -22,13 +22,13 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i ios
 
-      - name: Build for iOS Simulator
+      - name: Build for iOS
         run: |
           cd ios
           xcodebuild \
             -project KumoneIOS.xcodeproj \
             -scheme KumoneIOS \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'generic/platform=iOS' \
             -configuration Debug \
             -derivedDataPath build \
             build \
