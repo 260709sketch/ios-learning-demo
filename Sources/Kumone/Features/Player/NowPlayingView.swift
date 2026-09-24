@@ -305,6 +305,8 @@ struct NowPlayingView: View {
                 )
                 .padding(.bottom, 14)
                 .offset(y: CGFloat(settings.playerTrackInfoTopOffset))
+                .contentShape(Rectangle())
+                .zIndex(2)
 
                 ZStack {
                     // 大封面占位（只有封面，歌曲信息在顶部 CompactTrackHeader）

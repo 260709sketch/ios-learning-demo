@@ -66,6 +66,7 @@ struct NowPlayingTrackDestinationLinks: View {
         .font(font)
         .foregroundStyle(color)
         .lineLimit(1)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
     }
 }
