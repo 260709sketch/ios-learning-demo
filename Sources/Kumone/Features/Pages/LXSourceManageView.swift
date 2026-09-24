@@ -105,7 +105,12 @@ struct LXSourceManageView: View {
         .task { store.loadPersistedList() }
         .fileImporter(
             isPresented: $showFileImporter,
-            allowedContentTypes: [.sourceCode, .json, .plainText],
+            allowedContentTypes: [
+                UTType(filenameExtension: "js") ?? .sourceCode,
+                .sourceCode,
+                .plainText,
+                .json
+            ],
             allowsMultipleSelection: false
         ) { result in
             handleFile(result)
@@ -144,16 +149,28 @@ struct LXSourceManageView: View {
     private func handleFile(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
-            guard let url = urls.first else { return }
-            let needsStop = url.startAccessingSecurityScopedResource()
-            defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
-            guard let script = try? String(contentsOf: url, encoding: .utf8) else {
-                importError = "无法读取文件（需 UTF-8 编码）"
+            guard let url = urls.first else {
+                importError = "未选择文件"
                 return
             }
-            Task {
-                do { try await store.importScript(script) }
-                catch { importError = error.localizedDescription }
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let script = try String(contentsOf: url, encoding: .utf8)
+                guard !script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    importError = "文件内容为空"
+                    return
+                }
+                importError = nil
+                Task {
+                    do {
+                        try await store.importScript(script)
+                    } catch {
+                        importError = "导入失败：\(error.localizedDescription)"
+                    }
+                }
+            } catch {
+                importError = "无法读取文件：\(error.localizedDescription)"
             }
         case .failure(let error):
             importError = error.localizedDescription

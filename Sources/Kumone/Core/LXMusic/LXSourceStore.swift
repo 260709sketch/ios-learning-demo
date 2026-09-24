@@ -27,15 +27,22 @@ final class LXSourceStore: ObservableObject {
     static let shared = LXSourceStore()
 
     @Published var sources: [LXSourceInfo] = []
-    @Published var activeSourceID: String?
+    @Published var activeSourceID: String? {
+        didSet { persistActiveSourceID() }
+    }
     @Published var isInitializing = false
     @Published var lastError: String?
     /// 最近的音源请求日志（最多保留 50 条）。
     @Published private(set) var requestLogs: [LXRequestLog] = []
 
     private let engine = LXMusicEngine.shared
+    private let activeSourceKey = "lxmusic.activeSourceID"
 
     private init() {}
+
+    private func persistActiveSourceID() {
+        UserDefaults.standard.set(activeSourceID, forKey: activeSourceKey)
+    }
 
     /// 记录一次音源请求。
     func addRequestLog(_ log: LXRequestLog) {
@@ -78,6 +85,13 @@ final class LXSourceStore: ObservableObject {
             return
         }
         sources = list
+
+        // 恢复上次激活的音源并自动重新加载
+        let savedID = UserDefaults.standard.string(forKey: activeSourceKey)
+        if let savedID, let source = sources.first(where: { $0.id == savedID }) {
+            activeSourceID = savedID
+            Task { await activate(source) }
+        }
     }
 
     private func persistList() {

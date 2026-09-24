@@ -31,16 +31,26 @@
     width: 100% !important;
     height: 100% !important;
   }
-  /* 歌词容器 */
+  /* 歌词容器 —— 上下留安全区，避免和顶部封面/底部控制条重叠 */
   #lyric-container {
     position: absolute;
     inset: 0;
     z-index: 1;
+    padding-top: 150px;
+    padding-bottom: 210px;
   }
-  /* AMLL 歌词颜色 —— 正确的 CSS 变量名 */
+  /* AMLL 歌词颜色 —— 强制白色，禁用混合模式避免变黑 */
   .amll-lyric-player {
-    --amll-lp-color: #ffffff;
+    --amll-lp-color: #ffffff !important;
     --amll-lp-hover-bg-color: rgba(255,255,255,0.08);
+    color: #ffffff !important;
+    mix-blend-mode: normal !important;
+  }
+  .amll-lyric-player .FmKaba_lyricMainLine span {
+    color: #ffffff !important;
+  }
+  .amll-lyric-player .FmKaba_lyricSubLine {
+    color: rgba(255,255,255,0.5) !important;
   }
   /* 加载提示 */
   #loading {
@@ -98,8 +108,8 @@ function initLyricPlayer() {
   const el = lyricPlayer.getElement();
   el.style.width = '100%';
   el.style.height = '100%';
-  // 歌词偏下显示，给顶部封面/歌曲信息留出空间
-  lyricPlayer.setAlignPosition(0.62);
+  // 歌词居中显示
+  lyricPlayer.setAlignPosition(0.5);
   lyricContainer.appendChild(el);
 
   // 歌词点击事件 → 通知 Swift
