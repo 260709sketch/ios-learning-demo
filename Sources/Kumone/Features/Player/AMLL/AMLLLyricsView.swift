@@ -166,26 +166,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         """
         callJSRaw(js)
 
-        // 字体样式
-        callJS("setFontStyle", args: [fontSize, max(Int(Double(fontSize) * 0.7), 12), fontWeight, 16])
-
-        // 字体族（系统默认/黑体/SF粗体/自定义）
-        if !fontFamily.isEmpty {
-            let fontJS = """
-            (function() {
-                var el = document.getElementById('lyrics');
-                if (el) {
-                    el.style.fontFamily = '\(fontFamily)';
-                    var all = el.querySelectorAll('*');
-                    for (var i = 0; i < all.length; i++) {
-                        all[i].style.fontFamily = '\(fontFamily)';
-                    }
-                }
-            })();
-            true;
-            """
-            callJSRaw(fontJS)
-        }
+        // 字体样式（含字体族）
+        callJS("setFontStyle", args: [fontSize, max(Int(Double(fontSize) * 0.7), 12), fontWeight, 16, fontFamily])
 
         // 关键修复：从隐藏切换到显示时（大封面/播放列表切回歌词），
         // 立即 + 延迟多次强制同步当前播放时间，确保 AMLL 恢复渲染后能跳到当前行

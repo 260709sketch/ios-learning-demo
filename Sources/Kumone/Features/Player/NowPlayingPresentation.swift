@@ -153,6 +153,7 @@ struct IOSNowPlayingPresentation<Content: View>: View {
                         \.dismissNowPlayingDragAction,
                         dismissDragAction(usesCustomDrag: usesCustomDrag)
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if isInteractive {
                     dragIndicator
@@ -160,6 +161,10 @@ struct IOSNowPlayingPresentation<Content: View>: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .offset(y: usesCustomDrag ? dragOffset : 0)
+            .onAppear {
+                // 强制重置拖动偏移，避免复用时残留旧位置导致播放器只展开一半
+                dragOffset = 0
+            }
         }
     }
 

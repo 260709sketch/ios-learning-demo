@@ -1,5 +1,48 @@
 import SwiftUI
 
+/// 简单的流式布局，用于历史搜索标签
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 0
+        var height: CGFloat = 0
+        var x: CGFloat = 0
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > width && x > 0 {
+                height += rowHeight + spacing
+                x = 0
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        height += rowHeight
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                y += rowHeight + spacing
+                x = bounds.minX
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
 @MainActor
 final class SearchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
@@ -69,6 +112,7 @@ struct SearchView: View {
     @StateObject private var model: SearchViewModel
     @State private var searchText: String = ""
     @EnvironmentObject private var player: PlayerService
+    @EnvironmentObject private var settings: SettingsManager
 
     init(query: String) {
         _model = StateObject(wrappedValue: SearchViewModel(query: query))
@@ -108,6 +152,9 @@ struct SearchView: View {
         .searchable(text: $searchText, prompt: "搜索歌曲、歌手、专辑、歌单")
         .onSubmit(of: .search) {
             model.setQuery(searchText)
+            if settings.enableSearchHistory {
+                settings.addSearchHistory(searchText)
+            }
             Task { await model.load(tab: model.tab) }
         }
         .onChange(of: searchText) { newValue in
@@ -128,16 +175,58 @@ struct SearchView: View {
 
     private var emptySearchPrompt: some View {
         VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(.tertiary)
-                .padding(.top, 60)
-            Text("探索海量华语流行与经典音乐")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Text("输入歌曲名称、歌手名或歌单关键字开始搜索")
-                .font(.subheadline)
-                .foregroundStyle(.tertiary)
+            if settings.enableSearchHistory && !settings.searchHistory.isEmpty {
+                // 历史搜索
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("历史搜索")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Button(role: .destructive) {
+                            settings.clearSearchHistory()
+                        } label: {
+                            Text("清除")
+                                .font(.subheadline)
+                        }
+                    }
+                    .padding(.horizontal, Theme.Layout.contentInset)
+                    .padding(.top, 20)
+
+                    FlowLayout(spacing: 8) {
+                        ForEach(settings.searchHistory, id: \.self) { keyword in
+                            Button {
+                                searchText = keyword
+                                model.setQuery(keyword)
+                                if settings.enableSearchHistory {
+                                    settings.addSearchHistory(keyword)
+                                }
+                                Task { await model.load(tab: model.tab) }
+                            } label: {
+                                Text(keyword)
+                                    .font(.subheadline)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Color.secondary.opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, Theme.Layout.contentInset)
+                }
+            } else {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 48, weight: .light))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 60)
+                Text("探索海量华语流行与经典音乐")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Text("输入歌曲名称、歌手名或歌单关键字开始搜索")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 32)

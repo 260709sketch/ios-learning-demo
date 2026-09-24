@@ -156,16 +156,21 @@ struct PlayCountBadge: View {
 }
 
 struct VIPBadge: View {
+    @ObservedObject private var lxStore = LXSourceStore.shared
+
     var body: some View {
-        Text("VIP")
-            .font(.system(size: 8.5, weight: .bold))
-            .foregroundStyle(Theme.accent)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 1)
-            .overlay(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .stroke(Theme.accent.opacity(0.8), lineWidth: 1)
-            )
+        // 有 LX 自定义音源激活时，所有歌曲都能通过音源播放，不显示 VIP 标识
+        if lxStore.activeSourceID == nil {
+            Text("VIP")
+                .font(.system(size: 8.5, weight: .bold))
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .stroke(Theme.accent.opacity(0.8), lineWidth: 1)
+                )
+        }
     }
 }
 

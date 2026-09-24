@@ -61,7 +61,7 @@ struct RecentsView: View {
 
     private var recordList: some View {
         LazyVStack(spacing: 1) {
-            ForEach(Array(records.enumerated()), id: \.element.song.id) { index, record in
+            ForEach(Array(records.prefix(100).enumerated()), id: \.element.song.id) { index, record in
                 TrackRow(
                     track: record.song,
                     index: index + 1,
