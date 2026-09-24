@@ -117,12 +117,15 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
+        #if os(iOS)
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
-        #if os(iOS)
         webView.scrollView.contentInsetAdjustmentBehavior = .never
+        #elseif os(macOS)
+        // macOS WKWebView: disable drawing the default white background
+        webView.setValue(false, forKey: "drawsBackground")
         #endif
         self.webView = webView
 
