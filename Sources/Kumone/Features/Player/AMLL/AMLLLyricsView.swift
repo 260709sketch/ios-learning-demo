@@ -103,6 +103,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
     private var cancellables: Set<AnyCancellable> = []
     private var timeSyncTimer: Timer?
+    private var seekDetectionTimer: Timer?
     private var lastAlbumTrackId: Int?
 
     // 当前 AMLL 歌词数据（用于 line-click 时查准确时间）
@@ -309,19 +310,6 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 self?.updateAlbumArt()
             }
             .store(in: &cancellables)
-
-        // 播放进度变化（拖动进度条/seek）→ 超过2秒时立即同步 AMLL，修复拖动后歌词不滚动
-        player.$progress
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] newProgress in
-                guard let self else { return }
-                let delta = abs(newProgress - self.lastSyncedProgress)
-                if delta > 2.0 {
-                    self.callJS("setTime", args: [newProgress, true])
-                    self.lastSyncedProgress = newProgress
-                }
-            }
-            .store(in: &cancellables)
     }
 
     private func updateLyrics(_ lyrics: ParsedLyrics) {
@@ -357,6 +345,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
     private func startTimeSync() {
         timeSyncTimer?.invalidate()
+        seekDetectionTimer?.invalidate()
+
+        // 播放时每0.5秒平滑同步时间
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self, self.player.isPlaying else { return }
             let time = self.player.livePlaybackTime
@@ -365,6 +356,20 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         }
         RunLoop.main.add(timer, forMode: .common)
         timeSyncTimer = timer
+
+        // 每0.2秒检测进度突变（拖动进度条/seek），超过2秒立即用 isSeek=true 同步
+        // 不依赖 isPlaying，暂停状态拖动也能检测到
+        let seekTimer = Timer(timeInterval: 0.2, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let currentTime = self.player.livePlaybackTime
+            let delta = abs(currentTime - self.lastSyncedProgress)
+            if delta > 2.0 {
+                self.callJS("setTime", args: [currentTime, true])
+                self.lastSyncedProgress = currentTime
+            }
+        }
+        RunLoop.main.add(seekTimer, forMode: .common)
+        seekDetectionTimer = seekTimer
     }
 
     // MARK: - JS 调用封装
@@ -433,6 +438,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
     func cleanup() {
         timeSyncTimer?.invalidate()
         timeSyncTimer = nil
+        seekDetectionTimer?.invalidate()
+        seekDetectionTimer = nil
         cancellables.removeAll()
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "amllEvent")
         webView?.stopLoading()
