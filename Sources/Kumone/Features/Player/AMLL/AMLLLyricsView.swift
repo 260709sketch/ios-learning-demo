@@ -169,6 +169,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
         webView.scrollView.contentInsetAdjustmentBehavior = .never
+        // 禁用 WebView 滚动手势，防止拦截原生进度条拖动
+        webView.scrollView.panGestureRecognizer.isEnabled = false
         #elseif os(macOS)
         webView.setValue(false, forKey: "drawsBackground")
         #endif

@@ -34,13 +34,13 @@ struct LXSourceManageView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
-                Text("播放网易云歌曲遇到 VIP / 无版权时，自动使用已启用音源获取播放地址并自动换源。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             // MARK: 导入
             Section("导入音源") {
+                Text("仅支持导入 LX 音源格式（.js 脚本）")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 HStack {
                     TextField("粘贴音源链接（raw .js / GitHub 链接）", text: $urlInput)
                         .autocorrectionDisabled()
@@ -229,7 +229,7 @@ private struct SourceRow: View {
                 testBadge
             }
             HStack(spacing: 12) {
-                Button(isActive ? "停用" : "启用", action: onToggle)
+                Button(isActive ? "取消优先" : "设为优先", action: onToggle)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 Button {

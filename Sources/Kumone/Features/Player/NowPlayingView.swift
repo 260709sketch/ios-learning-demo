@@ -280,12 +280,12 @@ struct NowPlayingView: View {
         let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
 
         return ZStack {
-            // 底层：AMLL WebView（流动背景 + 逐字歌词，大封面状态隐藏歌词）
+            // 底层：AMLL WebView（流动背景 + 逐字歌词，大封面和队列状态隐藏歌词显示，但后台持续渲染）
             AMLLLyricsView(
                 onSeek: { time in
                     player.seek(to: time)
                 },
-                showLyrics: !showsExpandedArtwork
+                showLyrics: showLyricsOnMobile && !showQueueOnMobile
             )
             .ignoresSafeArea()
 
@@ -338,6 +338,8 @@ struct NowPlayingView: View {
 
                 immersiveControls
                     .padding(.bottom, CGFloat(settings.playerControlsBottomOffset))
+                    .zIndex(1)
+                    .contentShape(Rectangle())
             }
             .frame(width: max(size.width - 64, 0))
             .padding(.horizontal, 32)

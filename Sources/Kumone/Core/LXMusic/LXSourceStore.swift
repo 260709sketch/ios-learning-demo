@@ -108,7 +108,7 @@ final class LXSourceStore: ObservableObject {
 
     // MARK: 导入
 
-    /// 从脚本文本导入音源。
+    /// 从脚本文本导入音源。导入后如果当前没有激活的音源，自动激活。
     @discardableResult
     func importScript(_ script: String) async throws -> LXSourceInfo {
         let meta = parseMeta(script)
@@ -125,6 +125,12 @@ final class LXSourceStore: ObservableObject {
         try script.write(to: scriptURL(info.id), atomically: true, encoding: .utf8)
         sources.append(info)
         persistList()
+
+        // 如果当前没有激活的音源，自动激活新导入的音源
+        if activeSourceID == nil {
+            await activate(info)
+        }
+
         return info
     }
 

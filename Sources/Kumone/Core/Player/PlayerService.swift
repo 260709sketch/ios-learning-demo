@@ -659,6 +659,10 @@ final class PlayerService: ObservableObject {
         // 音质由设置中的音质选项控制，跳过网易云官方解析和内置音源
         if hasLXSource {
             if await resolveFromLXSource(track, generation: generation) { return }
+            // LX 音源失败，提示用户并自动 fallback
+            await MainActor.run {
+                ToastCenter.shared.show("音源解析失败，正在尝试其他方式...")
+            }
         }
 
         var data = try? await NeteaseAPI.songURL(ids: [track.id], level: quality).first
