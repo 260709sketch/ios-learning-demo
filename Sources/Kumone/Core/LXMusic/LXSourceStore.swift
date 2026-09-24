@@ -38,7 +38,10 @@ final class LXSourceStore: ObservableObject {
     private let engine = LXMusicEngine.shared
     private let activeSourceKey = "lxmusic.activeSourceID"
 
-    private init() {}
+    private init() {
+        // 应用启动时立即恢复音源列表和激活状态
+        loadPersistedList()
+    }
 
     private func persistActiveSourceID() {
         UserDefaults.standard.set(activeSourceID, forKey: activeSourceKey)

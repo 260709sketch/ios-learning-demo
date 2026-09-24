@@ -277,12 +277,8 @@ struct NowPlayingView: View {
         ZStack(alignment: .bottom) {
             // 底层：AMLL WebView（流动背景 + 逐字歌词）
             AMLLLyricsView(
-                flowSpeed: 8,
-                renderScale: 0.5,
-                onLineClick: { index in
-                    guard let lyrics = player.lyrics,
-                          index >= 0, index < lyrics.lines.count else { return }
-                    player.seek(to: lyrics.lines[index].time)
+                onSeek: { time in
+                    player.seek(to: time)
                 }
             )
             .ignoresSafeArea()

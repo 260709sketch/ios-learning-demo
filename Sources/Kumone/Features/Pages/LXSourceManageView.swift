@@ -106,10 +106,11 @@ struct LXSourceManageView: View {
         .fileImporter(
             isPresented: $showFileImporter,
             allowedContentTypes: [
-                UTType(filenameExtension: "js") ?? .sourceCode,
                 .sourceCode,
                 .plainText,
-                .json
+                .json,
+                .data,
+                .item
             ],
             allowsMultipleSelection: false
         ) { result in
@@ -153,8 +154,14 @@ struct LXSourceManageView: View {
                 importError = "未选择文件"
                 return
             }
-            let accessing = url.startAccessingSecurityScopedResource()
-            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+            // 只允许 .js 文件
+            guard url.pathExtension.lowercased() == "js" else {
+                importError = "请选择 .js 格式的音源脚本文件"
+                return
+            }
+            // 启动 security-scoped 访问（不检查返回值，非 scoped URL 也可直接读）
+            url.startAccessingSecurityScopedResource()
+            defer { url.stopAccessingSecurityScopedResource() }
             do {
                 let script = try String(contentsOf: url, encoding: .utf8)
                 guard !script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

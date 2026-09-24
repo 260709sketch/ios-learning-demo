@@ -7,21 +7,20 @@ import AppKit
 
 // MARK: - Kumone → AMLL 歌词数据转换
 
-/// 将 Kumone 的 `ParsedLyrics` 转换为 AMLL `LyricLine[]` 格式。
+/// 将 Kumone 的 `ParsedLyrics` 转换为参考项目 well-music 的 `LyricLineData` 格式。
 ///
-/// AMLL 数据格式（时间单位均为毫秒）：
+/// 参考项目格式（时间单位均为**秒**，AMLL HTML 内部 Hu() 函数自动转毫秒）：
 /// ```
 /// {
-///   "startTime": 0,
-///   "endTime": 5000,
+///   "time": 0.0,
+///   "end": 5.0,
+///   "lrc": "你好",
+///   "index": 0,
 ///   "words": [
-///     { "word": "你", "startTime": 0, "endTime": 300 },
-///     { "word": "好", "startTime": 300, "endTime": 800 }
+///     { "text": "你", "start": 0.0, "end": 0.3 },
+///     { "text": "好", "start": 0.3, "end": 0.8 }
 ///   ],
-///   "translatedLyric": "Hello",
-///   "romanLyric": "ni hao",
-///   "isBG": false,
-///   "isDuet": false
+///   "translatedLyric": "Hello"
 /// }
 /// ```
 enum AMLLDataConverter {
@@ -46,14 +45,15 @@ enum AMLLDataConverter {
             let words = convertWords(line: line, lineEnd: lineEnd)
 
             var dict: [String: Any] = [
-                "startTime": Int(line.time * 1000),
-                "endTime": Int(lineEnd * 1000),
+                "time": line.time,
+                "end": lineEnd,
+                "lrc": line.text,
+                "index": index,
                 "words": words,
-                "translatedLyric": line.translation ?? "",
-                "romanLyric": line.romaji ?? "",
-                "isBG": false,
-                "isDuet": false,
             ]
+            if let translation = line.translation, !translation.isEmpty {
+                dict["translatedLyric"] = translation
+            }
             result.append(dict)
         }
         return result
@@ -64,18 +64,18 @@ enum AMLLDataConverter {
         if let words = line.words, !words.isEmpty {
             return words.map { word in
                 [
-                    "word": word.text,
-                    "startTime": Int(word.start * 1000),
-                    "endTime": Int(word.end * 1000),
+                    "text": word.text,
+                    "start": word.start,
+                    "end": word.end,
                 ]
             }
         }
         // 无逐字数据：整行作为一个 word
         return [
             [
-                "word": line.text,
-                "startTime": Int(line.time * 1000),
-                "endTime": Int(lineEnd * 1000),
+                "text": line.text,
+                "start": line.time,
+                "end": lineEnd,
             ]
         ]
     }
