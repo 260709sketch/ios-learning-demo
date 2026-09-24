@@ -69,7 +69,7 @@ struct LXSourceManageView: View {
             }
 
             // MARK: 音源列表
-            Section("已导入音源（\(store.sources.count)）") {
+            Section {
                 if store.sources.isEmpty {
                     Text("还没有导入任何音源").foregroundStyle(.secondary)
                 }
@@ -104,6 +104,10 @@ struct LXSourceManageView: View {
                     }
                 }
                 .onDelete { store.remove(at: $0) }
+            } header: {
+                Text("已导入音源（\(store.sources.count)）")
+            } footer: {
+                Text("左滑音源可删除；导入后自动设为优先音源，播放失败自动换源")
             }
         }
         .navigationTitle("自定义音源")

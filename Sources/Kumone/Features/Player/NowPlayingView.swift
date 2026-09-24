@@ -359,9 +359,16 @@ struct NowPlayingView: View {
                         .frame(width: targetFrame.width, height: targetFrame.height)
                         .position(x: targetCenterX, y: targetFrame.midY)
                         .accessibilityIdentifier("immersiveArtwork")
+                        .onTapGesture {
+                            if showsExpandedArtwork {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    showLyricsOnMobile = true
+                                }
+                            }
+                        }
                 }
             }
-            .allowsHitTesting(false)
+            .allowsHitTesting(showsExpandedArtwork)
         }
     }
     #endif
