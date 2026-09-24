@@ -39,6 +39,36 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
+      - name: Build Unsigned Device IPA
+        run: |
+          cd ios
+          xcodebuild \
+            -project KumoneIOS.xcodeproj \
+            -scheme KumoneIOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build-device \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS=""
+          # 打包成 IPA（Payload/xxx.app）
+          APP_PATH=$(find build-device -name "KumoneIOS.app" -type d | head -1)
+          echo "App found at: $APP_PATH"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r KumoneIOS-unsigned.ipa Payload
+          ls -lh KumoneIOS-unsigned.ipa
+
+      - name: Upload Unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: KumoneIOS-unsigned.ipa
+          path: ios/KumoneIOS-unsigned.ipa
+          if-no-files-found: error
+
   # ─── iOS 真机 IPA 构建（需要配置证书 Secrets，手动触发）───
   # 需要在 GitHub Secrets 中配置：
   #   P12_CERTIFICATE_BASE64  - p12 证书文件的 base64 编码
