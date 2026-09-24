@@ -22,28 +22,15 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i ios
 
-      - name: Build for iOS
+      - name: Build KumoneCore for iOS
         run: |
-          cd ios
-          xcodebuild \
-            -project KumoneIOS.xcodeproj \
-            -scheme KumoneIOS \
-            -sdk iphoneos \
-            -configuration Debug \
-            -derivedDataPath build \
-            build \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            ONLY_ACTIVE_ARCH=NO
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build-log
-          path: ios/build/Logs/Build/*.xcactivitylog
-          if-no-files-found: ignore
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          echo "Using SDK: $SDK_PATH"
+          swift build \
+            --configuration debug \
+            --sdk "$SDK_PATH" \
+            --arch arm64 \
+            --target KumoneCore
 
   # ─── iOS 真机 IPA 构建（需要配置证书 Secrets，手动触发）───
   # 使用前请在 GitHub Secrets 中配置：
