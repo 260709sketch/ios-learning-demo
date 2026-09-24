@@ -22,15 +22,21 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i ios
 
-      - name: Build KumoneCore for iOS (cross-compile via destination)
+      - name: Build KumoneIOS for iOS
         run: |
-          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          printf '{"version":1,"target":"arm64-apple-ios","sdk":"%s"}\n' "$SDK_PATH" > destination.json
-          cat destination.json
-          swift build \
-            --configuration debug \
-            --destination destination.json \
-            --target KumoneCore
+          cd ios
+          xcodebuild \
+            -project KumoneIOS.xcodeproj \
+            -scheme KumoneIOS \
+            -destination 'generic/platform=iOS' \
+            -configuration Debug \
+            -derivedDataPath build \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            SUPPORTED_PLATFORMS="iphoneos" \
+            ONLY_ACTIVE_ARCH=NO
 
   # ─── iOS 真机 IPA 构建（需要配置证书 Secrets，手动触发）───
   # 使用前请在 GitHub Secrets 中配置：
