@@ -29,7 +29,6 @@ jobs:
             -target KumoneIOS \
             -sdk iphonesimulator \
             -configuration Debug \
-            -derivedDataPath build \
             build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
