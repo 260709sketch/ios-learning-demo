@@ -31,6 +31,7 @@ struct TrackRow: View {
 
     @EnvironmentObject private var player: PlayerService
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var settings: SettingsManager
     @Environment(\.openDestination) private var openDestination
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ScaledMetric(relativeTo: .body) private var compactArtworkSize: CGFloat = 48
@@ -82,7 +83,7 @@ struct TrackRow: View {
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
                     }
-                    if track.fee == 1 {
+                    if track.fee == 1, settings.showVIPBadge {
                         VIPBadge()
                     }
                 }

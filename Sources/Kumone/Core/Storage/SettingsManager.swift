@@ -104,6 +104,7 @@ final class SettingsManager: ObservableObject {
         static let amllLyricBottom = "settings.amllLyricBottom"
         static let amllFontSize = "settings.amllFontSize"
         static let amllFontWeight = "settings.amllFontWeight"
+        static let showVIPBadge = "settings.showVIPBadge"
         static let volume = "settings.volume"
         static let fmMode = "settings.fmMode"
         static let unblock = "settings.enableUnblock"
@@ -207,6 +208,11 @@ final class SettingsManager: ObservableObject {
         didSet { UserDefaults.standard.set(amllFontWeight, forKey: Keys.amllFontWeight) }
     }
 
+    /// 搜索/列表中显示 VIP 歌曲标识（默认关闭，隐藏 VIP 标识）
+    @Published var showVIPBadge: Bool {
+        didSet { UserDefaults.standard.set(showVIPBadge, forKey: Keys.showVIPBadge) }
+    }
+
     /// Resolve gray tracks from third-party sources (UnblockNeteaseMusic-style).
     @Published var enableUnblock: Bool {
         didSet { UserDefaults.standard.set(enableUnblock, forKey: Keys.unblock) }
@@ -279,6 +285,7 @@ final class SettingsManager: ObservableObject {
         amllLyricBottom = defaults.object(forKey: Keys.amllLyricBottom) as? Int ?? 230
         amllFontSize = defaults.object(forKey: Keys.amllFontSize) as? Int ?? 22
         amllFontWeight = defaults.object(forKey: Keys.amllFontWeight) as? Int ?? 700
+        showVIPBadge = defaults.object(forKey: Keys.showVIPBadge) as? Bool ?? false
         enableUnblock = defaults.object(forKey: Keys.unblock) as? Bool ?? true
         if let rawSourceIDs = defaults.stringArray(forKey: Keys.unblockSources) {
             enabledAudioSourceIDs = Set(rawSourceIDs.compactMap(AudioSourceID.init))

@@ -57,6 +57,7 @@ struct SettingsView: View {
                 }
                 #endif
                 Toggle("显示歌词翻译", isOn: $settings.showLyricsTranslation)
+                Toggle("显示 VIP 歌曲标识", isOn: $settings.showVIPBadge)
                 Toggle("逐字歌词（卡拉OK）", isOn: $settings.verbatimLyrics)
                 Toggle("AMLL 沉浸式歌词（流动背景+扫光）", isOn: $settings.useAMLLImmersive)
                 if settings.useAMLLImmersive {
