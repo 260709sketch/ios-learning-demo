@@ -216,7 +216,7 @@ final class LXSourceStore: ObservableObject {
         }
         let comment = String(script[commentRange])
         var meta = Meta()
-        let pattern = /^\s?\*\s?@(\w+)\s+(.+)$/
+        guard let pattern = try? Regex(#"^\s?\*\s?@(\w+)\s+(.+)$"#) else { return meta }
         for line in comment.components(separatedBy: .newlines) {
             guard let match = try? pattern.wholeMatch(in: line) else { continue }
             let key = String(match.output.1)
