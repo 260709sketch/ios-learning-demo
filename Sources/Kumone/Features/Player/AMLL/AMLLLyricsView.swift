@@ -37,6 +37,8 @@ struct AMLLLyricsView: View {
             onSeek: onSeek
         )
         .ignoresSafeArea()
+        // 歌词隐藏时（大封面/队列状态）禁用 WebView 交互，避免拦截顶部歌手名点击
+        .allowsHitTesting(showLyrics)
     }
 }
 

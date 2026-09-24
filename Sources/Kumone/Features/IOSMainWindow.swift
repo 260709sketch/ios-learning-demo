@@ -25,6 +25,8 @@ public struct IOSMainWindow: View {
     @State private var searchPath: [Destination] = []
     @State private var libraryPath: [Destination] = []
     @State private var iPadPath: [Destination] = []
+    /// 播放器内部导航路径（点击歌手/专辑在播放器内打开，不退出播放器）
+    @State private var playerNavPath: [Destination] = []
 
     /// 可见的底部栏 tab（"我的"强制显示，不可隐藏）
     private var visibleTabs: [IOSTab] {
@@ -182,10 +184,16 @@ public struct IOSMainWindow: View {
             usesSystemInteractiveDismissal: usesSystemInteractiveDismissal,
             dismissAnimation: dismissAnimation
         ) {
-            NowPlayingView(onOpenDestination: openDestination)
-                .environmentObject(player)
-                .environmentObject(account)
-                .environmentObject(settings)
+            // 播放器内部导航栈：点击歌手/专辑在播放器内打开，不退出播放器
+            NavigationStack(path: $playerNavPath) {
+                NowPlayingView(onOpenDestination: openDestinationInPlayer)
+                    .environmentObject(player)
+                    .environmentObject(account)
+                    .environmentObject(settings)
+                    .appDestinations()
+            }
+            // 播放器关闭时清空内部导航路径
+            .onDisappear { playerNavPath.removeAll() }
         }
     }
 
@@ -325,6 +333,11 @@ public struct IOSMainWindow: View {
         var destinations = path.wrappedValue
         destinations.appendIfNotCurrent(destination)
         path.wrappedValue = destinations
+    }
+
+    /// 播放器内部导航：不退出播放器，直接在播放器内的 NavigationStack 中 push
+    private func openDestinationInPlayer(_ destination: Destination) {
+        playerNavPath.appendIfNotCurrent(destination)
     }
 
     @ViewBuilder
