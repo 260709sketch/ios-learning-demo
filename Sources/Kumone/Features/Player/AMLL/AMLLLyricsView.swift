@@ -30,6 +30,7 @@ struct AMLLLyricsView: View {
             player: player,
             lyricTop: settings.amllLyricTop,
             lyricBottom: settings.amllLyricBottom,
+            lyricHorizontal: settings.amllLyricHorizontal,
             fontSize: settings.amllFontSize,
             fontWeight: settings.amllFontWeight,
             showLyrics: showLyrics,
@@ -45,6 +46,7 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     let player: PlayerService
     let lyricTop: Int
     let lyricBottom: Int
+    let lyricHorizontal: Int
     let fontSize: Int
     let fontWeight: Int
     let showLyrics: Bool
@@ -60,7 +62,7 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     }
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.applyLayout(
-            top: lyricTop, bottom: lyricBottom,
+            top: lyricTop, bottom: lyricBottom, horizontal: lyricHorizontal,
             fontSize: fontSize, fontWeight: fontWeight,
             showLyrics: showLyrics
         )
@@ -71,7 +73,7 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     }
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.applyLayout(
-            top: lyricTop, bottom: lyricBottom,
+            top: lyricTop, bottom: lyricBottom, horizontal: lyricHorizontal,
             fontSize: fontSize, fontWeight: fontWeight,
             showLyrics: showLyrics
         )
@@ -114,6 +116,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
     // 最后一次布局参数
     private var layoutTop = 170
     private var layoutBottom = 230
+    private var layoutHorizontal = 0
     private var layoutFontSize = 22
     private var layoutFontWeight = 700
     private var layoutShowLyrics = true
@@ -125,11 +128,12 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
     }
 
     /// 应用歌词布局（位置、字号、字重、显示/隐藏）
-    func applyLayout(top: Int, bottom: Int, fontSize: Int, fontWeight: Int, showLyrics: Bool) {
+    func applyLayout(top: Int, bottom: Int, horizontal: Int, fontSize: Int, fontWeight: Int, showLyrics: Bool) {
         // 记录切换前的状态，用于检测"从隐藏切到显示"
         let wasHidden = !layoutShowLyrics
         layoutTop = top
         layoutBottom = bottom
+        layoutHorizontal = horizontal
         layoutFontSize = fontSize
         layoutFontWeight = fontWeight
         layoutShowLyrics = showLyrics
@@ -142,6 +146,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             if (el) {
                 el.style.top = '\(top)px';
                 el.style.bottom = '\(bottom)px';
+                el.style.transform = 'translateX(\(horizontal)px)';
                 el.style.display = '\(displayValue)';
             }
         })();
@@ -152,14 +157,27 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 字体样式
         callJS("setFontStyle", args: [fontSize, max(Int(Double(fontSize) * 0.7), 12), fontWeight, 16])
 
-        // 关键修复：从隐藏切换到显示时，立即强制同步当前播放时间和播放状态
-        // 否则 AMLL 会停在隐藏前的歌词位置（卡在第一句），不会跟随当前播放进度
+        // 关键修复：从隐藏切换到显示时（大封面/播放列表切回歌词），
+        // 立即 + 延迟多次强制同步当前播放时间，确保 AMLL 恢复渲染后能跳到当前行
+        // 否则 AMLL 会停在隐藏前的歌词位置（卡在第一句或完全不更新）
         if wasHidden && showLyrics && isReady {
-            let time = player.livePlaybackTime
-            callJS("setTime", args: [time, true])  // isSeek=true 强制跳转到当前时间
-            lastSyncedProgress = time
-            callJS("setPlaying", args: [player.isPlaying])
+            forceSyncTime()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                self?.forceSyncTime()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.forceSyncTime()
+            }
         }
+    }
+
+    /// 强制同步当前播放时间和播放状态到 AMLL（isSeek=true 立即跳转）
+    private func forceSyncTime() {
+        guard isReady else { return }
+        let time = player.livePlaybackTime
+        callJS("setTime", args: [time, true])
+        lastSyncedProgress = time
+        callJS("setPlaying", args: [player.isPlaying])
     }
 
     // MARK: - 创建 WebView
@@ -276,7 +294,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
         // 应用自定义布局（位置、字号、字重、显示状态）
         applyLayout(
-            top: layoutTop, bottom: layoutBottom,
+            top: layoutTop, bottom: layoutBottom, horizontal: layoutHorizontal,
             fontSize: layoutFontSize, fontWeight: layoutFontWeight,
             showLyrics: layoutShowLyrics
         )

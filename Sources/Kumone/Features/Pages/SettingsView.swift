@@ -94,6 +94,20 @@ struct SettingsView: View {
                         ), in: 100...500, step: 5)
                     }
 
+                    // 歌词左右位置
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("歌词左右位置")
+                            Spacer()
+                            Text(settings.amllLyricHorizontal > 0 ? "+\(settings.amllLyricHorizontal)" : "\(settings.amllLyricHorizontal)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.amllLyricHorizontal) },
+                            set: { settings.amllLyricHorizontal = Int($0) }
+                        ), in: -200...200, step: 5)
+                    }
+
                     // 歌词字号
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -267,6 +281,14 @@ struct SettingsView: View {
                 #endif
             }
 
+            Section("底部栏") {
+                NavigationLink {
+                    BottomBarSettingsView()
+                } label: {
+                    Label("底部栏页面显示", systemImage: "rectangle.bottomthird.inset.filled")
+                }
+            }
+
             Section("存储") {
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle(
@@ -423,5 +445,39 @@ struct SettingsView: View {
         } catch {
             cacheError = error.localizedDescription
         }
+    }
+}
+
+// MARK: - 底部栏设置
+
+/// 底部栏页面显示设置：可隐藏推荐/精选/漫游/搜索，"我的"强制显示不可隐藏。
+struct BottomBarSettingsView: View {
+    @EnvironmentObject private var settings: SettingsManager
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("推荐", isOn: Binding(
+                    get: { !settings.hideHomeTab },
+                    set: { settings.hideHomeTab = !$0 }
+                ))
+                Toggle("精选", isOn: Binding(
+                    get: { !settings.hideExploreTab },
+                    set: { settings.hideExploreTab = !$0 }
+                ))
+                Toggle("漫游", isOn: Binding(
+                    get: { !settings.hideFmTab },
+                    set: { settings.hideFmTab = !$0 }
+                ))
+                Toggle("搜索", isOn: Binding(
+                    get: { !settings.hideSearchTab },
+                    set: { settings.hideSearchTab = !$0 }
+                ))
+            } footer: {
+                Text("关闭后该页面将从底部栏隐藏。「我的」为固定入口，不可隐藏。若当前所在页面被隐藏，将自动切换到第一个可见页面。")
+            }
+        }
+        .navigationTitle("底部栏页面显示")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

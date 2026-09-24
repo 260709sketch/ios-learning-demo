@@ -102,9 +102,15 @@ final class SettingsManager: ObservableObject {
         static let useAMLLImmersive = "settings.useAMLLImmersive"
         static let amllLyricTop = "settings.amllLyricTop"
         static let amllLyricBottom = "settings.amllLyricBottom"
+        static let amllLyricHorizontal = "settings.amllLyricHorizontal"
         static let amllFontSize = "settings.amllFontSize"
         static let amllFontWeight = "settings.amllFontWeight"
         static let showVIPBadge = "settings.showVIPBadge"
+        // 底部栏隐藏设置（"我的"强制显示，不可隐藏）
+        static let hideHomeTab = "settings.hideHomeTab"
+        static let hideExploreTab = "settings.hideExploreTab"
+        static let hideFmTab = "settings.hideFmTab"
+        static let hideSearchTab = "settings.hideSearchTab"
         // 播放器组件位置调整
         static let playerArtworkTopOffset = "settings.playerArtworkTopOffset"
         static let playerArtworkScale = "settings.playerArtworkScale"
@@ -209,6 +215,10 @@ final class SettingsManager: ObservableObject {
     @Published var amllLyricBottom: Int {
         didSet { UserDefaults.standard.set(amllLyricBottom, forKey: Keys.amllLyricBottom) }
     }
+    /// AMLL 歌词水平偏移（-200 ~ 200，正数右移，负数左移）
+    @Published var amllLyricHorizontal: Int {
+        didSet { UserDefaults.standard.set(amllLyricHorizontal, forKey: Keys.amllLyricHorizontal) }
+    }
     @Published var amllFontSize: Int {
         didSet { UserDefaults.standard.set(amllFontSize, forKey: Keys.amllFontSize) }
     }
@@ -219,6 +229,20 @@ final class SettingsManager: ObservableObject {
     /// 搜索/列表中显示 VIP 歌曲标识（默认关闭，隐藏 VIP 标识）
     @Published var showVIPBadge: Bool {
         didSet { UserDefaults.standard.set(showVIPBadge, forKey: Keys.showVIPBadge) }
+    }
+
+    // MARK: 底部栏隐藏设置（"我的"强制显示，不可隐藏）
+    @Published var hideHomeTab: Bool {
+        didSet { UserDefaults.standard.set(hideHomeTab, forKey: Keys.hideHomeTab) }
+    }
+    @Published var hideExploreTab: Bool {
+        didSet { UserDefaults.standard.set(hideExploreTab, forKey: Keys.hideExploreTab) }
+    }
+    @Published var hideFmTab: Bool {
+        didSet { UserDefaults.standard.set(hideFmTab, forKey: Keys.hideFmTab) }
+    }
+    @Published var hideSearchTab: Bool {
+        didSet { UserDefaults.standard.set(hideSearchTab, forKey: Keys.hideSearchTab) }
     }
 
     // MARK: 播放器组件位置调整
@@ -321,9 +345,14 @@ final class SettingsManager: ObservableObject {
         useAMLLImmersive = defaults.object(forKey: Keys.useAMLLImmersive) as? Bool ?? false
         amllLyricTop = defaults.object(forKey: Keys.amllLyricTop) as? Int ?? 170
         amllLyricBottom = defaults.object(forKey: Keys.amllLyricBottom) as? Int ?? 230
+        amllLyricHorizontal = defaults.object(forKey: Keys.amllLyricHorizontal) as? Int ?? 0
         amllFontSize = defaults.object(forKey: Keys.amllFontSize) as? Int ?? 22
         amllFontWeight = defaults.object(forKey: Keys.amllFontWeight) as? Int ?? 700
         showVIPBadge = defaults.object(forKey: Keys.showVIPBadge) as? Bool ?? false
+        hideHomeTab = defaults.object(forKey: Keys.hideHomeTab) as? Bool ?? false
+        hideExploreTab = defaults.object(forKey: Keys.hideExploreTab) as? Bool ?? false
+        hideFmTab = defaults.object(forKey: Keys.hideFmTab) as? Bool ?? false
+        hideSearchTab = defaults.object(forKey: Keys.hideSearchTab) as? Bool ?? false
         playerArtworkTopOffset = defaults.object(forKey: Keys.playerArtworkTopOffset) as? Int ?? 0
         playerArtworkScale = defaults.object(forKey: Keys.playerArtworkScale) as? Double ?? 1.0
         playerTrackInfoSpacing = defaults.object(forKey: Keys.playerTrackInfoSpacing) as? Int ?? 20

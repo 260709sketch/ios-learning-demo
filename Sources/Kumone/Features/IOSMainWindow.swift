@@ -26,6 +26,24 @@ public struct IOSMainWindow: View {
     @State private var libraryPath: [Destination] = []
     @State private var iPadPath: [Destination] = []
 
+    /// 可见的底部栏 tab（"我的"强制显示，不可隐藏）
+    private var visibleTabs: [IOSTab] {
+        var tabs: [IOSTab] = []
+        if !settings.hideHomeTab { tabs.append(.home) }
+        if !settings.hideExploreTab { tabs.append(.explore) }
+        if !settings.hideFmTab { tabs.append(.fm) }
+        if !settings.hideSearchTab { tabs.append(.search) }
+        tabs.append(.library) // "我的"强制显示
+        return tabs
+    }
+
+    /// 如果当前选中的 tab 被隐藏，自动切换到第一个可见的 tab
+    private func ensureSelectedTabVisible() {
+        if !visibleTabs.contains(selectedTab), let first = visibleTabs.first {
+            selectedTab = first
+        }
+    }
+
     public init() {}
 
     public var body: some View {
@@ -205,37 +223,50 @@ public struct IOSMainWindow: View {
     @available(iOS 26.0, *)
     private var iOS26TabView: some View {
         TabView(selection: $selectedTab) {
-            Tab("推荐", systemImage: "house", value: .home) {
-                tabStack(.home) { HomeView() }
+            if !settings.hideHomeTab {
+                Tab("推荐", systemImage: "house", value: .home) {
+                    tabStack(.home) { HomeView() }
+                }
             }
 
-            Tab("精选", systemImage: "square.grid.2x2", value: .explore) {
-                tabStack(.explore) { ExploreView() }
+            if !settings.hideExploreTab {
+                Tab("精选", systemImage: "square.grid.2x2", value: .explore) {
+                    tabStack(.explore) { ExploreView() }
+                }
             }
 
-            Tab("漫游", systemImage: "wave.3.right.circle", value: .fm) {
-                tabStack(.fm) { FMView() }
+            if !settings.hideFmTab {
+                Tab("漫游", systemImage: "wave.3.right.circle", value: .fm) {
+                    tabStack(.fm) { FMView() }
+                }
             }
 
+            // "我的"强制显示
             Tab("我的", systemImage: "person.crop.circle", value: .library) {
                 tabStack(.library) { IOSLibraryView(showLogin: $showLogin) }
             }
 
-            Tab(value: .search, role: .search) {
-                tabStack(.search) { SearchView(query: "") }
-            } label: {
-                Label("搜索", systemImage: "magnifyingglass")
+            if !settings.hideSearchTab {
+                Tab(value: .search, role: .search) {
+                    tabStack(.search) { SearchView(query: "") }
+                } label: {
+                    Label("搜索", systemImage: "magnifyingglass")
+                }
             }
         }
+        .onChange(of: settings.hideHomeTab) { _, _ in ensureSelectedTabVisible() }
+        .onChange(of: settings.hideExploreTab) { _, _ in ensureSelectedTabVisible() }
+        .onChange(of: settings.hideFmTab) { _, _ in ensureSelectedTabVisible() }
+        .onChange(of: settings.hideSearchTab) { _, _ in ensureSelectedTabVisible() }
     }
 
     private var customTabInterface: some View {
         ZStack(alignment: .bottom) {
             ZStack {
-                page(.home) { tabStack(.home) { HomeView() } }
-                page(.explore) { tabStack(.explore) { ExploreView() } }
-                page(.fm) { tabStack(.fm) { FMView() } }
-                page(.search) { tabStack(.search) { SearchView(query: "") } }
+                if !settings.hideHomeTab { page(.home) { tabStack(.home) { HomeView() } } }
+                if !settings.hideExploreTab { page(.explore) { tabStack(.explore) { ExploreView() } } }
+                if !settings.hideFmTab { page(.fm) { tabStack(.fm) { FMView() } } }
+                if !settings.hideSearchTab { page(.search) { tabStack(.search) { SearchView(query: "") } } }
                 page(.library) { tabStack(.library) { IOSLibraryView(showLogin: $showLogin) } }
             }
 
@@ -247,13 +278,30 @@ public struct IOSMainWindow: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                GlassTabBar(items: Self.tabItems, selection: $selectedTab) { tab in
+                GlassTabBar(items: visibleTabItems, selection: $selectedTab) { tab in
                     popToRoot(tab)
                 }
             }
             .padding(.bottom, 6)
         }
         .animation(AppAnimation.standard, value: player.hasCurrentTrack)
+        .onChange(of: settings.hideHomeTab) { ensureSelectedTabVisible() }
+        .onChange(of: settings.hideExploreTab) { ensureSelectedTabVisible() }
+        .onChange(of: settings.hideFmTab) { ensureSelectedTabVisible() }
+        .onChange(of: settings.hideSearchTab) { ensureSelectedTabVisible() }
+    }
+
+    /// 根据设置过滤后的可见 tab items（"我的"强制显示）
+    private var visibleTabItems: [GlassTabBar.Item] {
+        Self.tabItems.filter { item in
+            switch item.tab {
+            case .home: return !settings.hideHomeTab
+            case .explore: return !settings.hideExploreTab
+            case .fm: return !settings.hideFmTab
+            case .search: return !settings.hideSearchTab
+            case .library: return true // "我的"强制显示
+            }
+        }
     }
 
     private func popToRoot(_ tab: IOSTab) {
