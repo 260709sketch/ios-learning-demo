@@ -275,7 +275,7 @@ struct NowPlayingView: View {
     /// 歌词状态：小封面+歌曲信息在上，AMLL 大歌词居中，进度条+控制在底部
     #if os(iOS)
     private func amllCompactLayout(size: CGSize) -> some View {
-        let baseDimension = min(size.width - 64, size.height * 0.42, 320)
+        let baseDimension = min(size.width - 112, size.height * 0.3, 250)
         let artworkDimension = baseDimension * CGFloat(settings.playerArtworkScale)
         let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
 
@@ -289,28 +289,27 @@ struct NowPlayingView: View {
             )
             .ignoresSafeArea()
 
-            // 上层：原生元素（保持原布局结构，CompactTrackHeader 一直在顶部提供稳定的 compact anchor）
+            // 上层：原生元素（CompactTrackHeader 一直在顶部，大封面状态也显示小封面+歌曲信息）
             VStack(spacing: 0) {
                 Color.clear.frame(
                     height: NowPlayingPresentationMetrics.immersiveHeaderTopInset
                 )
 
-                // CompactTrackHeader 一直在顶部（大封面状态下隐藏，但保留在布局中提供 compact anchor）
+                // CompactTrackHeader 一直在顶部（提供稳定的 compact anchor，大封面状态也显示）
                 CompactTrackHeader(
                     showsExpandedArtwork: showsExpandedArtwork,
                     onOpenDestination: onOpenDestination,
-                    onTapArtwork: collapseImmersiveArtwork
+                    onTapArtwork: collapseImmersiveArtwork,
+                    leftHorizontalOffset: CGFloat(settings.playerTrackInfoLeftOffset),
+                    rightHorizontalOffset: CGFloat(settings.playerTrackInfoRightOffset)
                 )
                 .padding(.bottom, 14)
-                .opacity(showsExpandedArtwork ? 0 : 1)
-                .allowsHitTesting(!showsExpandedArtwork)
-                .accessibilityHidden(showsExpandedArtwork)
+                .offset(y: CGFloat(settings.playerTrackInfoTopOffset))
 
                 ZStack {
-                    // 大封面状态：大封面 + 歌曲信息（Apple Music 风格）
-                    VStack(spacing: CGFloat(settings.playerTrackInfoSpacing)) {
+                    // 大封面占位（只有封面，歌曲信息在顶部 CompactTrackHeader）
+                    VStack(spacing: 18) {
                         Spacer(minLength: 8)
-                        // 大封面占位（居中，支持顶部偏移，提供 expanded anchor）
                         Color.clear
                             .frame(width: artworkDimension, height: artworkDimension)
                             .anchorPreference(
@@ -318,17 +317,6 @@ struct NowPlayingView: View {
                                 value: .bounds
                             ) { [.expanded: $0] }
                             .padding(.top, CGFloat(settings.playerArtworkTopOffset))
-
-                        // 歌曲信息（CompactTrackHeader 隐藏小封面占位，只显示歌曲名+歌手+按钮）
-                        CompactTrackHeader(
-                            showsExpandedArtwork: showsExpandedArtwork,
-                            onOpenDestination: onOpenDestination,
-                            onTapArtwork: collapseImmersiveArtwork,
-                            hideArtworkPlaceholder: true,
-                            leftHorizontalOffset: CGFloat(settings.playerTrackInfoLeftOffset),
-                            rightHorizontalOffset: CGFloat(settings.playerTrackInfoRightOffset)
-                        )
-                        .offset(y: CGFloat(settings.playerTrackInfoTopOffset))
                         Spacer(minLength: 0)
                     }
                     .opacity(showsExpandedArtwork ? 1 : 0)
@@ -355,7 +343,7 @@ struct NowPlayingView: View {
             .frame(width: max(size.width - 64, 0))
             .padding(.horizontal, 32)
         }
-        // 大封面渲染（和原来的沉浸模式一致，compact anchor 来自顶部隐藏的 CompactTrackHeader）
+        // 大封面渲染（compact anchor 来自顶部 CompactTrackHeader）
         .overlayPreferenceValue(ImmersiveArtworkFramePreferenceKey.self) { frames in
             GeometryReader { proxy in
                 if let compactAnchor = frames[.compact],
