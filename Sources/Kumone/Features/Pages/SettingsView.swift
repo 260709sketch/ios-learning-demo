@@ -197,17 +197,31 @@ struct SettingsView: View {
                         ), in: -100...100, step: 5)
                     }
 
-                    // 歌曲信息左右偏移
+                    // 左侧歌曲信息左右偏移
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text("歌曲信息左右位置")
+                            Text("歌曲名/歌手左右位置")
                             Spacer()
-                            Text(settings.playerTrackInfoHorizontalOffset > 0 ? "+\(settings.playerTrackInfoHorizontalOffset)" : "\(settings.playerTrackInfoHorizontalOffset)")
+                            Text(settings.playerTrackInfoLeftOffset > 0 ? "+\(settings.playerTrackInfoLeftOffset)" : "\(settings.playerTrackInfoLeftOffset)")
                                 .foregroundStyle(.secondary)
                         }
                         Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoHorizontalOffset) },
-                            set: { settings.playerTrackInfoHorizontalOffset = Int($0) }
+                            get: { Double(settings.playerTrackInfoLeftOffset) },
+                            set: { settings.playerTrackInfoLeftOffset = Int($0) }
+                        ), in: -50...50, step: 5)
+                    }
+
+                    // 右侧按钮左右偏移
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("爱心/更多按钮左右位置")
+                            Spacer()
+                            Text(settings.playerTrackInfoRightOffset > 0 ? "+\(settings.playerTrackInfoRightOffset)" : "\(settings.playerTrackInfoRightOffset)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerTrackInfoRightOffset) },
+                            set: { settings.playerTrackInfoRightOffset = Int($0) }
                         ), in: -50...50, step: 5)
                     }
                 }

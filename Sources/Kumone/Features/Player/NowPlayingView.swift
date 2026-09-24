@@ -312,12 +312,11 @@ struct NowPlayingView: View {
                             showsExpandedArtwork: showsExpandedArtwork,
                             onOpenDestination: onOpenDestination,
                             onTapArtwork: collapseImmersiveArtwork,
-                            hideArtworkPlaceholder: true
+                            hideArtworkPlaceholder: true,
+                            leftHorizontalOffset: CGFloat(settings.playerTrackInfoLeftOffset),
+                            rightHorizontalOffset: CGFloat(settings.playerTrackInfoRightOffset)
                         )
-                        .offset(
-                            x: CGFloat(settings.playerTrackInfoHorizontalOffset),
-                            y: CGFloat(settings.playerTrackInfoTopOffset)
-                        )
+                        .offset(y: CGFloat(settings.playerTrackInfoTopOffset))
                     }
                     .padding(.top, 8)
                     Spacer(minLength: 0)
@@ -1349,6 +1348,10 @@ private struct CompactTrackHeader: View {
     var onTapArtwork: (() -> Void)? = nil
     /// 隐藏小封面占位（大封面状态下使用，只显示歌曲信息和按钮）
     var hideArtworkPlaceholder: Bool = false
+    /// 左侧歌曲信息（歌曲名+歌手）左右偏移
+    var leftHorizontalOffset: CGFloat = 0
+    /// 右侧按钮（爱心+更多）左右偏移
+    var rightHorizontalOffset: CGFloat = 0
 
     var body: some View {
         HStack(spacing: ImmersiveArtworkTransition.compactHeaderSpacing) {
@@ -1387,9 +1390,9 @@ private struct CompactTrackHeader: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .offset(
-                x: showsExpandedArtwork
+                x: (showsExpandedArtwork
                     ? ImmersiveArtworkTransition.expandedMetadataOffset
-                    : 0
+                    : 0) + leftHorizontalOffset
             )
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("immersiveTrackMetadata")
@@ -1449,6 +1452,7 @@ private struct CompactTrackHeader: View {
                     .accessibilityLabel("更多操作")
                     .accessibilityIdentifier("immersiveMoreMenu")
                 }
+                .offset(x: rightHorizontalOffset)
             }
         }
         .accessibilityElement(children: .contain)

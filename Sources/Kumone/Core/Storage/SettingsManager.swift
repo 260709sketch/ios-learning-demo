@@ -111,7 +111,8 @@ final class SettingsManager: ObservableObject {
         static let playerTrackInfoSpacing = "settings.playerTrackInfoSpacing"
         static let playerControlsBottomOffset = "settings.playerControlsBottomOffset"
         static let playerTrackInfoTopOffset = "settings.playerTrackInfoTopOffset"
-        static let playerTrackInfoHorizontalOffset = "settings.playerTrackInfoHorizontalOffset"
+        static let playerTrackInfoLeftOffset = "settings.playerTrackInfoLeftOffset"
+        static let playerTrackInfoRightOffset = "settings.playerTrackInfoRightOffset"
         static let volume = "settings.volume"
         static let fmMode = "settings.fmMode"
         static let unblock = "settings.enableUnblock"
@@ -241,9 +242,13 @@ final class SettingsManager: ObservableObject {
     @Published var playerTrackInfoTopOffset: Int {
         didSet { UserDefaults.standard.set(playerTrackInfoTopOffset, forKey: Keys.playerTrackInfoTopOffset) }
     }
-    /// 歌曲信息左右偏移（-50 ~ 50，正数右移，负数左移）
-    @Published var playerTrackInfoHorizontalOffset: Int {
-        didSet { UserDefaults.standard.set(playerTrackInfoHorizontalOffset, forKey: Keys.playerTrackInfoHorizontalOffset) }
+    /// 左侧歌曲信息（歌曲名+歌手）左右偏移（-50 ~ 50，正数右移，负数左移）
+    @Published var playerTrackInfoLeftOffset: Int {
+        didSet { UserDefaults.standard.set(playerTrackInfoLeftOffset, forKey: Keys.playerTrackInfoLeftOffset) }
+    }
+    /// 右侧按钮（爱心+更多）左右偏移（-50 ~ 50，正数右移，负数左移）
+    @Published var playerTrackInfoRightOffset: Int {
+        didSet { UserDefaults.standard.set(playerTrackInfoRightOffset, forKey: Keys.playerTrackInfoRightOffset) }
     }
 
     /// Resolve gray tracks from third-party sources (UnblockNeteaseMusic-style).
@@ -324,7 +329,8 @@ final class SettingsManager: ObservableObject {
         playerTrackInfoSpacing = defaults.object(forKey: Keys.playerTrackInfoSpacing) as? Int ?? 20
         playerControlsBottomOffset = defaults.object(forKey: Keys.playerControlsBottomOffset) as? Int ?? 0
         playerTrackInfoTopOffset = defaults.object(forKey: Keys.playerTrackInfoTopOffset) as? Int ?? 0
-        playerTrackInfoHorizontalOffset = defaults.object(forKey: Keys.playerTrackInfoHorizontalOffset) as? Int ?? 0
+        playerTrackInfoLeftOffset = defaults.object(forKey: Keys.playerTrackInfoLeftOffset) as? Int ?? 0
+        playerTrackInfoRightOffset = defaults.object(forKey: Keys.playerTrackInfoRightOffset) as? Int ?? 0
         enableUnblock = defaults.object(forKey: Keys.unblock) as? Bool ?? true
         if let rawSourceIDs = defaults.stringArray(forKey: Keys.unblockSources) {
             enabledAudioSourceIDs = Set(rawSourceIDs.compactMap(AudioSourceID.init))
