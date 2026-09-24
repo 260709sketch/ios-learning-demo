@@ -191,7 +191,7 @@ final class PlayerService: ObservableObject {
     /// 预加载的下一首歌 AVPlayerItem
     private var preloadedNextItem: AVPlayerItem?
     /// 预加载的下一首歌 ID
-    private var preloadedNextTrackID: String?
+    private var preloadedNextTrackID: Int?
     /// 当前歌曲是否已触发预加载
     private var hasPreloadedCurrent = false
 
@@ -684,7 +684,8 @@ final class PlayerService: ObservableObject {
                         for: track,
                         generation: generation,
                         durationMS: nil,
-                        cacheLease: lease
+                        cacheLease: lease,
+                        preloadOnly: preloadOnly
                     )
                     return
                 }
@@ -726,7 +727,8 @@ final class PlayerService: ObservableObject {
             if cacheEnabled, await loadFallbackCache(
                 for: track,
                 generation: generation,
-                allowsUnblock: allowsUnblock
+                allowsUnblock: allowsUnblock,
+                preloadOnly: preloadOnly
             ) {
                 return
             }
@@ -739,7 +741,7 @@ final class PlayerService: ObservableObject {
             isTrial = true
             ToastCenter.shared.show(String(localized: "VIP 歌曲，当前为试听片段"))
         }
-        _ = await loadResolvedURL(track, url: url, durationMS: data?.time, generation: generation)
+        _ = await loadResolvedURL(track, url: url, durationMS: data?.time, generation: generation, preloadOnly: preloadOnly)
     }
 
     // MARK: - 预加载下一首
@@ -893,7 +895,8 @@ final class PlayerService: ObservableObject {
         _ track: Track,
         url: URL,
         durationMS: Int?,
-        generation: Int
+        generation: Int,
+        preloadOnly: Bool = false
     ) async -> ResolvedURLLoadResult {
         consecutiveFailures = 0
 
@@ -929,14 +932,16 @@ final class PlayerService: ObservableObject {
             for: track,
             generation: generation,
             durationMS: durationMS,
-            resourceLoader: resourceLoader
+            resourceLoader: resourceLoader,
+            preloadOnly: preloadOnly
         )
     }
 
     private func loadFallbackCache(
         for track: Track,
         generation: Int,
-        allowsUnblock: Bool
+        allowsUnblock: Bool,
+        preloadOnly: Bool = false
     ) async -> Bool {
         do {
             guard let cached = try await AudioCache.shared.fallbackEntry(
@@ -958,7 +963,8 @@ final class PlayerService: ObservableObject {
                 for: track,
                 generation: generation,
                 durationMS: nil,
-                cacheLease: lease
+                cacheLease: lease,
+                preloadOnly: preloadOnly
             )
             return true
         } catch {
@@ -973,7 +979,8 @@ final class PlayerService: ObservableObject {
         generation: Int,
         durationMS: Int?,
         resourceLoader: CachingAudioResourceLoader? = nil,
-        cacheLease: UUID? = nil
+        cacheLease: UUID? = nil,
+        preloadOnly: Bool = false
     ) async -> ResolvedURLLoadResult {
         // Resolve the asset's audio track before the item goes live: an audio mix
         // attached after playback starts is silently ignored, so the spectrum tap
@@ -1037,7 +1044,7 @@ final class PlayerService: ObservableObject {
             // 预加载模式：存储 item，不替换当前播放项，提前触发元数据加载
             preloadedNextItem = item
             preloadedNextTrackID = track.id
-            item.asset.loadValuesAsynchronously(forKeys: ["playable", "duration"]) { _ in }
+            item.asset.loadValuesAsynchronously(forKeys: ["playable", "duration"]) {}
             return .loaded
         }
 
