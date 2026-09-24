@@ -211,7 +211,7 @@ final class LXSourceStore: ObservableObject {
     fileprivate func parseMeta(_ script: String) -> Meta {
         // 必须以块注释开头
         guard let commentRange = script.range(of: #"/\\*[\\s\\S]*?\\*/"#, options: .regularExpression) else {
-            return Meta(name: "user_api_\(Date().localizedDescription)", description: "",
+            return Meta(name: "user_api_\(Int(Date().timeIntervalSince1970))", description: "",
                         version: "", author: "", homepage: "")
         }
         let comment = String(script[commentRange])
@@ -219,8 +219,8 @@ final class LXSourceStore: ObservableObject {
         guard let pattern = try? Regex(#"^\s?\*\s?@(\w+)\s+(.+)$"#) else { return meta }
         for line in comment.components(separatedBy: .newlines) {
             guard let match = try? pattern.wholeMatch(in: line) else { continue }
-            let key = String(match.output.1)
-            var value = String(match.output.2).trimmingCharacters(in: .whitespaces)
+            let key = String(match[1].substring ?? "")
+            var value = String(match[2].substring ?? "").trimmingCharacters(in: .whitespaces)
             switch key {
             case "name":
                 value = String(value.prefix(24)); meta.name = value

@@ -100,7 +100,7 @@ final class LXMusicEngine: NSObject {
         guard !didSetup else { return }
         didSetup = true
 
-        let ctx = JSContext()
+        guard let ctx = JSContext() else { return }
         ctx.name = "KumoneLXMusic"
         ctx.exceptionHandler = { _, exception in
             let msg = exception?.toString() ?? "unknown"
