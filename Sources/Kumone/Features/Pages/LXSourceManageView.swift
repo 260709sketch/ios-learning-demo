@@ -105,7 +105,7 @@ struct LXSourceManageView: View {
         .task { store.loadPersistedList() }
         .fileImporter(
             isPresented: $showFileImporter,
-            allowedContentTypes: [.javascript, .json, .plainText],
+            allowedContentTypes: [.sourceCode, .json, .plainText],
             allowsMultipleSelection: false
         ) { result in
             handleFile(result)
