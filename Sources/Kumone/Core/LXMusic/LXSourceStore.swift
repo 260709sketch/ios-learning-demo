@@ -126,10 +126,8 @@ final class LXSourceStore: ObservableObject {
         sources.append(info)
         persistList()
 
-        // 如果当前没有激活的音源，自动激活新导入的音源
-        if activeSourceID == nil {
-            await activate(info)
-        }
+        // 导入后自动激活（设为优先音源）
+        await activate(info)
 
         return info
     }
