@@ -22,11 +22,10 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i ios
 
-      - name: Build KumoneCore for iOS
+      - name: Build KumoneCore (macOS native, validates all cross-platform code)
         run: |
-          xcrun --sdk iphoneos swift build \
+          swift build \
             --configuration debug \
-            --arch arm64 \
             --target KumoneCore
 
   # ─── iOS 真机 IPA 构建（需要配置证书 Secrets，手动触发）───
