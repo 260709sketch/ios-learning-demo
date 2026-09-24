@@ -271,10 +271,13 @@ struct NowPlayingView: View {
     // MARK: - AMLL Immersive Layout
 
     /// AMLL 沉浸式布局：WKWebView 渲染流动背景 + 逐字扫光歌词作为底层，
-    /// 顶部叠加 Kumone 原生封面/歌曲信息，底部叠加播放控制条。
+    /// 上层保留 Kumone 原生全部元素（大封面、小封面、歌曲信息、播放控制）。
     #if os(iOS)
     private func amllCompactLayout(size: CGSize) -> some View {
-        ZStack(alignment: .bottom) {
+        let artworkDimension = min(size.width - 112, size.height * 0.3, 250)
+        let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
+
+        return ZStack {
             // 底层：AMLL WebView（流动背景 + 逐字歌词）
             AMLLLyricsView(
                 onSeek: { time in
@@ -283,34 +286,62 @@ struct NowPlayingView: View {
             )
             .ignoresSafeArea()
 
-            // 上层：原生封面/歌曲信息 + 播放控制
+            // 上层：原生全部元素（无背景，AMLL 背景透上来）
             VStack(spacing: 0) {
                 Color.clear.frame(
                     height: NowPlayingPresentationMetrics.immersiveHeaderTopInset
                 )
 
                 CompactTrackHeader(
-                    showsExpandedArtwork: false,
-                    onOpenDestination: onOpenDestination
+                    showsExpandedArtwork: showsExpandedArtwork,
+                    onOpenDestination: onOpenDestination,
+                    onTapArtwork: collapseImmersiveArtwork
                 )
-                .padding(.horizontal, 32)
-                .padding(.bottom, 10)
+                .padding(.bottom, 14)
 
-                Spacer() // 中间区域留给 AMLL 歌词显示
+                ZStack {
+                    // 大封面占位（和原来的沉浸模式一致）
+                    immersiveArtworkContent(artworkDimension: artworkDimension)
+                        .opacity(showsExpandedArtwork ? 1 : 0)
+                        .allowsHitTesting(showsExpandedArtwork)
+                        .accessibilityHidden(!showsExpandedArtwork)
+
+                    if showQueueOnMobile {
+                        CompactQueueContent()
+                            .transition(.opacity)
+                    } else {
+                        // 歌词区域透明，AMLL 逐字歌词在底层显示
+                        Color.clear
+                            .opacity(showLyricsOnMobile ? 1 : 0)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 immersiveControls
-                    .padding(.horizontal, 32)
-                    .background(
-                        LinearGradient(
-                            colors: [.clear, .black.opacity(0.45)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .ignoresSafeArea()
-                    )
             }
+            .frame(width: max(size.width - 64, 0))
+            .padding(.horizontal, 32)
         }
-        .frame(width: size.width)
+        // 大封面渲染（和原来的沉浸模式一致）
+        .overlayPreferenceValue(ImmersiveArtworkFramePreferenceKey.self) { frames in
+            GeometryReader { proxy in
+                if let compactAnchor = frames[.compact],
+                   let expandedAnchor = frames[.expanded] {
+                    let compactFrame = proxy[compactAnchor]
+                    let expandedFrame = proxy[expandedAnchor]
+                    let targetFrame = showsExpandedArtwork ? expandedFrame : compactFrame
+                    let targetCenterX = showsExpandedArtwork
+                        ? size.width / 2
+                        : compactFrame.midX
+
+                    immersiveArtworkSurface(isExpanded: showsExpandedArtwork)
+                        .frame(width: targetFrame.width, height: targetFrame.height)
+                        .position(x: targetCenterX, y: targetFrame.midY)
+                        .accessibilityIdentifier("immersiveArtwork")
+                }
+            }
+            .allowsHitTesting(false)
+        }
     }
     #endif
 

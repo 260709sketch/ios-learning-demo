@@ -3,6 +3,11 @@ import KumoneIOSFeature
 
 @main
 struct KumoneIOSApp: App {
+    init() {
+        // 强制中文本地化，确保系统控件（搜索取消按钮等）显示中文
+        UserDefaults.standard.set(["zh_CN", "zh-Hans", "en"], forKey: "AppleLanguages")
+    }
+
     var body: some Scene {
         WindowGroup {
             IOSMainWindow()

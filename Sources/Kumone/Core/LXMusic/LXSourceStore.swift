@@ -261,34 +261,49 @@ final class LXSourceStore: ObservableObject {
 
     /// 解析音源脚本头部注释（@name/@description/@version/@author/@homepage）。
     fileprivate func parseMeta(_ script: String) -> Meta {
-        // 必须以块注释开头
-        guard let commentRange = script.range(of: #"/\\*[\\s\\S]*?\\*/"#, options: .regularExpression) else {
-            return Meta(name: "user_api_\(Int(Date().timeIntervalSince1970))", description: "",
-                        version: "", author: "", homepage: "")
-        }
-        let comment = String(script[commentRange])
         var meta = Meta()
-        guard let pattern = try? Regex(#"^\s?\*\s?@(\w+)\s+(.+)$"#) else { return meta }
-        for line in comment.components(separatedBy: .newlines) {
-            guard let match = try? pattern.wholeMatch(in: line) else { continue }
-            let key = String(match[1].substring ?? "")
-            var value = String(match[2].substring ?? "").trimmingCharacters(in: .whitespaces)
+        // 找到第一个块注释 /* ... */
+        guard let start = script.range(of: "/*") else {
+            meta.name = "user_api_\(Int(Date().timeIntervalSince1970))"
+            return meta
+        }
+        guard let end = script[start.lowerBound...].range(of: "*/") else {
+            meta.name = "user_api_\(Int(Date().timeIntervalSince1970))"
+            return meta
+        }
+        let comment = String(script[start.lowerBound..<end.upperBound])
+
+        // 按行解析，匹配 * @key value 格式
+        for rawLine in comment.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            // 跳过 /* 和 */ 以及空行
+            guard line.hasPrefix("*") else { continue }
+            let content = line.dropFirst() // 去掉 *
+                .trimmingCharacters(in: .whitespaces)
+            guard content.hasPrefix("@") else { continue }
+            // 解析 @key value
+            let afterAt = content.dropFirst() // 去掉 @
+            guard let spaceIndex = afterAt.firstIndex(of: " ") else { continue }
+            let key = String(afterAt[..<spaceIndex])
+            let value = String(afterAt[afterAt.index(after: spaceIndex)...])
+                .trimmingCharacters(in: .whitespaces)
+
             switch key {
             case "name":
-                value = String(value.prefix(24)); meta.name = value
+                meta.name = String(value.prefix(24))
             case "description":
-                value = String(value.prefix(36)); meta.description = value
+                meta.description = String(value.prefix(36))
             case "author":
-                value = String(value.prefix(56)); meta.author = value
+                meta.author = String(value.prefix(56))
             case "homepage":
-                value = String(value.prefix(1024)); meta.homepage = value
+                meta.homepage = String(value.prefix(1024))
             case "version":
-                value = String(value.prefix(36)); meta.version = value
+                meta.version = String(value.prefix(36))
             default: break
             }
         }
         if meta.name.isEmpty {
-            meta.name = "user_api_\(Date().timeIntervalSince1970)"
+            meta.name = "user_api_\(Int(Date().timeIntervalSince1970))"
         }
         return meta
     }
