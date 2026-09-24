@@ -18,7 +18,7 @@ let package = Package(
         .target(
             name: "KumoneIOSFeature",
             dependencies: [
-                .product(name: "KumoneCore", package: "well-music-ios"),
+                .product(name: "KumoneCore", package: "Kumone-AMLL"),
             ],
             path: "Sources/KumoneIOSFeature"
         ),
