@@ -43,6 +43,14 @@ struct SettingsView: View {
                 }
             }
 
+            Section {
+                NavigationLink {
+                    LXSourceManageView()
+                } label: {
+                    Label("自定义音源（导入 / 换源 / 测试）", systemImage: "antenna.radiowaves.left.and.right")
+                }
+            }
+
             Section("外观") {
                 Picker("主题", selection: $settings.appearance) {
                     ForEach(AppAppearance.allCases) { appearance in

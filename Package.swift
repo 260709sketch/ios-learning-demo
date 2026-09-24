@@ -22,6 +22,7 @@ let package = Package(
             exclude: ["Resources"],
             resources: [
                 .process("Features/Player/AMLL/AMLLLyrics.html"),
+                .process("Core/LXMusic/LXMusicPreload.js"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5),

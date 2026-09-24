@@ -664,8 +664,10 @@ final class PlayerService: ObservableObject {
             resolvedURL = URL(string: urlString.replacingOccurrences(of: "http://", with: "https://"))
         }
 
-        // NetEase refused — try third-party sources (UnblockNeteaseMusic-style).
-        if resolvedURL == nil || data?.freeTrialInfo != nil, allowsUnblock {
+        // NetEase refused — try third-party sources (UnblockNeteaseMusic-style)
+        // then the activated LX custom source.
+        let hasLXSource = LXSourceStore.shared.activeSourceID != nil
+        if resolvedURL == nil || data?.freeTrialInfo != nil, allowsUnblock || hasLXSource {
             if await resolveAndLoadUnblocked(track, generation: generation) { return }
         }
         guard generation == resolveGeneration else { return }
@@ -696,38 +698,84 @@ final class PlayerService: ObservableObject {
         requiresActivePlayback: Bool = false
     ) async -> Bool {
         let enabledSources = SettingsManager.shared.enabledAudioSourceIDs
-        guard !enabledSources.isEmpty else { return false }
+        let hasLXSource = LXSourceStore.shared.activeSourceID != nil
 
+        guard !enabledSources.isEmpty || hasLXSource else { return false }
         guard generation == resolveGeneration,
               !requiresActivePlayback || isPlaying
         else { return false }
 
-        let resolution = await UnblockService.resolve(
-            track,
-            enabledSources: enabledSources,
-            excluding: attemptedUnblockSources
-        )
-        attemptedUnblockSources.formUnion(resolution.attemptedSources)
-        guard let unblocked = resolution.source else { return false }
+        // 1) 内置第三方音源（pyncmd / 酷狗 / 酷我）
+        if !enabledSources.isEmpty {
+            let resolution = await UnblockService.resolve(
+                track,
+                enabledSources: enabledSources,
+                excluding: attemptedUnblockSources
+            )
+            attemptedUnblockSources.formUnion(resolution.attemptedSources)
+            if let unblocked = resolution.source {
+                guard generation == resolveGeneration,
+                      !requiresActivePlayback || isPlaying
+                else { return false }
+
+                currentUnblockSourceID = unblocked.id
+                unblockSource = unblocked.displayName
+                servedQuality = nil
+                isTrial = false
+
+                let loadResult = await loadResolvedURL(
+                    track,
+                    url: unblocked.url,
+                    durationMS: nil,
+                    generation: generation
+                )
+                if case .loaded = loadResult {
+                    ToastCenter.shared.show(String(localized: "已使用第三方音源：\(unblocked.displayName)"))
+                    return true
+                }
+            }
+        }
+
+        // 2) LX 自定义音源（自动换源）
         guard generation == resolveGeneration,
               !requiresActivePlayback || isPlaying
         else { return false }
+        return await resolveFromLXSource(track, generation: generation)
+    }
 
-        currentUnblockSourceID = unblocked.id
-        unblockSource = unblocked.displayName
-        servedQuality = nil
-        isTrial = false
+    /// 使用已激活的 LX 自定义音源脚本获取播放地址。
+    private func resolveFromLXSource(_ track: Track, generation: Int) async -> Bool {
+        let lxStore = LXSourceStore.shared
+        guard let activeID = lxStore.activeSourceID,
+              let activeName = lxStore.sources.first(where: { $0.id == activeID })?.name else {
+            return false
+        }
+        let lxEngine = LXMusicEngine.shared
+        let targetQuality = lxEngine.lxQuality(from: SettingsManager.shared.audioQuality)
+        do {
+            let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
+            guard generation == resolveGeneration else { return false }
+            guard let url = URL(string: result.url.replacingOccurrences(of: "http://", with: "https://")) else {
+                return false
+            }
 
-        let loadResult = await loadResolvedURL(
-            track,
-            url: unblocked.url,
-            durationMS: nil,
-            generation: generation
-        )
-        guard case .loaded = loadResult else { return false }
+            currentUnblockSourceID = nil
+            unblockSource = activeName
+            servedQuality = result.quality
+            isTrial = false
 
-        ToastCenter.shared.show(String(localized: "已使用第三方音源：\(unblocked.displayName)"))
-        return true
+            let loadResult = await loadResolvedURL(
+                track,
+                url: url,
+                durationMS: nil,
+                generation: generation
+            )
+            guard case .loaded = loadResult else { return false }
+            ToastCenter.shared.show(String(localized: "已使用自定义音源：\(activeName)"))
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func handleUnplayable(_ track: Track) {

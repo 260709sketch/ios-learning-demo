@@ -1,0 +1,252 @@
+import SwiftUI
+import UniformTypeIdentifiers
+
+/// LX 自定义音源管理：导入（URL / 粘贴脚本 / 文件）、激活、自动换源、音源测试。
+struct LXSourceManageView: View {
+    @ObservedObject private var store = LXSourceStore.shared
+    @State private var urlInput = ""
+    @State private var showScriptSheet = false
+    @State private var scriptInput = ""
+    @State private var importing = false
+    @State private var showFileImporter = false
+    @State private var importError: String?
+    @State private var testingIDs = Set<String>()
+
+    var body: some View {
+        Form {
+            // MARK: 当前状态
+            Section {
+                HStack {
+                    Label("当前音源", systemImage: "music.note")
+                    Spacer()
+                    if store.isInitializing {
+                        ProgressView()
+                    } else if let activeID = store.activeSourceID,
+                              let active = store.sources.first(where: { $0.id == activeID }) {
+                        Text(active.name).foregroundStyle(.secondary)
+                    } else {
+                        Text("未启用").foregroundStyle(.secondary)
+                    }
+                }
+                if let error = store.lastError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Text("播放网易云歌曲遇到 VIP / 无版权时，自动使用已启用音源获取播放地址并自动换源。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            // MARK: 导入
+            Section("导入音源") {
+                HStack {
+                    TextField("粘贴音源链接（raw .js / GitHub 链接）", text: $urlInput)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    Button {
+                        Task { await importFromURL() }
+                    } label: {
+                        if importing { ProgressView() } else { Text("导入") }
+                    }
+                    .disabled(urlInput.trimmingCharacters(in: .whitespaces).isEmpty || importing)
+                }
+                Button {
+                    scriptInput = ""
+                    showScriptSheet = true
+                } label: {
+                    Label("粘贴脚本文本导入", systemImage: "doc.on.clipboard")
+                }
+                Button {
+                    showFileImporter = true
+                } label: {
+                    Label("从文件导入（.js）", systemImage: "folder")
+                }
+                if let importError = importError {
+                    Text(importError).font(.caption).foregroundStyle(.red)
+                }
+            }
+
+            // MARK: 音源列表
+            Section("已导入音源（\(store.sources.count)）") {
+                if store.sources.isEmpty {
+                    Text("还没有导入任何音源").foregroundStyle(.secondary)
+                }
+                ForEach(store.sources) { source in
+                    SourceRow(
+                        source: source,
+                        isActive: source.id == store.activeSourceID,
+                        isTesting: testingIDs.contains(source.id),
+                        onToggle: {
+                            Task {
+                                if source.id == store.activeSourceID {
+                                    await store.deactivate()
+                                } else {
+                                    await store.activate(source)
+                                }
+                            }
+                        },
+                        onTest: {
+                            Task {
+                                testingIDs.insert(source.id)
+                                _ = await store.test(source)
+                                testingIDs.remove(source.id)
+                            }
+                        }
+                    )
+                }
+                .onDelete { store.remove(at: $0) }
+            }
+        }
+        .navigationTitle("自定义音源")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .task { store.loadPersistedList() }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.javascript, .json, .plainText],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFile(result)
+        }
+        .sheet(isPresented: $showScriptSheet) {
+            ScriptInputSheet(script: $scriptInput) {
+                Task { await importFromScript() }
+            }
+        }
+    }
+
+    // MARK: 导入动作
+
+    private func importFromURL() async {
+        importing = true
+        importError = nil
+        do {
+            try await store.importFromURL(urlInput)
+            urlInput = ""
+        } catch {
+            importError = error.localizedDescription
+        }
+        importing = false
+    }
+
+    private func importFromScript() async {
+        importError = nil
+        do {
+            try await store.importScript(scriptInput)
+            showScriptSheet = false
+        } catch {
+            importError = error.localizedDescription
+        }
+    }
+
+    private func handleFile(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let needsStop = url.startAccessingSecurityScopedResource()
+            defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
+            guard let script = try? String(contentsOf: url, encoding: .utf8) else {
+                importError = "无法读取文件（需 UTF-8 编码）"
+                return
+            }
+            Task {
+                do { try await store.importScript(script) }
+                catch { importError = error.localizedDescription }
+            }
+        case .failure(let error):
+            importError = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - 音源行
+
+private struct SourceRow: View {
+    let source: LXSourceInfo
+    let isActive: Bool
+    let isTesting: Bool
+    let onToggle: () -> Void
+    let onTest: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isActive ? Color.accentColor : .secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(source.name).font(.body)
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                testBadge
+            }
+            HStack(spacing: 12) {
+                Button(isActive ? "停用" : "启用", action: onToggle)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Button {
+                    onTest()
+                } label: {
+                    if isTesting {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("测试", systemImage: "stethoscope")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var subtitle: String {
+        var parts: [String] = []
+        if !source.version.isEmpty { parts.append("v\(source.version)") }
+        if !source.author.isEmpty { parts.append(source.author) }
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private var testBadge: some View {
+        switch source.testStatus {
+        case .working:
+            Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+        case .failed:
+            Image(systemName: "xmark.seal.fill").foregroundStyle(.red)
+        default:
+            EmptyView()
+        }
+    }
+}
+
+// MARK: - 粘贴脚本 Sheet
+
+private struct ScriptInputSheet: View {
+    @Binding var script: String
+    let onImport: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            TextEditor(text: $script)
+                .font(.system(.footnote, design: .monospaced))
+                .padding(8)
+                .navigationTitle("粘贴音源脚本")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("导入", action: onImport)
+                            .disabled(script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+        }
+    }
+}

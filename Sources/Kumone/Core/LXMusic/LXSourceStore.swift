@@ -1,0 +1,243 @@
+import Foundation
+import SwiftUI
+
+/// 音源存储与管理：导入、持久化、切换、自动换源、音源测试。
+@MainActor
+final class LXSourceStore: ObservableObject {
+    static let shared = LXSourceStore()
+
+    @Published var sources: [LXSourceInfo] = []
+    @Published var activeSourceID: String?
+    @Published var isInitializing = false
+    @Published var lastError: String?
+
+    private let engine = LXMusicEngine.shared
+
+    private init() {}
+
+    // MARK: 路径
+
+    private var lxDirectory: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("LXMusic", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+    private var scriptsDirectory: URL {
+        let dir = lxDirectory.appendingPathComponent("scripts", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+    private var listURL: URL { lxDirectory.appendingPathComponent("sources.json") }
+
+    private func scriptURL(_ id: String) -> URL {
+        scriptsDirectory.appendingPathComponent("\(id).js")
+    }
+
+    // MARK: 启动加载
+
+    func loadPersistedList() {
+        guard let data = try? Data(contentsOf: listURL),
+              let list = try? JSONDecoder().decode([LXSourceInfo].self, from: data) else {
+            sources = []
+            return
+        }
+        sources = list
+    }
+
+    private func persistList() {
+        guard let data = try? JSONEncoder().encode(sources) else { return }
+        try? data.write(to: listURL)
+    }
+
+    func script(for id: String) -> String? {
+        try? String(contentsOf: scriptURL(id), encoding: .utf8)
+    }
+
+    // MARK: 导入
+
+    /// 从脚本文本导入音源。
+    @discardableResult
+    func importScript(_ script: String) async throws -> LXSourceInfo {
+        let meta = parseMeta(script)
+        let info = LXSourceInfo(
+            id: "user_api_\(Int.random(in: 100...999))_\(Int(Date().timeIntervalSince1970 * 1000))",
+            name: meta.name,
+            sourceDescription: meta.description,
+            version: meta.version,
+            author: meta.author,
+            homepage: meta.homepage,
+            importDate: Date(),
+            testStatus: .untested
+        )
+        try script.write(to: scriptURL(info.id), atomically: true, encoding: .utf8)
+        sources.append(info)
+        persistList()
+        return info
+    }
+
+    /// 从网络 URL 下载音源脚本并导入。
+    @discardableResult
+    func importFromURL(_ urlString: String) async throws -> LXSourceInfo {
+        guard var url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            throw LXEngineError.initFailed("无效的链接")
+        }
+        // 支持 GitHub 页面链接自动转 raw
+        if url.host == "github.com" {
+            let parts = url.path.components(separatedBy: "/").filter { !$0.isEmpty }
+            if parts.count >= 5 && parts[2] == "blob" {
+                let user = parts[0], repo = parts[1], branch = parts[3]
+                let filePath = parts[4...].joined(separator: "/")
+                let raw = "https://raw.githubusercontent.com/\(user)/\(repo)/\(branch)/\(filePath)"
+                url = URL(string: raw)!
+            }
+        }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                throw LXEngineError.initFailed("下载失败")
+            }
+            guard let script = String(data: data, encoding: .utf8) else {
+                throw LXEngineError.initFailed("脚本编码无效（需 UTF-8）")
+            }
+            return try await importScript(script)
+        } catch let error as LXEngineError {
+            throw error
+        } catch {
+            throw LXEngineError.initFailed(error.localizedDescription)
+        }
+    }
+
+    // MARK: 删除
+
+    func remove(at offsets: IndexSet) {
+        for index in offsets {
+            let info = sources[index]
+            try? FileManager.default.removeItem(at: scriptURL(info.id))
+            if info.id == activeSourceID {
+                Task { await deactivate() }
+            }
+        }
+        sources.remove(atOffsets: offsets)
+        persistList()
+    }
+
+    func remove(id: String) {
+        if let index = sources.firstIndex(where: { $0.id == id }) {
+            remove(at: IndexSet(integer: index))
+        }
+    }
+
+    // MARK: 激活 / 停用
+
+    /// 加载并激活音源。
+    func activate(_ source: LXSourceInfo) async {
+        guard let script = script(for: source.id) else {
+            lastError = "音源脚本不存在"
+            return
+        }
+        isInitializing = true
+        lastError = nil
+        do {
+            let caps = try await engine.load(source: source, script: script)
+            if caps.isEmpty {
+                lastError = "音源未声明任何可用平台"
+                activeSourceID = nil
+            } else {
+                activeSourceID = source.id
+            }
+        } catch {
+            lastError = error.localizedDescription
+            activeSourceID = nil
+        }
+        isInitializing = false
+    }
+
+    func deactivate() async {
+        await engine.unload()
+        activeSourceID = nil
+    }
+
+    /// 当前音源是否支持网易云 musicUrl。
+    var supportsNeteasePlay: Bool {
+        engine.capabilities.contains { $0.platform == "wy" && $0.actions.contains("musicUrl") }
+    }
+
+    // MARK: 音源测试
+
+    /// 测试音源：加载并检查是否声明了可用的 musicUrl 能力。
+    /// 测试完成后恢复之前激活的音源。
+    func test(_ source: LXSourceInfo) async -> LXSourceInfo.TestStatus {
+        setTestStatus(id: source.id, status: .testing)
+        guard let script = script(for: source.id) else {
+            setTestStatus(id: source.id, status: .failed)
+            return .failed
+        }
+        let previousActiveID = activeSourceID
+        do {
+            let caps = try await engine.load(source: source, script: script)
+            let hasMusicURL = caps.contains { $0.actions.contains("musicUrl") }
+            let status: LXSourceInfo.TestStatus = hasMusicURL ? .working : .failed
+            setTestStatus(id: source.id, status: status)
+        } catch {
+            setTestStatus(id: source.id, status: .failed)
+        }
+
+        // 恢复之前的音源
+        if previousActiveID != source.id {
+            if let prev = sources.first(where: { $0.id == previousActiveID }) {
+                await activate(prev)
+            } else {
+                await deactivate()
+            }
+        }
+        return sources.first { $0.id == source.id }?.testStatus ?? .failed
+    }
+
+    private func setTestStatus(id: String, status: LXSourceInfo.TestStatus) {
+        if let index = sources.firstIndex(where: { $0.id == id }) {
+            sources[index].testStatus = status
+            persistList()
+        }
+    }
+
+    // MARK: 脚本元信息解析
+
+    fileprivate struct Meta {
+        var name = "", description = "", version = "", author = "", homepage = ""
+    }
+
+    /// 解析音源脚本头部注释（@name/@description/@version/@author/@homepage）。
+    fileprivate func parseMeta(_ script: String) -> Meta {
+        // 必须以块注释开头
+        guard let commentRange = script.range(of: #"/\\*[\\s\\S]*?\\*/"#, options: .regularExpression) else {
+            return Meta(name: "user_api_\(Date().localizedDescription)", description: "",
+                        version: "", author: "", homepage: "")
+        }
+        let comment = String(script[commentRange])
+        var meta = Meta()
+        let pattern = /^\s?\*\s?@(\w+)\s+(.+)$/
+        for line in comment.components(separatedBy: .newlines) {
+            guard let match = try? pattern.wholeMatch(in: line) else { continue }
+            let key = String(match.output.1)
+            var value = String(match.output.2).trimmingCharacters(in: .whitespaces)
+            switch key {
+            case "name":
+                value = String(value.prefix(24)); meta.name = value
+            case "description":
+                value = String(value.prefix(36)); meta.description = value
+            case "author":
+                value = String(value.prefix(56)); meta.author = value
+            case "homepage":
+                value = String(value.prefix(1024)); meta.homepage = value
+            case "version":
+                value = String(value.prefix(36)); meta.version = value
+            default: break
+            }
+        }
+        if meta.name.isEmpty {
+            meta.name = "user_api_\(Date().timeIntervalSince1970)"
+        }
+        return meta
+    }
+}
