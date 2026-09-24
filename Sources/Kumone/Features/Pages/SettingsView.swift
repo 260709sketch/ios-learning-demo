@@ -184,25 +184,8 @@ struct SettingsView: View {
                 }
             }
 
-            Section("更新") {
-                Toggle("启动时自动检查更新", isOn: $settings.autoCheckUpdates)
-                Text("关闭后启动不再自动弹出更新提示，仍可手动检查更新")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Section("关于") {
                 LabeledContent("Kumone", value: appVersion)
-                #if os(iOS)
-                Button {
-                    IOSUpdater.shared.check(interactive: true)
-                } label: {
-                    Label("检查更新", systemImage: "arrow.triangle.2.circlepath")
-                }
-                Text("装有 TrollStore（巨魔）可在应用内一键自动安装；否则可下载 IPA 用侧载工具重装（登录状态与设置保留）")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                #endif
                 Text("网易云音乐第三方客户端 · 数据来自网易云音乐")
                     .font(.caption)
                     .foregroundStyle(.secondary)

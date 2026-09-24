@@ -41,9 +41,6 @@ public struct IOSMainWindow: View {
             .environment(\.openDestination, openDestination)
             .task {
                 await account.bootstrap()
-                if settings.autoCheckUpdates {
-                    IOSUpdater.shared.check(interactive: false)
-                }
             }
             .task(id: settings.showMainWindowAmbientBackground) {
                 artworkStore.setArtworkNeeded(settings.showMainWindowAmbientBackground)

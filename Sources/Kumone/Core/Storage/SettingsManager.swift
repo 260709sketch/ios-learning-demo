@@ -263,7 +263,7 @@ final class SettingsManager: ObservableObject {
         } else {
             enabledAudioSourceIDs = Set(AudioSourceID.allCases)
         }
-        autoCheckUpdates = defaults.object(forKey: Keys.autoCheckUpdates) as? Bool ?? true
+        autoCheckUpdates = defaults.object(forKey: Keys.autoCheckUpdates) as? Bool ?? false
         showDesktopLyrics = defaults.object(forKey: Keys.desktopLyrics) as? Bool ?? false
         desktopLyricsCentered = defaults.object(forKey: Keys.desktopLyricsCentered) as? Bool ?? false
         showMainWindowAmbientBackground = defaults.object(
