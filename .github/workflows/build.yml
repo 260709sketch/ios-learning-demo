@@ -24,11 +24,8 @@ jobs:
 
       - name: Build KumoneCore for iOS
         run: |
-          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          echo "Using SDK: $SDK_PATH"
-          swift build \
+          xcrun --sdk iphoneos swift build \
             --configuration debug \
-            --sdk "$SDK_PATH" \
             --arch arm64 \
             --target KumoneCore
 
