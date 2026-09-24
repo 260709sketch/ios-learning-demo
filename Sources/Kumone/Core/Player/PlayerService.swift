@@ -745,7 +745,8 @@ final class PlayerService: ObservableObject {
                 // 切换音源（如果当前加载的不是这个音源）
                 if lxEngine.currentSource?.id != source.id {
                     await lxEngine.unload()
-                    try await lxEngine.load(source: source)
+                    guard let script = lxStore.script(for: source.id) else { continue }
+                    try await lxEngine.load(source: source, script: script)
                 }
 
                 let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
