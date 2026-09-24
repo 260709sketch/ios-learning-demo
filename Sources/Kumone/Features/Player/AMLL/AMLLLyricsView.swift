@@ -126,6 +126,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
     /// 应用歌词布局（位置、字号、字重、显示/隐藏）
     func applyLayout(top: Int, bottom: Int, fontSize: Int, fontWeight: Int, showLyrics: Bool) {
+        // 记录切换前的状态，用于检测"从隐藏切到显示"
+        let wasHidden = !layoutShowLyrics
         layoutTop = top
         layoutBottom = bottom
         layoutFontSize = fontSize
@@ -149,6 +151,15 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
         // 字体样式
         callJS("setFontStyle", args: [fontSize, max(Int(Double(fontSize) * 0.7), 12), fontWeight, 16])
+
+        // 关键修复：从隐藏切换到显示时，立即强制同步当前播放时间和播放状态
+        // 否则 AMLL 会停在隐藏前的歌词位置（卡在第一句），不会跟随当前播放进度
+        if wasHidden && showLyrics && isReady {
+            let time = player.livePlaybackTime
+            callJS("setTime", args: [time, true])  // isSeek=true 强制跳转到当前时间
+            lastSyncedProgress = time
+            callJS("setPlaying", args: [player.isPlaying])
+        }
     }
 
     // MARK: - 创建 WebView
