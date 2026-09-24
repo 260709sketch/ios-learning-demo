@@ -182,6 +182,34 @@ struct SettingsView: View {
                             set: { settings.playerControlsBottomOffset = Int($0) }
                         ), in: -50...100, step: 5)
                     }
+
+                    // 歌曲信息上下偏移
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("歌曲信息上下位置")
+                            Spacer()
+                            Text(settings.playerTrackInfoTopOffset > 0 ? "+\(settings.playerTrackInfoTopOffset)" : "\(settings.playerTrackInfoTopOffset)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerTrackInfoTopOffset) },
+                            set: { settings.playerTrackInfoTopOffset = Int($0) }
+                        ), in: -100...100, step: 5)
+                    }
+
+                    // 歌曲信息左右偏移
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("歌曲信息左右位置")
+                            Spacer()
+                            Text(settings.playerTrackInfoHorizontalOffset > 0 ? "+\(settings.playerTrackInfoHorizontalOffset)" : "\(settings.playerTrackInfoHorizontalOffset)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerTrackInfoHorizontalOffset) },
+                            set: { settings.playerTrackInfoHorizontalOffset = Int($0) }
+                        ), in: -50...50, step: 5)
+                    }
                 }
                 Picker("日文歌词读音", selection: $settings.lyricsAnnotation) {
                     ForEach(LyricsAnnotation.allCases) { annotation in

@@ -314,6 +314,10 @@ struct NowPlayingView: View {
                             onTapArtwork: collapseImmersiveArtwork,
                             hideArtworkPlaceholder: true
                         )
+                        .offset(
+                            x: CGFloat(settings.playerTrackInfoHorizontalOffset),
+                            y: CGFloat(settings.playerTrackInfoTopOffset)
+                        )
                     }
                     .padding(.top, 8)
                     Spacer(minLength: 0)
@@ -1348,18 +1352,19 @@ private struct CompactTrackHeader: View {
 
     var body: some View {
         HStack(spacing: ImmersiveArtworkTransition.compactHeaderSpacing) {
-            Color.clear
-                .frame(
-                    width: hideArtworkPlaceholder ? 0 : ImmersiveArtworkTransition.compactArtworkDimension,
-                    height: hideArtworkPlaceholder ? 0 : ImmersiveArtworkTransition.compactArtworkDimension
-                )
-                .anchorPreference(
-                    key: ImmersiveArtworkFramePreferenceKey.self,
-                    value: .bounds
-                ) { [.compact: $0] }
-                .contentShape(Rectangle())
-                .onTapGesture { onTapArtwork?() }
-                .opacity(hideArtworkPlaceholder ? 0 : 1)
+            if !hideArtworkPlaceholder {
+                Color.clear
+                    .frame(
+                        width: ImmersiveArtworkTransition.compactArtworkDimension,
+                        height: ImmersiveArtworkTransition.compactArtworkDimension
+                    )
+                    .anchorPreference(
+                        key: ImmersiveArtworkFramePreferenceKey.self,
+                        value: .bounds
+                    ) { [.compact: $0] }
+                    .contentShape(Rectangle())
+                    .onTapGesture { onTapArtwork?() }
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {

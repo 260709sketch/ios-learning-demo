@@ -110,6 +110,8 @@ final class SettingsManager: ObservableObject {
         static let playerArtworkScale = "settings.playerArtworkScale"
         static let playerTrackInfoSpacing = "settings.playerTrackInfoSpacing"
         static let playerControlsBottomOffset = "settings.playerControlsBottomOffset"
+        static let playerTrackInfoTopOffset = "settings.playerTrackInfoTopOffset"
+        static let playerTrackInfoHorizontalOffset = "settings.playerTrackInfoHorizontalOffset"
         static let volume = "settings.volume"
         static let fmMode = "settings.fmMode"
         static let unblock = "settings.enableUnblock"
@@ -235,6 +237,14 @@ final class SettingsManager: ObservableObject {
     @Published var playerControlsBottomOffset: Int {
         didSet { UserDefaults.standard.set(playerControlsBottomOffset, forKey: Keys.playerControlsBottomOffset) }
     }
+    /// 歌曲信息上下偏移（-100 ~ 100，正数下移，负数上移）
+    @Published var playerTrackInfoTopOffset: Int {
+        didSet { UserDefaults.standard.set(playerTrackInfoTopOffset, forKey: Keys.playerTrackInfoTopOffset) }
+    }
+    /// 歌曲信息左右偏移（-50 ~ 50，正数右移，负数左移）
+    @Published var playerTrackInfoHorizontalOffset: Int {
+        didSet { UserDefaults.standard.set(playerTrackInfoHorizontalOffset, forKey: Keys.playerTrackInfoHorizontalOffset) }
+    }
 
     /// Resolve gray tracks from third-party sources (UnblockNeteaseMusic-style).
     @Published var enableUnblock: Bool {
@@ -313,6 +323,8 @@ final class SettingsManager: ObservableObject {
         playerArtworkScale = defaults.object(forKey: Keys.playerArtworkScale) as? Double ?? 1.0
         playerTrackInfoSpacing = defaults.object(forKey: Keys.playerTrackInfoSpacing) as? Int ?? 20
         playerControlsBottomOffset = defaults.object(forKey: Keys.playerControlsBottomOffset) as? Int ?? 0
+        playerTrackInfoTopOffset = defaults.object(forKey: Keys.playerTrackInfoTopOffset) as? Int ?? 0
+        playerTrackInfoHorizontalOffset = defaults.object(forKey: Keys.playerTrackInfoHorizontalOffset) as? Int ?? 0
         enableUnblock = defaults.object(forKey: Keys.unblock) as? Bool ?? true
         if let rawSourceIDs = defaults.stringArray(forKey: Keys.unblockSources) {
             enabledAudioSourceIDs = Set(rawSourceIDs.compactMap(AudioSourceID.init))
