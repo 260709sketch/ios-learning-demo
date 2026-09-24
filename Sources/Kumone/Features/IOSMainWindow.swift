@@ -254,10 +254,10 @@ public struct IOSMainWindow: View {
                 }
             }
         }
-        .onChange(of: settings.hideHomeTab) { _, _ in ensureSelectedTabVisible() }
-        .onChange(of: settings.hideExploreTab) { _, _ in ensureSelectedTabVisible() }
-        .onChange(of: settings.hideFmTab) { _, _ in ensureSelectedTabVisible() }
-        .onChange(of: settings.hideSearchTab) { _, _ in ensureSelectedTabVisible() }
+        .onReceive(settings.$hideHomeTab) { _ in ensureSelectedTabVisible() }
+        .onReceive(settings.$hideExploreTab) { _ in ensureSelectedTabVisible() }
+        .onReceive(settings.$hideFmTab) { _ in ensureSelectedTabVisible() }
+        .onReceive(settings.$hideSearchTab) { _ in ensureSelectedTabVisible() }
     }
 
     private var customTabInterface: some View {
@@ -285,10 +285,10 @@ public struct IOSMainWindow: View {
             .padding(.bottom, 6)
         }
         .animation(AppAnimation.standard, value: player.hasCurrentTrack)
-        .onChange(of: settings.hideHomeTab) { ensureSelectedTabVisible() }
-        .onChange(of: settings.hideExploreTab) { ensureSelectedTabVisible() }
-        .onChange(of: settings.hideFmTab) { ensureSelectedTabVisible() }
-        .onChange(of: settings.hideSearchTab) { ensureSelectedTabVisible() }
+        .onReceive(settings.$hideHomeTab) { _ in ensureSelectedTabVisible() }
+        .onReceive(settings.$hideExploreTab) { _ in ensureSelectedTabVisible() }
+        .onReceive(settings.$hideFmTab) { _ in ensureSelectedTabVisible() }
+        .onReceive(settings.$hideSearchTab) { _ in ensureSelectedTabVisible() }
     }
 
     /// 根据设置过滤后的可见 tab items（"我的"强制显示）

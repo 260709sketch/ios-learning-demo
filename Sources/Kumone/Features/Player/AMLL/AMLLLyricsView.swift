@@ -139,7 +139,12 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         layoutShowLyrics = showLyrics
 
         // 通过 JS 直接操作 DOM 设置歌词容器位置和显示状态
-        let displayValue = showLyrics ? "block" : "none"
+        // 关键：用 opacity 而不是 display:none。display:none 会让浏览器暂停
+        // 该元素的 requestAnimationFrame 渲染循环，导致 AMLL LyricPlayer
+        // 内部时钟停止，切回歌词时歌词卡在旧位置不高亮。opacity:0 保持
+        // 元素在渲染树中，动画持续运行，切回时歌词已是最新状态。
+        let opacityValue = showLyrics ? "1" : "0"
+        let pointerEvents = showLyrics ? "auto" : "none"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -147,7 +152,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 el.style.top = '\(top)px';
                 el.style.bottom = '\(bottom)px';
                 el.style.transform = 'translateX(\(horizontal)px)';
-                el.style.display = '\(displayValue)';
+                el.style.opacity = '\(opacityValue)';
+                el.style.pointerEvents = '\(pointerEvents)';
             }
         })();
         true;
