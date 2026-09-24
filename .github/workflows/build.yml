@@ -20,18 +20,14 @@ jobs:
         run: |
           sudo xcode-select -s /Applications/Xcode_16.app || true
           xcodebuild -version
-          xcodebuild -showsdks | grep -i ios
 
-      - name: Install iOS Simulator Runtime
-        run: xcodebuild -downloadPlatform iOS
-
-      - name: Build KumoneIOS for iOS Simulator
+      - name: Build KumoneIOS (target + sdk, no destination needed)
         run: |
           cd ios
           xcodebuild \
             -project KumoneIOS.xcodeproj \
-            -scheme KumoneIOS \
-            -destination 'generic/platform=iOS Simulator' \
+            -target KumoneIOS \
+            -sdk iphonesimulator \
             -configuration Debug \
             -derivedDataPath build \
             build \
