@@ -270,11 +270,12 @@ struct NowPlayingView: View {
 
     // MARK: - AMLL Immersive Layout
 
-    /// AMLL 沉浸式布局：WKWebView 渲染流动背景 + 逐字扫光歌词作为底层，
-    /// 上层保留 Kumone 原生全部元素（大封面、小封面、歌曲信息、播放控制）。
+    /// AMLL 沉浸式布局：Apple Music 风格
+    /// 大封面状态：大封面在上，歌曲信息在下，进度条+控制在底部
+    /// 歌词状态：小封面+歌曲信息在上，AMLL 大歌词居中，进度条+控制在底部
     #if os(iOS)
     private func amllCompactLayout(size: CGSize) -> some View {
-        let artworkDimension = min(size.width - 112, size.height * 0.3, 250)
+        let artworkDimension = min(size.width - 64, size.height * 0.42, 320)
         let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
 
         return ZStack {
@@ -287,34 +288,41 @@ struct NowPlayingView: View {
             )
             .ignoresSafeArea()
 
-            // 上层：原生全部元素（无背景，AMLL 背景透上来）
+            // 上层：原生元素
             VStack(spacing: 0) {
                 Color.clear.frame(
                     height: NowPlayingPresentationMetrics.immersiveHeaderTopInset
                 )
 
-                CompactTrackHeader(
-                    showsExpandedArtwork: showsExpandedArtwork,
-                    onOpenDestination: onOpenDestination,
-                    onTapArtwork: collapseImmersiveArtwork
-                )
-                .padding(.bottom, 14)
-
-                ZStack {
-                    // 大封面占位（AMLL 模式下不显示迷你歌词，只有封面占位）
-                    VStack(spacing: 18) {
-                        Spacer(minLength: 8)
+                if showsExpandedArtwork {
+                    // 大封面状态：大封面在上，歌曲信息在下（CompactTrackHeader 隐藏小封面占位）
+                    VStack(spacing: 20) {
+                        // 大封面占位（居中）
                         Color.clear
                             .frame(width: artworkDimension, height: artworkDimension)
                             .anchorPreference(
                                 key: ImmersiveArtworkFramePreferenceKey.self,
                                 value: .bounds
                             ) { [.expanded: $0] }
-                        Spacer(minLength: 0)
+
+                        // 歌曲信息（CompactTrackHeader 隐藏小封面占位，只显示歌曲名+歌手+按钮）
+                        CompactTrackHeader(
+                            showsExpandedArtwork: showsExpandedArtwork,
+                            onOpenDestination: onOpenDestination,
+                            onTapArtwork: collapseImmersiveArtwork,
+                            hideArtworkPlaceholder: true
+                        )
                     }
-                    .opacity(showsExpandedArtwork ? 1 : 0)
-                    .allowsHitTesting(showsExpandedArtwork)
-                    .accessibilityHidden(!showsExpandedArtwork)
+                    .padding(.top, 8)
+                    Spacer(minLength: 0)
+                } else {
+                    // 歌词/队列状态：CompactTrackHeader 在上（小封面+歌曲信息）
+                    CompactTrackHeader(
+                        showsExpandedArtwork: showsExpandedArtwork,
+                        onOpenDestination: onOpenDestination,
+                        onTapArtwork: collapseImmersiveArtwork
+                    )
+                    .padding(.bottom, 14)
 
                     if showQueueOnMobile {
                         CompactQueueContent()
@@ -322,15 +330,35 @@ struct NowPlayingView: View {
                     } else {
                         // 歌词区域透明，AMLL 逐字歌词在底层显示
                         Color.clear
-                            .opacity(showLyricsOnMobile ? 1 : 0)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 immersiveControls
             }
             .frame(width: max(size.width - 64, 0))
             .padding(.horizontal, 32)
+
+            // 大封面状态下渲染隐藏的 CompactTrackHeader（只为大封面动画提供 compact anchor）
+            if showsExpandedArtwork {
+                VStack(spacing: 0) {
+                    Color.clear.frame(
+                        height: NowPlayingPresentationMetrics.immersiveHeaderTopInset
+                    )
+                    CompactTrackHeader(
+                        showsExpandedArtwork: false,
+                        onOpenDestination: { _ in },
+                        onTapArtwork: {}
+                    )
+                    .padding(.bottom, 14)
+                    Spacer()
+                }
+                .frame(width: max(size.width - 64, 0))
+                .padding(.horizontal, 32)
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
         }
         // 大封面渲染（和原来的沉浸模式一致）
         .overlayPreferenceValue(ImmersiveArtworkFramePreferenceKey.self) { frames in
@@ -802,7 +830,7 @@ struct NowPlayingView: View {
                     .font(.system(size: 21, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                if player.currentTrack?.fee == 1 {
+                if player.currentTrack?.fee == 1, settings.showVIPBadge {
                     VIPBadge()
                 }
             }
@@ -1301,6 +1329,7 @@ private struct ImmersiveArtworkFramePreferenceKey: PreferenceKey {
 private struct CompactTrackHeader: View {
     @EnvironmentObject private var player: PlayerService
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var settings: SettingsManager
     @State private var showAddToPlaylist = false
 
     let showsExpandedArtwork: Bool
@@ -1309,13 +1338,15 @@ private struct CompactTrackHeader: View {
     /// artwork). The real image floats above this placeholder with hit-testing
     /// disabled, so taps land here.
     var onTapArtwork: (() -> Void)? = nil
+    /// 隐藏小封面占位（大封面状态下使用，只显示歌曲信息和按钮）
+    var hideArtworkPlaceholder: Bool = false
 
     var body: some View {
         HStack(spacing: ImmersiveArtworkTransition.compactHeaderSpacing) {
             Color.clear
                 .frame(
-                    width: ImmersiveArtworkTransition.compactArtworkDimension,
-                    height: ImmersiveArtworkTransition.compactArtworkDimension
+                    width: hideArtworkPlaceholder ? 0 : ImmersiveArtworkTransition.compactArtworkDimension,
+                    height: hideArtworkPlaceholder ? 0 : ImmersiveArtworkTransition.compactArtworkDimension
                 )
                 .anchorPreference(
                     key: ImmersiveArtworkFramePreferenceKey.self,
@@ -1323,6 +1354,7 @@ private struct CompactTrackHeader: View {
                 ) { [.compact: $0] }
                 .contentShape(Rectangle())
                 .onTapGesture { onTapArtwork?() }
+                .opacity(hideArtworkPlaceholder ? 0 : 1)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -1330,7 +1362,7 @@ private struct CompactTrackHeader: View {
                         .font(.headline.weight(.bold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
-                    if player.currentTrack?.fee == 1 {
+                    if player.currentTrack?.fee == 1, settings.showVIPBadge {
                         VIPBadge()
                     }
                 }
@@ -2085,6 +2117,7 @@ private struct MinimalLyricCentersKey: PreferenceKey {
 private struct MinimalTrackInfoRow: View {
     @EnvironmentObject private var player: PlayerService
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var settings: SettingsManager
     @State private var showAddToPlaylist = false
     @State private var airPlayRequest = 0
     let onOpenDestination: (Destination) -> Void
@@ -2133,7 +2166,7 @@ private struct MinimalTrackInfoRow: View {
                     .font(.body.weight(.bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                if player.currentTrack?.fee == 1 {
+                if player.currentTrack?.fee == 1, settings.showVIPBadge {
                     VIPBadge()
                 }
             }
