@@ -26,13 +26,13 @@ jobs:
             || true
           xcodebuild -version
 
-      - name: Build KumoneIOS (target + sdk, no destination needed)
+      - name: Build KumoneIOS for iOS Simulator
         run: |
           cd ios
           xcodebuild \
             -project KumoneIOS.xcodeproj \
-            -target KumoneIOS \
-            -sdk iphonesimulator \
+            -scheme KumoneIOS \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             build \
             CODE_SIGNING_ALLOWED=NO \
