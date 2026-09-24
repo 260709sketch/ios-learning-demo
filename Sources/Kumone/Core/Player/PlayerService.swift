@@ -656,12 +656,12 @@ final class PlayerService: ObservableObject {
         }
 
         // 有 LX 自定义音源激活时，所有歌曲只向 LX 音源请求播放地址，
-        // 音质由设置中的音质选项控制，不 fallback 到网易云官方或内置音源
+        // 音质由设置中的音质选项控制，自动遍历所有音源换源，不 fallback 到网易云官方或内置音源
         if hasLXSource {
             if await resolveFromLXSource(track, generation: generation) { return }
-            // LX 音源失败，直接提示用户，不再尝试其他方式
+            // 所有 LX 音源均失败，直接提示用户
             await MainActor.run {
-                ToastCenter.shared.show("音源解析失败，请检查音源或切换其他音源")
+                ToastCenter.shared.show("所有音源均解析失败，请检查音源网络")
             }
             handleUnplayable(track)
             return
@@ -723,69 +723,95 @@ final class PlayerService: ObservableObject {
     /// 使用已激活的 LX 自定义音源脚本获取播放地址。
     private func resolveFromLXSource(_ track: Track, generation: Int) async -> Bool {
         let lxStore = LXSourceStore.shared
-        guard let activeID = lxStore.activeSourceID,
-              let activeName = lxStore.sources.first(where: { $0.id == activeID })?.name else {
-            return false
-        }
         let lxEngine = LXMusicEngine.shared
         let targetQuality = lxEngine.lxQuality(from: SettingsManager.shared.audioQuality)
-        let startTime = Date()
-        do {
-            let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
+
+        // 构建音源尝试顺序：优先音源排第一，其余按导入顺序
+        var sourcesToTry = lxStore.sources
+        if let activeID = lxStore.activeSourceID,
+           let activeIndex = sourcesToTry.firstIndex(where: { $0.id == activeID }) {
+            let activeSource = sourcesToTry.remove(at: activeIndex)
+            sourcesToTry.insert(activeSource, at: 0)
+        }
+
+        guard !sourcesToTry.isEmpty else { return false }
+
+        for (index, source) in sourcesToTry.enumerated() {
             guard generation == resolveGeneration else { return false }
-            guard let url = URL(string: result.url.replacingOccurrences(of: "http://", with: "https://")) else {
-                // 记录失败日志
+            let startTime = Date()
+            let isPriority = index == 0
+
+            do {
+                // 切换音源（如果当前加载的不是这个音源）
+                if lxEngine.currentSource?.id != source.id {
+                    await lxEngine.unload()
+                    try await lxEngine.load(source: source)
+                }
+
+                let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
+                guard generation == resolveGeneration else { return false }
+                guard let url = URL(string: result.url.replacingOccurrences(of: "http://", with: "https://")) else {
+                    let log = LXRequestLog(
+                        date: Date(), trackName: track.name, trackArtist: track.artistNames,
+                        requestedQuality: targetQuality, actualQuality: nil, url: nil,
+                        duration: Date().timeIntervalSince(startTime), success: false,
+                        errorMessage: "返回 URL 无效"
+                    )
+                    await MainActor.run { lxStore.addRequestLog(log) }
+                    continue
+                }
+
+                currentUnblockSourceID = nil
+                unblockSource = source.name
+                servedQuality = result.quality
+                isTrial = false
+
+                let loadResult = await loadResolvedURL(
+                    track,
+                    url: url,
+                    durationMS: nil,
+                    generation: generation
+                )
+                guard case .loaded = loadResult else {
+                    let log = LXRequestLog(
+                        date: Date(), trackName: track.name, trackArtist: track.artistNames,
+                        requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
+                        duration: Date().timeIntervalSince(startTime), success: false,
+                        errorMessage: "音频加载失败"
+                    )
+                    await MainActor.run { lxStore.addRequestLog(log) }
+                    continue
+                }
+
+                // 记录成功日志
+                let log = LXRequestLog(
+                    date: Date(), trackName: track.name, trackArtist: track.artistNames,
+                    requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
+                    duration: Date().timeIntervalSince(startTime), success: true, errorMessage: nil
+                )
+                await MainActor.run { lxStore.addRequestLog(log) }
+
+                // 非优先音源成功时，提示自动换源
+                if !isPriority {
+                    await MainActor.run {
+                        ToastCenter.shared.show("自动换源：已使用「\(source.name)」播放")
+                    }
+                }
+                return true
+            } catch {
                 let log = LXRequestLog(
                     date: Date(), trackName: track.name, trackArtist: track.artistNames,
                     requestedQuality: targetQuality, actualQuality: nil, url: nil,
                     duration: Date().timeIntervalSince(startTime), success: false,
-                    errorMessage: "返回 URL 无效"
+                    errorMessage: error.localizedDescription
                 )
                 await MainActor.run { lxStore.addRequestLog(log) }
-                return false
+                continue
             }
-
-            currentUnblockSourceID = nil
-            unblockSource = activeName
-            servedQuality = result.quality
-            isTrial = false
-
-            let loadResult = await loadResolvedURL(
-                track,
-                url: url,
-                durationMS: nil,
-                generation: generation
-            )
-            guard case .loaded = loadResult else {
-                let log = LXRequestLog(
-                    date: Date(), trackName: track.name, trackArtist: track.artistNames,
-                    requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
-                    duration: Date().timeIntervalSince(startTime), success: false,
-                    errorMessage: "音频加载失败"
-                )
-                await MainActor.run { lxStore.addRequestLog(log) }
-                return false
-            }
-
-            // 记录成功日志（不弹 Toast）
-            let log = LXRequestLog(
-                date: Date(), trackName: track.name, trackArtist: track.artistNames,
-                requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
-                duration: Date().timeIntervalSince(startTime), success: true, errorMessage: nil
-            )
-            await MainActor.run { lxStore.addRequestLog(log) }
-            return true
-        } catch {
-            // 记录失败日志
-            let log = LXRequestLog(
-                date: Date(), trackName: track.name, trackArtist: track.artistNames,
-                requestedQuality: targetQuality, actualQuality: nil, url: nil,
-                duration: Date().timeIntervalSince(startTime), success: false,
-                errorMessage: error.localizedDescription
-            )
-            await MainActor.run { lxStore.addRequestLog(log) }
-            return false
         }
+
+        // 全部音源失败
+        return false
     }
 
     private func handleUnplayable(_ track: Track) {
