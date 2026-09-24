@@ -127,13 +127,14 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         layoutShowLyrics = showLyrics
 
         // 通过 JS 直接操作 DOM 设置歌词容器位置和显示状态
+        let displayValue = showLyrics ? "block" : "none"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
             if (el) {
                 el.style.top = '\(top)px';
                 el.style.bottom = '\(bottom)px';
-                el.style.display = '\(showLyrics ? 'block' : 'none')';
+                el.style.display = '\(displayValue)';
             }
         })();
         true;
