@@ -394,7 +394,7 @@ struct PlaylistDetailView: View {
     }
 
     private var playable: [Track] {
-        if SettingsManager.shared.canResolveUnblockedTracks { return model.tracks }
+        if LXSourceStore.shared.activeSourceID != nil { return model.tracks }
         return model.tracks.filter {
             $0.playability(privilege: model.privileges[$0.id],
                            isLoggedIn: account.isLoggedIn,

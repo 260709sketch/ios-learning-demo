@@ -655,10 +655,10 @@ final class PlayerService: ObservableObject {
             }
         }
 
-        // 有 LX 自定义音源激活时，所有歌曲优先直接走音源，
-        // 跳过网易云官方解析（避免 VIP/灰色歌曲因官方返回试听地址而不触发换源）
+        // 有 LX 自定义音源激活时，所有歌曲直接向 LX 音源请求播放地址，
+        // 音质由设置中的音质选项控制，跳过网易云官方解析和内置音源
         if hasLXSource {
-            if await resolveAndLoadUnblocked(track, generation: generation) { return }
+            if await resolveFromLXSource(track, generation: generation) { return }
         }
 
         var data = try? await NeteaseAPI.songURL(ids: [track.id], level: quality).first

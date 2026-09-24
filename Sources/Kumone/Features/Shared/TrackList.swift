@@ -584,8 +584,8 @@ struct TrackListView: View {
     }
 
     private func playability(of track: Track) -> TrackPlayability {
-        // With unblock enabled, gray tracks resolve from third-party sources.
-        if SettingsManager.shared.canResolveUnblockedTracks { return .playable }
+        // 有激活的 LX 自定义音源时，所有歌曲都可播放（通过音源获取地址）
+        if LXSourceStore.shared.activeSourceID != nil { return .playable }
         return track.playability(
             privilege: privileges[track.id],
             isLoggedIn: account.isLoggedIn,
