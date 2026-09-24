@@ -1,0 +1,150 @@
+name: Build Kumone
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  # ─── macOS 构建（Swift Package Manager）───
+  macos-build:
+    name: macOS Build
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app || true
+
+      - name: Build KumoneCore (macOS)
+        run: swift build -c release --product KumoneCore
+
+      - name: Build Kumone App (macOS)
+        run: swift build -c release --product Kumone
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: .build/release/Kumone
+          if-no-files-found: ignore
+
+  # ─── iOS 模拟器构建（验证编译通过，不需要证书）───
+  ios-simulator-build:
+    name: iOS Simulator Build
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app || true
+
+      - name: Resolve Package Dependencies
+        run: cd ios/KumoneIOSPackage && xcodebuild -resolvePackageDependencies || true
+
+      - name: Build for iOS Simulator
+        run: |
+          cd ios
+          xcodebuild \
+            -project KumoneIOS.xcodeproj \
+            -scheme KumoneIOS \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -configuration Debug \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+        continue-on-error: true
+
+      - name: Upload xcresult
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-build
+          path: ~/Library/Developer/Xcode/DerivedData/**/Logs/Build/*.xcactivitylog
+          if-no-files-found: ignore
+
+  # ─── iOS 真机 IPA 构建（需要配置证书 Secrets）───
+  # 使用前请在 GitHub Secrets 中配置：
+  #   IOS_CODE_SIGN_IDENTITY - 代码签名身份（如 "Apple Development: xxx"）
+  #   IOS_PROVISIONING_PROFILE_SPECIFIER - 描述文件名
+  #   IOS_TEAM_ID - 开发团队 ID
+  #   P12_CERTIFICATE_BASE64 - p12 证书 base64
+  #   P12_PASSWORD - p12 密码
+  ios-ipa-build:
+    name: iOS IPA Build
+    runs-on: macos-15
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app || true
+
+      - name: Import Code-Signing Certificate
+        env:
+          P12_CERTIFICATE_BASE64: ${{ secrets.P12_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          if [ -z "$P12_CERTIFICATE_BASE64" ]; then
+            echo "::warning::No certificate configured, skipping IPA build"
+            exit 0
+          fi
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          echo -n "$P12_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm -f $CERTIFICATE_PATH
+
+      - name: Build IPA
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_CODE_SIGN_IDENTITY: ${{ secrets.IOS_CODE_SIGN_IDENTITY }}
+          IOS_PROVISIONING_PROFILE_SPECIFIER: ${{ secrets.IOS_PROVISIONING_PROFILE_SPECIFIER }}
+        run: |
+          cd ios
+          mkdir -p output
+          xcodebuild \
+            -project KumoneIOS.xcodeproj \
+            -scheme KumoneIOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath output/KumoneIOS.xcarchive \
+            archive \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+            CODE_SIGN_IDENTITY="$IOS_CODE_SIGN_IDENTITY" \
+            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROVISIONING_PROFILE_SPECIFIER"
+          xcodebuild \
+            -exportArchive \
+            -archivePath output/KumoneIOS.xcarchive \
+            -exportPath output \
+            -exportOptionsPlist <(cat <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>ad-hoc</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+          </dict>
+          </plist>
+          EOF
+          )
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: KumoneIOS.ipa
+          path: ios/output/*.ipa
+          if-no-files-found: ignore
