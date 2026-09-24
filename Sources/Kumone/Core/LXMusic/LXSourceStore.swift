@@ -94,6 +94,10 @@ final class LXSourceStore: ObservableObject {
         if let savedID, let source = sources.first(where: { $0.id == savedID }) {
             activeSourceID = savedID
             Task { await activate(source) }
+        } else if let firstSource = sources.first {
+            // 兜底：没有保存的激活音源但列表不为空，自动激活第一个
+            activeSourceID = firstSource.id
+            Task { await activate(firstSource) }
         }
     }
 
@@ -198,13 +202,13 @@ final class LXSourceStore: ObservableObject {
             let caps = try await engine.load(source: source, script: script)
             if caps.isEmpty {
                 lastError = "音源未声明任何可用平台"
-                activeSourceID = nil
+                // 不清除 activeSourceID，保持用户选择，下次启动重试
             } else {
                 activeSourceID = source.id
             }
         } catch {
             lastError = error.localizedDescription
-            activeSourceID = nil
+            // 激活失败不清除 activeSourceID，避免 UserDefaults 被清空导致下次启动不自动激活
         }
         isInitializing = false
     }
