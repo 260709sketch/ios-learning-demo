@@ -1,4 +1,4 @@
-name: Build Kumone
+name: Build iOS
 
 on:
   push:
@@ -8,32 +8,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ─── macOS 构建（Swift Package Manager）───
-  macos-build:
-    name: macOS Build
-    runs-on: macos-15
-    continue-on-error: true  # 原项目使用 macOS 26/Swift 6.2 新 API，CI 的 Xcode 16.0 可能不支持
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.app || true
-
-      - name: Build KumoneCore (macOS)
-        run: swift build -c release --product KumoneCore
-
-      - name: Build Kumone App (macOS)
-        run: swift build -c release --product Kumone
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-build
-          path: .build/release/Kumone
-          if-no-files-found: ignore
-
   # ─── iOS 模拟器构建（验证编译通过，不需要证书）───
   ios-simulator-build:
     name: iOS Simulator Build
@@ -60,17 +34,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
-        continue-on-error: true
 
-      - name: Upload xcresult
+      - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-simulator-build
+          name: ios-build-log
           path: ~/Library/Developer/Xcode/DerivedData/**/Logs/Build/*.xcactivitylog
           if-no-files-found: ignore
 
-  # ─── iOS 真机 IPA 构建（需要配置证书 Secrets）───
+  # ─── iOS 真机 IPA 构建（需要配置证书 Secrets，手动触发）───
   # 使用前请在 GitHub Secrets 中配置：
   #   IOS_CODE_SIGN_IDENTITY - 代码签名身份（如 "Apple Development: xxx"）
   #   IOS_PROVISIONING_PROFILE_SPECIFIER - 描述文件名
