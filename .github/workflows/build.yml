@@ -25,7 +25,7 @@ jobs:
       - name: Build KumoneCore for iOS (cross-compile via destination)
         run: |
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          printf '{"target":"arm64-apple-ios","sdk":"%s"}\n' "$SDK_PATH" > destination.json
+          printf '{"version":1,"target":"arm64-apple-ios","sdk":"%s"}\n' "$SDK_PATH" > destination.json
           cat destination.json
           swift build \
             --configuration debug \
