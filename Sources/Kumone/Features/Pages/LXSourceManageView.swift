@@ -95,6 +95,13 @@ struct LXSourceManageView: View {
                             }
                         }
                     )
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            store.remove(id: source.id)
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+                    }
                 }
                 .onDelete { store.remove(at: $0) }
             }

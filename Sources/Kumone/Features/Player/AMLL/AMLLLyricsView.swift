@@ -105,6 +105,11 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
     private var timeSyncTimer: Timer?
     private var lastAlbumTrackId: Int?
 
+    // 当前 AMLL 歌词数据（用于 line-click 时查准确时间）
+    private var currentAMLLLines: [[String: Any]] = []
+    // 上一次同步的播放进度（用于判断是否需要 seek 同步）
+    private var lastSyncedProgress: TimeInterval = 0
+
     // 最后一次布局参数
     private var layoutTop = 170
     private var layoutBottom = 230
@@ -216,12 +221,11 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             }
         case "line-click":
             if let data = body["data"] as? [String: Any],
-               let index = data["index"] as? Int {
-                // 兼容旧版 line-click 事件
-                if let lyrics = player.lyrics,
-                   index >= 0, index < lyrics.lines.count {
-                    onSeek?(lyrics.lines[index].time)
-                }
+               let index = data["index"] as? Int,
+               index >= 0, index < currentAMLLLines.count,
+               let time = currentAMLLLines[index]["time"] as? TimeInterval {
+                // 用 AMLL 自己的歌词时间，避免和 Kumone 歌词索引不对应
+                onSeek?(time)
             }
         case "error":
             if let data = body["data"] as? [String: Any],
@@ -250,6 +254,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
 
         // 同步当前时间（秒）
         callJS("setTime", args: [player.livePlaybackTime, true])
+        lastSyncedProgress = player.livePlaybackTime
 
         // 同步封面
         updateAlbumArt()
@@ -290,7 +295,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 self?.callJS("setPlaying", args: [isPlaying])
                 if isPlaying {
                     // 恢复播放时用真实当前时间重置 AMLL 时钟
-                    self?.callJS("setTime", args: [self?.player.livePlaybackTime ?? 0, true])
+                    let time = self?.player.livePlaybackTime ?? 0
+                    self?.callJS("setTime", args: [time, true])
+                    self?.lastSyncedProgress = time
                 }
             }
             .store(in: &cancellables)
@@ -302,10 +309,24 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 self?.updateAlbumArt()
             }
             .store(in: &cancellables)
+
+        // 播放进度变化（拖动进度条/seek）→ 超过2秒时立即同步 AMLL，修复拖动后歌词不滚动
+        player.$progress
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newProgress in
+                guard let self else { return }
+                let delta = abs(newProgress - self.lastSyncedProgress)
+                if delta > 2.0 {
+                    self.callJS("setTime", args: [newProgress, true])
+                    self.lastSyncedProgress = newProgress
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func updateLyrics(_ lyrics: ParsedLyrics) {
         let amllLines = AMLLDataConverter.convert(lyrics)
+        currentAMLLLines = amllLines
         callJS("setLyrics", args: [amllLines])
     }
 
@@ -338,7 +359,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         timeSyncTimer?.invalidate()
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self, self.player.isPlaying else { return }
-            self.callJS("setTime", args: [self.player.livePlaybackTime])
+            let time = self.player.livePlaybackTime
+            self.callJS("setTime", args: [time])
+            self.lastSyncedProgress = time
         }
         RunLoop.main.add(timer, forMode: .common)
         timeSyncTimer = timer

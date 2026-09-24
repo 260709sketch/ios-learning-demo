@@ -138,7 +138,7 @@ struct SettingsView: View {
                         Slider(value: Binding(
                             get: { Double(settings.playerArtworkTopOffset) },
                             set: { settings.playerArtworkTopOffset = Int($0) }
-                        ), in: -100...100, step: 5)
+                        ), in: -300...300, step: 5)
                     }
 
                     // 大封面尺寸
@@ -180,7 +180,7 @@ struct SettingsView: View {
                         Slider(value: Binding(
                             get: { Double(settings.playerControlsBottomOffset) },
                             set: { settings.playerControlsBottomOffset = Int($0) }
-                        ), in: -50...100, step: 5)
+                        ), in: -200...200, step: 5)
                     }
 
                     // 歌曲信息上下偏移
@@ -194,7 +194,7 @@ struct SettingsView: View {
                         Slider(value: Binding(
                             get: { Double(settings.playerTrackInfoTopOffset) },
                             set: { settings.playerTrackInfoTopOffset = Int($0) }
-                        ), in: -100...100, step: 5)
+                        ), in: -300...300, step: 5)
                     }
 
                     // 左侧歌曲信息左右偏移
@@ -208,7 +208,7 @@ struct SettingsView: View {
                         Slider(value: Binding(
                             get: { Double(settings.playerTrackInfoLeftOffset) },
                             set: { settings.playerTrackInfoLeftOffset = Int($0) }
-                        ), in: -50...50, step: 5)
+                        ), in: -200...200, step: 5)
                     }
 
                     // 右侧按钮左右偏移
@@ -222,7 +222,7 @@ struct SettingsView: View {
                         Slider(value: Binding(
                             get: { Double(settings.playerTrackInfoRightOffset) },
                             set: { settings.playerTrackInfoRightOffset = Int($0) }
-                        ), in: -50...50, step: 5)
+                        ), in: -200...200, step: 5)
                     }
                 }
                 Picker("日文歌词读音", selection: $settings.lyricsAnnotation) {
