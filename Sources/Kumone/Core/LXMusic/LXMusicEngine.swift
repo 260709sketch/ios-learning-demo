@@ -1,6 +1,7 @@
 import Foundation
 import JavaScriptCore
 import CryptoKit
+import Security
 #if canImport(CommonCrypto)
 import CommonCrypto
 #endif
