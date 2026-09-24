@@ -18,7 +18,7 @@ struct LXSourceInfo: Codable, Identifiable, Hashable {
     var homepage: String
     var importDate: Date
     /// 音源测试结果（不持久化，运行时刷新）。
-    var testStatus: TestStatus?
+    var testStatus: TestStatus? = nil
 
     enum TestStatus: String, Codable {
         case untested
