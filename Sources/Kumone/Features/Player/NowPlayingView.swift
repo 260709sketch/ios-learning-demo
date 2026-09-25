@@ -780,7 +780,12 @@ struct NowPlayingView: View {
         Group {
             if let album = player.currentTrack?.album, album.id > 0, !album.name.isEmpty {
                 Button {
-                    onOpenDestination(.album(album.id))
+                    if let mid = album.albumMid, !mid.isEmpty {
+                        let summary = AlbumSummary(id: album.id, name: album.name, picUrl: album.picUrl, sourcePlatform: "tx", albumMid: mid)
+                        onOpenDestination(.albumWithMid(album.id, mid, summary))
+                    } else {
+                        onOpenDestination(.album(album.id))
+                    }
                 } label: {
                     artworkSurface(size: size)
                 }

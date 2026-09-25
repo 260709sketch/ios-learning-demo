@@ -721,7 +721,7 @@ final class PlayerService: ObservableObject {
             // 预加载只在非预加载请求时使用（preloadOnly=true 时本身就是去解析URL的）
             if !preloadOnly,
                let preloadedURLString = preloadedURLs[track.id],
-               let preloadedURL = URL(string: preloadedURLString.replacingOccurrences(of: "http://", with: "https://")) {
+               let preloadedURL = URL(string: preloadedURLString) {
                 preloadedURLs[track.id] = nil // 用掉后清除
                 _ = await loadResolvedURL(track, url: preloadedURL, durationMS: nil, generation: generation, preloadOnly: false)
                 return
@@ -813,7 +813,7 @@ final class PlayerService: ObservableObject {
         do {
             let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
             guard !result.url.isEmpty else { return }
-            guard URL(string: result.url.replacingOccurrences(of: "http://", with: "https://")) != nil else { return }
+            guard URL(string: result.url) != nil else { return }
             // 存入预加载缓存
             preloadedURLs[track.id] = result.url
             // 限制缓存大小，最多存5首，避免内存占用
@@ -886,7 +886,8 @@ final class PlayerService: ObservableObject {
 
                 let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
                 guard generation >= resolveGeneration else { return false }
-                guard let url = URL(string: result.url.replacingOccurrences(of: "http://", with: "https://")) else {
+                // LX音源返回的URL不做http→https替换——第三方音源服务器很多只支持HTTP，强制替换会导致无法播放
+                guard let url = URL(string: result.url) else {
                     let log = LXRequestLog(
                         date: Date(), trackName: track.name, trackArtist: track.artistNames,
                         requestedQuality: targetQuality, actualQuality: nil, url: nil,
