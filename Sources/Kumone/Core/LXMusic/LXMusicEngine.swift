@@ -344,6 +344,48 @@ final class LXMusicEngine: NSObject {
         return (url, actualQuality)
     }
 
+    /// 测试音源是否能真正获取播放链接（用固定测试歌曲实际请求 musicUrl）
+    func testMusicURL() async -> Bool {
+        let testInfo: [String: Any] = [
+            "name": "晴天",
+            "singer": "周杰伦",
+            "source": "wy",
+            "songmid": "186016",
+            "interval": "04:29",
+            "albumName": "叶惠美",
+            "img": "",
+            "typeUrl": [:] as [String: String],
+            "albumId": 0,
+            "types": [["type": "128k", "size": ""]],
+            "_types": ["128k": ["size": ""]],
+            "id": "186016",
+            "songId": "186016",
+            "pic": "",
+            "album": "叶惠美",
+            "hash": "",
+            "rid": ""
+        ]
+        let payload: [String: Any] = [
+            "requestKey": "",
+            "data": [
+                "source": "wy",
+                "action": "musicUrl",
+                "info": ["type": "128k", "musicInfo": testInfo]
+            ]
+        ]
+        do {
+            let result = try await sendJSRequest(payload: payload, timeout: 15)
+            guard let data = result["data"] as? [String: Any],
+                  let url = data["url"] as? String,
+                  !url.isEmpty else {
+                return false
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private func sendJSRequest(payload: [String: Any], timeout seconds: TimeInterval) async throws -> [String: Any] {
         let requestKey = "request__\(UUID().uuidString)"
         var payload = payload

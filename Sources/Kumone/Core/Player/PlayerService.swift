@@ -661,6 +661,20 @@ final class PlayerService: ObservableObject {
         }
     }
 
+    /// 重新解析当前歌曲（切换音源后调用），用新音源获取播放链接并无缝切换
+    func reloadCurrentTrack() {
+        guard let track = currentTrack else { return }
+        AudioSpectrum.shared.beginPreparing()
+        resolveGeneration += 1
+        let generation = resolveGeneration
+        Task {
+            await resolveAndLoad(track, generation: generation)
+        }
+        Task {
+            await loadLyrics(for: track, generation: generation)
+        }
+    }
+
     private func resolveAndLoad(_ track: Track, generation: Int, preloadOnly: Bool = false) async {
         let quality = SettingsManager.shared.audioQuality.rawValue
         let allowsUnblock = SettingsManager.shared.canResolveUnblockedTracks

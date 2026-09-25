@@ -78,13 +78,16 @@ struct LXSourceManageView: View {
                         source: source,
                         isActive: source.id == store.activeSourceID,
                         isTesting: testingIDs.contains(source.id),
-                        isDisabled: store.isInitializing,
                         onToggle: {
                             Task {
                                 if source.id == store.activeSourceID {
                                     await store.deactivate()
                                 } else {
                                     await store.activate(source)
+                                    // 切换音源成功后，立即用新音源重新解析当前歌曲
+                                    if store.activeSourceID == source.id {
+                                        PlayerService.shared.reloadCurrentTrack()
+                                    }
                                 }
                             }
                         },
@@ -225,7 +228,6 @@ private struct SourceRow: View {
     let source: LXSourceInfo
     let isActive: Bool
     let isTesting: Bool
-    let isDisabled: Bool
     let onToggle: () -> Void
     let onTest: () -> Void
 
@@ -245,7 +247,6 @@ private struct SourceRow: View {
                 Button(isActive ? "取消优先" : "设为优先", action: onToggle)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(isDisabled)
                 Button {
                     onTest()
                 } label: {
@@ -257,7 +258,6 @@ private struct SourceRow: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(isDisabled)
             }
         }
         .padding(.vertical, 2)

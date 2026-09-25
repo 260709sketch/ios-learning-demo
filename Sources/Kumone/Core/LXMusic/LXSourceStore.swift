@@ -192,11 +192,14 @@ final class LXSourceStore: ObservableObject {
 
     /// 加载并激活音源。
     func activate(_ source: LXSourceInfo) async {
-        // 防重复调用：正在初始化时直接返回，避免重复 cleanup 中断前一次初始化
-        guard !isInitializing else { return }
         guard let script = script(for: source.id) else {
             lastError = "音源脚本不存在"
             return
+        }
+        // 如果正在初始化，先取消上一次再开始新的，避免按钮永久禁用
+        if isInitializing {
+            await engine.unload()
+            isInitializing = false
         }
         isInitializing = true
         lastError = nil
@@ -227,7 +230,7 @@ final class LXSourceStore: ObservableObject {
 
     // MARK: 音源测试
 
-    /// 测试音源：加载并检查是否声明了可用的 musicUrl 能力。
+    /// 测试音源：加载后实际发起 musicUrl 请求，验证是否能真正获取播放链接。
     /// 测试完成后恢复之前激活的音源。
     func test(_ source: LXSourceInfo) async -> LXSourceInfo.TestStatus {
         setTestStatus(id: source.id, status: .testing)
@@ -239,7 +242,13 @@ final class LXSourceStore: ObservableObject {
         do {
             let caps = try await engine.load(source: source, script: script)
             let hasMusicURL = caps.contains { $0.actions.contains("musicUrl") }
-            let status: LXSourceInfo.TestStatus = hasMusicURL ? .working : .failed
+            guard hasMusicURL else {
+                setTestStatus(id: source.id, status: .failed)
+                return .failed
+            }
+            // 实际发起 musicUrl 请求，验证是否能真正获取播放链接
+            let canPlay = await engine.testMusicURL()
+            let status: LXSourceInfo.TestStatus = canPlay ? .working : .failed
             setTestStatus(id: source.id, status: status)
         } catch {
             setTestStatus(id: source.id, status: .failed)
