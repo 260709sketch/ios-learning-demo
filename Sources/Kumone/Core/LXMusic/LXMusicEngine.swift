@@ -576,10 +576,12 @@ final class LXMusicEngine: NSObject {
     private func lxMusicInfo(from track: Track) -> [String: Any] {
         let id = String(track.id)
         let pic = track.album.picUrl ?? ""
+        // LX 音源标准：多歌手用"、"分隔
+        let singer = track.artists.map { $0.name }.joined(separator: "、")
         return [
             "id": id,
             "name": track.name,
-            "singer": track.artistNames,
+            "singer": singer,
             "source": "wy",
             "interval": String(Int(track.duration)),
             "albumId": track.album.id,

@@ -351,17 +351,34 @@
       .then(function (response) {
         var result
         if (params.action === 'musicUrl') {
-          if (typeof response !== 'string' || response.length > 2048 || !/^https?:/.test(response)) {
+          // 支持字符串或对象返回值，不限制 URL 长度
+          var url
+          if (typeof response === 'string') {
+            url = response
+          } else if (response && typeof response === 'object') {
+            url = response.url || response.data || response.src || response.songUrl || ''
+          } else {
+            url = ''
+          }
+          if (typeof url !== 'string' || !url || !/^https?:/.test(url)) {
             throw new Error('failed')
           }
-          result = { source: params.source, action: 'musicUrl', data: { type: params.info.type, url: response } }
+          result = { source: params.source, action: 'musicUrl', data: { type: params.info.type, url: url } }
         } else if (params.action === 'lyric') {
           result = { source: params.source, action: 'lyric', data: verifyLyricInfo(response) }
         } else if (params.action === 'pic') {
-          if (typeof response !== 'string' || response.length > 2048 || !/^https?:/.test(response)) {
+          var picUrl
+          if (typeof response === 'string') {
+            picUrl = response
+          } else if (response && typeof response === 'object') {
+            picUrl = response.url || response.data || response.src || ''
+          } else {
+            picUrl = ''
+          }
+          if (typeof picUrl !== 'string' || !picUrl || !/^https?:/.test(picUrl)) {
             throw new Error('failed')
           }
-          result = { source: params.source, action: 'pic', data: response }
+          result = { source: params.source, action: 'pic', data: picUrl }
         } else {
           throw new Error('Unknown action')
         }

@@ -344,11 +344,15 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             }
             .store(in: &cancellables)
 
-        // 曲目变化 → 更新封面
+        // 曲目变化 → 更新封面 + 重置时间
         player.$currentTrack
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateAlbumArt()
+                // 切换歌曲后重置 AMLL 时间到当前播放位置，避免沿用上一首歌时间轴
+                let time = self?.player.livePlaybackTime ?? 0
+                self?.callJS("setTime", args: [time, true])
+                self?.lastSyncedProgress = time
             }
             .store(in: &cancellables)
     }
