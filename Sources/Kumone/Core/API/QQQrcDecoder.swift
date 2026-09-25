@@ -1,5 +1,6 @@
 import Foundation
 import Compression
+import zlib
 
 /// QQ 音乐逐字 QRC 歌词解密器
 /// 移植自 Well Music qqQrcDecrypt.ts（非标准 3DES + zlib）
@@ -331,27 +332,36 @@ enum QQQrcDecoder {
     // MARK: - zlib 解压
     private static func decompress(_ data: [UInt8]) -> [UInt8]? {
         guard !data.isEmpty else { return nil }
-        let inputSize = data.count
-        let outputSize = inputSize * 16 + 1024
+        // 去掉末尾零填充（QQ音乐3DES用零填充，这些字节不在zlib流内）
+        var trimmed = data
+        while trimmed.count > 2 && trimmed.last == 0 {
+            trimmed.removeLast()
+        }
+        DebugLogger.shared.log("QRC", "zlib输入: 原始\(data.count)字节 去填充后\(trimmed.count)字节 前4=\(trimmed.prefix(4).map{String(format:"%02X",$0)}.joined())")
+        // 用zlib库的uncompress（与pako.inflate行为一致），而非Compression框架
+        let outputSize = trimmed.count * 20 + 1024
         var outputBuffer = [UInt8](repeating: 0, count: outputSize)
-        let decodedSize = outputBuffer.withUnsafeMutableBytes { outputPtr -> Int in
-            data.withUnsafeBytes { inputPtr -> Int in
-                compression_decode_buffer(
+        var destLen = uLongf(outputSize)
+        let result = trimmed.withUnsafeBytes { inputPtr -> Int32 in
+            outputBuffer.withUnsafeMutableBytes { outputPtr -> Int32 in
+                uncompress(
                     outputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                    outputSize,
+                    &destLen,
                     inputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                    inputSize,
-                    nil,
-                    COMPRESSION_ZLIB
+                    uLong(trimmed.count)
                 )
             }
         }
-        guard decodedSize > 0 else { return nil }
-        var result = Array(outputBuffer.prefix(decodedSize))
-        if result.count >= 3 && result[0] == 0xEF && result[1] == 0xBB && result[2] == 0xBF {
-            result = Array(result.dropFirst(3))
+        guard result == Z_OK else {
+            DebugLogger.shared.log("QRC", "zlib uncompress失败 result=\(result) (Z_OK=\(Z_OK),Z_STREAM_END=\(Z_STREAM_END))", level: .error)
+            return nil
         }
-        return result
+        var resultData = Array(outputBuffer.prefix(Int(destLen)))
+        DebugLogger.shared.log("QRC", "zlib解压成功 长度=\(resultData.count) 前8=\(resultData.prefix(8).map{String(format:"%02X",$0)}.joined())")
+        if resultData.count >= 3 && resultData[0] == 0xEF && resultData[1] == 0xBB && resultData[2] == 0xBF {
+            resultData = Array(resultData.dropFirst(3))
+        }
+        return resultData
     }
 
     // MARK: - 公开接口
