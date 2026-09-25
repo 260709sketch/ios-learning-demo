@@ -188,12 +188,16 @@ final class PlayerService: ObservableObject {
     private var startScrobbled = false
 
     // MARK: - 预加载下一首
-    /// 预加载的下一首歌 AVPlayerItem
+    /// 预加载的下一首歌 AVPlayerItem（旧机制，已弃用，保留避免编译错误）
     private var preloadedNextItem: AVPlayerItem?
-    /// 预加载的下一首歌 ID
+    /// 预加载的下一首歌 ID（旧机制，已弃用）
     private var preloadedNextTrackID: Int?
     /// 当前歌曲是否已触发预加载
     private var hasPreloadedCurrent = false
+    /// 当前正在解析「正在播放」请求的数量；>0 时预加载让出单例音源运行时，避免抢占导致切歌卡住
+    private var activeCurrentResolveCount = 0
+    /// 预加载 URL 内存缓存（key: track.id，value: url string），播放时优先命中实现秒开
+    private var preloadedURLs: [Int: String] = [:]
 
     private enum ResolvedURLLoadResult {
         case loaded
@@ -699,7 +703,16 @@ final class PlayerService: ObservableObject {
         // 有 LX 自定义音源激活时，所有歌曲只向 LX 音源请求播放地址，
         // 音质由设置中的音质选项控制，自动遍历所有音源换源，不 fallback 到网易云官方或内置音源
         if hasLXSource {
-            // 直接向 LX 音源请求播放地址，不做 URL 缓存（音源链接有时效性，缓存会导致播放过期链接）
+            // 优先检查预加载URL缓存，命中则直接用URL播放（秒开，跳过音源请求）
+            // 预加载只在非预加载请求时使用（preloadOnly=true 时本身就是去解析URL的）
+            if !preloadOnly,
+               let preloadedURLString = preloadedURLs[track.id],
+               let preloadedURL = URL(string: preloadedURLString.replacingOccurrences(of: "http://", with: "https://")) {
+                preloadedURLs[track.id] = nil // 用掉后清除
+                _ = await loadResolvedURL(track, url: preloadedURL, durationMS: nil, generation: generation, preloadOnly: false)
+                return
+            }
+            // 缓存未命中，实时向音源请求播放地址，不做 URL 缓存（音源链接有时效性，缓存会导致播放过期链接）
             if await resolveFromLXSource(track, generation: generation, preloadOnly: preloadOnly) { return }
             // 预加载失败静默处理，不影响当前播放、不弹提示、不切歌
             if preloadOnly { return }
@@ -757,19 +770,46 @@ final class PlayerService: ObservableObject {
 
     // MARK: - 预加载下一首
 
-    /// 播放5秒后预加载下一首歌，切换时秒开不卡顿
+    /// 播放5秒后预加载下一首歌的URL，切换时秒开不卡顿
+    /// 参考 Well Music RN 版实现：预加载只解析URL存入内存缓存，不创建AVPlayerItem，不碰任何播放全局状态
     private func preloadNextTrackIfNeeded() {
         guard SettingsManager.shared.preloadNextTrack else { return }
         guard let nextTrack = upcomingTracks.first else { return }
         // 已经预加载过同一首，跳过
-        if preloadedNextTrackID == nextTrack.id && preloadedNextItem != nil { return }
-        // 清除旧的预加载
-        preloadedNextItem = nil
-        preloadedNextTrackID = nil
-        // 用独立的 generation 避免和当前播放冲突
-        let preloadGen = resolveGeneration + 100000
+        if preloadedURLs[nextTrack.id] != nil { return }
         Task {
-            await resolveAndLoad(nextTrack, generation: preloadGen, preloadOnly: true)
+            await preloadResolveURLOnly(nextTrack)
+        }
+    }
+
+    /// 仅解析下一首歌的URL并存入缓存，不创建AVPlayerItem、不切换音源、不修改任何播放全局状态
+    /// 当前正在解析播放歌曲时（activeCurrentResolveCount > 0）直接让出，避免抢占单例音源运行时
+    private func preloadResolveURLOnly(_ track: Track) async {
+        // 当前正在解析播放歌曲时，让出单例音源运行时，避免抢占导致切歌卡住
+        guard activeCurrentResolveCount == 0 else { return }
+
+        let lxEngine = LXMusicEngine.shared
+        let lxStore = LXSourceStore.shared
+        let targetQuality = lxEngine.lxQuality(from: SettingsManager.shared.audioQuality)
+
+        // 只用当前已加载的音源，不切换音源（unload/load会打断当前播放）
+        guard let currentSource = lxEngine.currentSource else { return }
+        guard lxStore.sources.contains(where: { $0.id == currentSource.id }) else { return }
+
+        do {
+            let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
+            guard !result.url.isEmpty else { return }
+            guard URL(string: result.url.replacingOccurrences(of: "http://", with: "https://")) != nil else { return }
+            // 存入预加载缓存
+            preloadedURLs[track.id] = result.url
+            // 限制缓存大小，最多存5首，避免内存占用
+            if preloadedURLs.count > 5 {
+                if let firstKey = preloadedURLs.keys.first {
+                    preloadedURLs[firstKey] = nil
+                }
+            }
+        } catch {
+            // 预加载失败完全静默，不弹提示、不切歌、不影响当前播放
         }
     }
 
@@ -791,6 +831,10 @@ final class PlayerService: ObservableObject {
 
     /// 使用已激活的 LX 自定义音源脚本获取播放地址。
     private func resolveFromLXSource(_ track: Track, generation: Int, preloadOnly: Bool = false) async -> Bool {
+        // 当前播放解析计数：预加载检查此值，>0 时让出，避免抢占单例音源运行时
+        if !preloadOnly { activeCurrentResolveCount += 1 }
+        defer { if !preloadOnly { activeCurrentResolveCount -= 1 } }
+
         let lxStore = LXSourceStore.shared
         let lxEngine = LXMusicEngine.shared
         let targetQuality = lxEngine.lxQuality(from: SettingsManager.shared.audioQuality)
