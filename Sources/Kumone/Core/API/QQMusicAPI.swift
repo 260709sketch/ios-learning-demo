@@ -93,7 +93,7 @@ enum QQMusicAPI {
             let albumMid = (item["albummid"] as? String) ?? ""
             let albumID = (item["albumid"] as? Int) ?? 0
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
-            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl)
+            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
             return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
         }
@@ -395,7 +395,7 @@ enum QQMusicAPI {
             let albumMid = (albumDict["mid"] as? String) ?? ""
             let albumID = (albumDict["id"] as? Int) ?? 0
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
-            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl)
+            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
             return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
         }
@@ -483,7 +483,7 @@ enum QQMusicAPI {
             let albumMid2 = (albumDict["mid"] as? String) ?? ""
             let albumID = (albumDict["id"] as? Int) ?? 0
             let picUrl = albumMid2.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid2).jpg"
-            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl)
+            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid2)
 
             return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
         }

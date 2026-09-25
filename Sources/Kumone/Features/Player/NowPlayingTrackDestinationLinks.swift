@@ -10,7 +10,24 @@ struct NowPlayingTrackDestinationLinks: View {
     let onOpenDestination: (Destination) -> Void
 
     private var artists: [ArtistRef] {
-        track.artists.filter { $0.id > 0 && !$0.name.isEmpty }
+        track.artists.filter { !$0.name.isEmpty }
+    }
+
+    private func destination(for artist: ArtistRef) -> Destination {
+        if let mid = artist.singerMid, !mid.isEmpty {
+            let summary = ArtistSummary(id: artist.id, name: artist.name, picUrl: nil, sourcePlatform: "tx", singerMid: mid)
+            return .artistWithMid(artist.id, mid, summary)
+        }
+        return .artist(artist.id)
+    }
+
+    private var albumDestination: Destination? {
+        guard track.album.id > 0, !track.album.name.isEmpty else { return nil }
+        if let mid = track.album.albumMid, !mid.isEmpty {
+            let summary = AlbumSummary(id: track.album.id, name: track.album.name, picUrl: track.album.picUrl, sourcePlatform: "tx", albumMid: mid)
+            return .albumWithMid(track.album.id, mid, summary)
+        }
+        return .album(track.album.id)
     }
 
     var body: some View {
@@ -22,7 +39,7 @@ struct NowPlayingTrackDestinationLinks: View {
                 } else if artists.count == 1, let first = artists.first {
                     // 单名歌手：直接点击跳转
                     Button {
-                        onOpenDestination(.artist(first.id))
+                        onOpenDestination(destination(for: first))
                     } label: {
                         Text(first.name)
                             .contentShape(Rectangle())
@@ -35,7 +52,7 @@ struct NowPlayingTrackDestinationLinks: View {
                     Menu {
                         ForEach(artists, id: \.id) { artist in
                             Button(artist.name) {
-                                onOpenDestination(.artist(artist.id))
+                                onOpenDestination(destination(for: artist))
                             }
                         }
                     } label: {
@@ -48,12 +65,12 @@ struct NowPlayingTrackDestinationLinks: View {
             }
 
             // 专辑名：独立可点击
-            if track.album.id > 0, !track.album.name.isEmpty {
+            if let albumDest = albumDestination {
                 if !track.artistNames.isEmpty {
                     Text(" — ")
                 }
                 Button {
-                    onOpenDestination(.album(track.album.id))
+                    onOpenDestination(albumDest)
                 } label: {
                     Text(track.album.name)
                         .contentShape(Rectangle())

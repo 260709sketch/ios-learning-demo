@@ -333,12 +333,14 @@ final class LXMusicEngine: NSObject {
     func musicURL(for track: Track, quality: String) async throws -> (url: String, quality: String) {
         let musicInfo = lxMusicInfo(from: track)
         let source = track.sourcePlatform ?? "wy"
+        // QQ音乐音源不支持 flac24bit，降级为 flac
+        let adjustedQuality = (source == "tx" && quality == "flac24bit") ? "flac" : quality
         let payload: [String: Any] = [
             "requestKey": "",
             "data": [
                 "source": source,
                 "action": "musicUrl",
-                "info": ["type": quality, "musicInfo": musicInfo]
+                "info": ["type": adjustedQuality, "musicInfo": musicInfo]
             ]
         ]
         let result = try await sendJSRequest(payload: payload, timeout: 20)

@@ -73,6 +73,8 @@ enum Destination: Hashable {
     case radarPlaylist(Int)
     case album(Int)
     case artist(Int)
+    case artistWithMid(Int, String, ArtistSummary)
+    case albumWithMid(Int, String, AlbumSummary)
     case daily
     case toplists
     case recents
@@ -103,6 +105,10 @@ struct DestinationsModifier: ViewModifier {
                     AlbumDetailView(albumID: id)
                 case .artist(let id):
                     ArtistDetailView(artistID: id)
+                case .artistWithMid(let id, let mid, let artist):
+                    ArtistDetailView(artistID: id, singerMid: mid, initialArtist: artist)
+                case .albumWithMid(let id, let mid, let album):
+                    AlbumDetailView(albumID: id, albumMid: mid, initialAlbum: album)
                 case .daily:
                     DailySongsView()
                 case .toplists:

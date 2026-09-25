@@ -30,11 +30,20 @@ struct AlbumRef: Codable, Hashable, Identifiable {
     let id: Int
     let name: String
     let picUrl: String?
+    let albumMid: String?
 
     init(id: Int, name: String, picUrl: String?) {
         self.id = id
         self.name = name
         self.picUrl = picUrl
+        self.albumMid = nil
+    }
+
+    init(id: Int, name: String, picUrl: String?, albumMid: String?) {
+        self.id = id
+        self.name = name
+        self.picUrl = picUrl
+        self.albumMid = albumMid
     }
 
     init(from decoder: Decoder) throws {
@@ -42,6 +51,7 @@ struct AlbumRef: Codable, Hashable, Identifiable {
         id = (try? c.decode(Int.self, forKey: .id)) ?? 0
         name = (try? c.decode(String.self, forKey: .name)) ?? ""
         picUrl = try? c.decode(String.self, forKey: .picUrl)
+        albumMid = try? c.decode(String.self, forKey: .albumMid)
     }
 }
 

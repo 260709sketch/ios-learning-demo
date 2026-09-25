@@ -173,6 +173,19 @@ struct AlbumSummary: Decodable, Hashable, Identifiable {
         albumMid = try? c.decode(String.self, forKey: .albumMid)
     }
 
+    init(id: Int, name: String, picUrl: String?, sourcePlatform: String?, albumMid: String?) {
+        self.id = id
+        self.name = name
+        self.picUrl = picUrl
+        self.artistName = ""
+        self.publishTime = 0
+        self.size = 0
+        self.subType = nil
+        self.alias = []
+        self.sourcePlatform = sourcePlatform
+        self.albumMid = albumMid
+    }
+
     var publishYear: String {
         guard publishTime > 0 else { return "" }
         let date = Date(timeIntervalSince1970: TimeInterval(publishTime) / 1000)
@@ -248,6 +261,19 @@ struct ArtistSummary: Decodable, Hashable, Identifiable {
         followed = (try? c.decode(Bool.self, forKey: .followed)) ?? false
         sourcePlatform = try? c.decode(String.self, forKey: .sourcePlatform)
         singerMid = try? c.decode(String.self, forKey: .singerMid)
+    }
+
+    init(id: Int, name: String, picUrl: String?, sourcePlatform: String?, singerMid: String?) {
+        self.id = id
+        self.name = name
+        self.picUrl = picUrl
+        self.albumSize = 0
+        self.musicSize = 0
+        self.briefDesc = nil
+        self.alias = []
+        self.followed = false
+        self.sourcePlatform = sourcePlatform
+        self.singerMid = singerMid
     }
 }
 
