@@ -78,5 +78,10 @@ final class LocalPlaylistStore: ObservableObject {
         save()
     }
 
+    func replaceAll(_ newTracks: [Track]) {
+        tracks = newTracks
+        save()
+    }
+
     var count: Int { tracks.count }
 }

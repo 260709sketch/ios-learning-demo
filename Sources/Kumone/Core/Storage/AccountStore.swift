@@ -73,12 +73,19 @@ final class AccountStore: ObservableObject {
         // 有 track 对象：所有歌曲先存本地歌单，再判断是否需要同步网易云
         if let track = track {
             let isInLocal = LocalPlaylistStore.shared.contains(track)
+            // 判断是否是QQ音乐歌曲（有platformSongId或sourcePlatform为tx）
+            let isQQMusic = track.sourcePlatform == "tx" || track.platformSongId != nil
+
             if isInLocal {
                 LocalPlaylistStore.shared.removeTrack(track)
-                ToastCenter.shared.show("已从本地歌单移除")
+                if isQQMusic {
+                    ToastCenter.shared.show("已从本地歌单移除")
+                }
             } else {
                 LocalPlaylistStore.shared.addTrack(track)
-                ToastCenter.shared.show("已收藏到本地歌单")
+                if isQQMusic {
+                    ToastCenter.shared.show("已收藏到本地歌单")
+                }
             }
 
             // 判断是否是网易云歌曲（sourcePlatform为nil或wy/netease，且没有platformSongId）

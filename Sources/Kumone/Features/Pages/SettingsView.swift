@@ -395,6 +395,14 @@ struct SettingsView: View {
                 }
             }
 
+            Section {
+                NavigationLink {
+                    DataBackupView()
+                } label: {
+                    Label("数据备份", systemImage: "externaldrive.connected.to.line.below")
+                }
+            }
+
             Section("账号") {
                 if let profile = account.profile {
                     LabeledContent("当前账号", value: profile.nickname)

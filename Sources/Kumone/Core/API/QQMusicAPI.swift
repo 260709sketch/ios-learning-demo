@@ -529,10 +529,10 @@ enum QQMusicAPI {
             let picUrl = albumMid2.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid2).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid2)
 
-            // QQ音乐 Explicit 脏标：尝试多个可能的字段和bit位
-            let status = (songInfo["status"] as? Int) ?? 0
-            let action = (songInfo["action"] as? Int) ?? 0
-            let payDict = songInfo["pay"] as? [String: Any] ?? [:]
+            // QQ音乐 Explicit 脏标：同时检查 item 层面和 songInfo 层面的多个字段
+            let status = (item["status"] as? Int) ?? (songInfo["status"] as? Int) ?? 0
+            let action = (item["action"] as? Int) ?? (songInfo["action"] as? Int) ?? 0
+            let payDict = (item["pay"] as? [String: Any]) ?? (songInfo["pay"] as? [String: Any]) ?? [:]
             let payPay = (payDict["pay"] as? Int) ?? 0
             let isExplicit = (status & 128) != 0 || (status & 2048) != 0 || (action & 128) != 0 || (action & 2048) != 0 || (payPay & 128) != 0 || (payPay & 2048) != 0
 
