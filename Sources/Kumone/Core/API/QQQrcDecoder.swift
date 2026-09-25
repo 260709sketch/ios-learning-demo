@@ -380,7 +380,18 @@ enum QQQrcDecoder {
             DebugLogger.shared.log("QRC", "zlib解压失败 前4字节=\(firstBytes)（正常zlib应以78开头）", level: .error)
             return nil
         }
-        DebugLogger.shared.log("QRC", "zlib解压成功 长度=\(decompressed.count)")
-        return String(bytes: decompressed, encoding: .utf8)
+        DebugLogger.shared.log("QRC", "zlib解压成功 长度=\(decompressed.count) 前4字节=\(decompressed.prefix(4).map { String(format: "%02X", $0) }.joined())")
+        // 先尝试UTF8，失败则尝试GBK（QQ音乐QRC可能是GBK编码）
+        if let utf8Str = String(bytes: decompressed, encoding: .utf8) {
+            DebugLogger.shared.log("QRC", "UTF8解码成功 前50字符=\(String(utf8Str.prefix(50)))")
+            return utf8Str
+        }
+        let gbkEncoding = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)))
+        if let gbkStr = String(bytes: decompressed, encoding: gbkEncoding) {
+            DebugLogger.shared.log("QRC", "GBK解码成功 前50字符=\(String(gbkStr.prefix(50)))")
+            return gbkStr
+        }
+        DebugLogger.shared.log("QRC", "UTF8和GBK都解码失败", level: .error)
+        return nil
     }
 }
