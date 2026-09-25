@@ -24,6 +24,32 @@ enum QQMusicAPI {
         "Cookie": "uin=0; qqmusic_fromtag=66",
     ]
 
+    // MARK: - 对象构造辅助（这些 struct 有自定义 init(from:)，无成员初始化器，用 JSON 解码构造）
+    private static func makeTrack(id: Int, name: String, artists: [ArtistRef], album: AlbumRef, durationMS: Int) -> Track? {
+        let dict: [String: Any] = [
+            "id": id, "name": name,
+            "ar": artists.map { ["id": $0.id, "name": $0.name] },
+            "al": ["id": album.id, "name": album.name, "picUrl": album.picUrl ?? ""],
+            "dt": durationMS, "alia": [], "tns": [], "fee": 0, "mv": 0, "no": 0
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
+        return try? JSONDecoder().decode(Track.self, from: data)
+    }
+
+    private static func makeArtist(id: Int, name: String, picUrl: String?, musicSize: Int) -> ArtistSummary? {
+        var dict: [String: Any] = ["id": id, "name": name, "albumSize": 0, "musicSize": musicSize, "followed": false, "alias": []]
+        if let picUrl, !picUrl.isEmpty { dict["picUrl"] = picUrl }
+        guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
+        return try? JSONDecoder().decode(ArtistSummary.self, from: data)
+    }
+
+    private static func makeAlbum(id: Int, name: String, picUrl: String?, artistName: String, publishTime: Int) -> AlbumSummary? {
+        var dict: [String: Any] = ["id": id, "name": name, "artist": ["name": artistName], "publishTime": publishTime, "size": 0, "alias": []]
+        if let picUrl, !picUrl.isEmpty { dict["picUrl"] = picUrl }
+        guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
+        return try? JSONDecoder().decode(AlbumSummary.self, from: data)
+    }
+
     // MARK: - 搜索歌曲
     static func searchSongs(_ query: String, page: Int = 1, limit: Int = 20) async throws -> [Track] {
         let urlStr = "https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp?format=json&w=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&n=\(limit)&p=\(page)&t=0"
@@ -65,22 +91,7 @@ enum QQMusicAPI {
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl)
 
-            return Track(
-                id: songid,
-                name: name,
-                artists: artists,
-                album: album,
-                durationMS: interval * 1000,
-                alias: [],
-                transNames: [],
-                fee: 0,
-                mvID: 0,
-                trackNo: 0,
-                disc: nil,
-                noCopyright: false,
-                isCloud: false,
-                embeddedPrivilege: nil
-            )
+            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000)
         }
     }
 
@@ -134,17 +145,8 @@ enum QQMusicAPI {
             guard !singerName.isEmpty else { return nil }
             let singerPic = (item["singerPic"] as? String) ?? (item["pic"] as? String) ?? ""
             let songNum = (item["songNum"] as? Int) ?? 0
-
-            return ArtistSummary(
-                id: singerID,
-                name: singerName,
-                picUrl: singerPic.isEmpty ? nil : singerPic.replacingOccurrences(of: "http://", with: "https://"),
-                albumSize: 0,
-                musicSize: songNum,
-                briefDesc: nil,
-                alias: [],
-                followed: false
-            )
+            let picUrl = singerPic.isEmpty ? nil : singerPic.replacingOccurrences(of: "http://", with: "https://")
+            return makeArtist(id: singerID, name: singerName, picUrl: picUrl, musicSize: songNum)
         }
     }
 
@@ -169,11 +171,7 @@ enum QQMusicAPI {
             let singerName = (item["name"] as? String) ?? ""
             guard !singerName.isEmpty else { return nil }
             let singerPic = (item["pic"] as? String) ?? ""
-            return ArtistSummary(
-                id: singerID, name: singerName,
-                picUrl: singerPic.isEmpty ? nil : singerPic,
-                albumSize: 0, musicSize: 0, briefDesc: nil, alias: [], followed: false
-            )
+            return makeArtist(id: singerID, name: singerName, picUrl: singerPic.isEmpty ? nil : singerPic, musicSize: 0)
         }
     }
 
@@ -247,11 +245,7 @@ enum QQMusicAPI {
                 }
             }
 
-            return AlbumSummary(
-                id: albumID, name: albumName, picUrl: picUrl,
-                artistName: singerName, publishTime: publishTime,
-                size: 0, subType: nil, alias: []
-            )
+            return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: publishTime)
         }
     }
 
@@ -284,11 +278,7 @@ enum QQMusicAPI {
                 singerName = singerList.compactMap { $0["name"] as? String }.joined(separator: " / ")
             }
 
-            return AlbumSummary(
-                id: albumID, name: albumName, picUrl: picUrl,
-                artistName: singerName, publishTime: 0,
-                size: 0, subType: nil, alias: []
-            )
+            return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: 0)
         }
     }
 }
