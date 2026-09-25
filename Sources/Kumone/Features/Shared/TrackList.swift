@@ -229,7 +229,12 @@ struct TrackRow: View {
                         Text(" / ")
                     }
                     Button {
-                        openDestination(.artist(artist.id))
+                        if let mid = artist.singerMid, !mid.isEmpty {
+                            let summary = ArtistSummary(id: artist.id, name: artist.name, picUrl: nil, sourcePlatform: "tx", singerMid: mid)
+                            openDestination(.artistWithMid(artist.id, mid, summary))
+                        } else {
+                            openDestination(.artist(artist.id))
+                        }
                     } label: {
                         Text(artist.name)
                     }
@@ -346,7 +351,12 @@ struct TrackRow: View {
         }
         ForEach(track.artists.filter { $0.id > 0 && !$0.name.isEmpty }.prefix(3)) { artist in
             Button("查看歌手：\(artist.name)") {
-                openDestination(.artist(artist.id))
+                if let mid = artist.singerMid, !mid.isEmpty {
+                    let summary = ArtistSummary(id: artist.id, name: artist.name, picUrl: nil, sourcePlatform: "tx", singerMid: mid)
+                    openDestination(.artistWithMid(artist.id, mid, summary))
+                } else {
+                    openDestination(.artist(artist.id))
+                }
             }
         }
         Divider()

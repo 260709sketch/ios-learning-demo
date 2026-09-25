@@ -424,14 +424,14 @@ enum QQMusicAPI {
         }
 
         return list.compactMap { item -> AlbumSummary? in
-            let albumID = (item["albumID"] as? Int) ?? (item["id"] as? Int) ?? 0
-            let albumName = (item["albumName"] as? String) ?? (item["name"] as? String) ?? ""
+            // get_singer_album 接口返回字段：albumid/album_mid/album_name/singer_name/pub_time
+            let albumID = (item["albumid"] as? Int) ?? (item["albumID"] as? Int) ?? (item["id"] as? Int) ?? 0
+            let albumName = (item["album_name"] as? String) ?? (item["albumName"] as? String) ?? (item["name"] as? String) ?? ""
             guard !albumName.isEmpty else { return nil }
-            let albumMID = (item["albumMID"] as? String) ?? (item["mid"] as? String) ?? ""
-            let albumPic = (item["albumPic"] as? String) ?? (item["pic"] as? String) ?? ""
-            let picUrl = albumPic.isEmpty ? (albumMID.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMID).jpg") : albumPic.replacingOccurrences(of: "http://", with: "https://")
-            let singerName = (item["singerName"] as? String) ?? ""
-            let publishTime = (item["publishTime"] as? Int) ?? 0
+            let albumMID = (item["album_mid"] as? String) ?? (item["albumMID"] as? String) ?? (item["mid"] as? String) ?? ""
+            let picUrl = albumMID.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMID).jpg"
+            let singerName = (item["singer_name"] as? String) ?? (item["singerName"] as? String) ?? ""
+            let publishTime = (item["pub_time"] as? Int) ?? (item["publishTime"] as? Int) ?? 0
             return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: publishTime, albumMid: albumMID)
         }
     }
@@ -487,5 +487,82 @@ enum QQMusicAPI {
 
             return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
         }
+    }
+
+    // MARK: - QQ音乐逐字歌词（QRC）
+    /// 获取 QQ 音乐逐字歌词（QRC），返回解析后的 LyricLine 数组；失败返回 nil
+    static func wordLyric(songmid: String) async -> [LyricLine]? {
+        let body: [String: Any] = [
+            "comm": ["uin": 0, "format": 1, "ct": 19, "cv": 0],
+            "detail": [
+                "module": "music.musichallSong.PlayLyricInfo",
+                "method": "GetPlayLyricInfo",
+                "param": [
+                    "qrc": 1, "qrc_t": 0, "roma": 1, "guoke": 1,
+                    "type": -1, "licenseID": "", "cp": 0, "cv": 0, "ct": 19,
+                    "songmid": songmid
+                ]
+            ]
+        ]
+        guard let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.allHTTPHeaderFields = [
+            "User-Agent": "QQMusic 14090508(android 12)",
+            "Content-Type": "application/json",
+            "Referer": "https://y.qq.com/"
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        request.timeoutInterval = 10
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let detail = json["detail"] as? [String: Any],
+                  let detailData = detail["data"] as? [String: Any],
+                  let qrcFlag = detailData["qrc"] as? Int, qrcFlag == 1,
+                  let encryptedLyric = detailData["lyric"] as? String,
+                  !encryptedLyric.isEmpty else {
+                return nil
+            }
+            guard let decrypted = QQQrcDecoder.decrypt(encryptedLyric) else { return nil }
+            return parseQrc(decrypted)
+        } catch {
+            return nil
+        }
+    }
+
+    /// 解析 QQ QRC 文本：[行开始ms,行时长ms]字(绝对开始ms,字时长ms)字...
+    private static func parseQrc(_ text: String) -> [LyricLine]? {
+        var lines: [LyricLine] = []
+        let lineRegex = try? NSRegularExpression(pattern: "\\[(-?\\d+),-?\\d+\\]([^\\r\\n]*)")
+        let wordRegex = try? NSRegularExpression(pattern: "([^()\\r\\n]*?)\\((-?\\d+),(-?\\d+)\\)")
+        guard let lineRegex = lineRegex, let wordRegex = wordRegex else { return nil }
+
+        let nsText = text as NSString
+        let lineMatches = lineRegex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        var idx = 0
+        for lm in lineMatches {
+            guard lm.numberOfRanges >= 3 else { continue }
+            let lineStart = max(0, Int(nsText.substring(with: lm.range(at: 1))) ?? 0)
+            let body = nsText.substring(with: lm.range(at: 2))
+            let nsBody = body as NSString
+            let wordMatches = wordRegex.matches(in: body, range: NSRange(location: 0, length: nsBody.length))
+            var words: [LyricWord] = []
+            for wm in wordMatches {
+                guard wm.numberOfRanges >= 4 else { continue }
+                let t = nsBody.substring(with: wm.range(at: 1))
+                let abs = Int(nsBody.substring(with: wm.range(at: 2))) ?? 0
+                let dur = Int(nsBody.substring(with: wm.range(at: 3))) ?? 0
+                let start = max(0, abs) / 1000
+                let end = start + max(0, dur) / 1000
+                words.append(LyricWord(text: t, start: TimeInterval(start), duration: TimeInterval(max(end - start, 0.02))))
+            }
+            let lrc = words.map { $0.text }.joined().trimmingCharacters(in: .whitespaces)
+            guard !lrc.isEmpty, !words.isEmpty else { continue }
+            lines.append(LyricLine(id: idx, time: TimeInterval(lineStart) / 1000, text: lrc, words: words))
+            idx += 1
+        }
+        return lines.isEmpty ? nil : lines
     }
 }

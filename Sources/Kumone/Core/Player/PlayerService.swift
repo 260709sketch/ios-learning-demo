@@ -1233,6 +1233,22 @@ final class PlayerService: ObservableObject {
     }
 
     private func loadLyrics(for track: Track, generation: Int) async {
+        // QQ音乐：优先获取 QRC 逐字歌词，成功则直接使用
+        if track.sourcePlatform == "tx", let songmid = track.platformSongId {
+            if let qrcLines = await QQMusicAPI.wordLyric(songmid: songmid), !qrcLines.isEmpty {
+                guard generation == resolveGeneration else { return }
+                var parsed = ParsedLyrics()
+                parsed.lines = qrcLines
+                lyrics = parsed
+                updateLyricsCursor(at: progress)
+                // QQ音乐歌曲保底：仅当本身无封面时，向网易云搜索同名同歌手匹配封面
+                if (track.album.picUrl ?? "").isEmpty {
+                    await matchCoverFromNetEase(for: track, generation: generation)
+                }
+                return
+            }
+        }
+        // 回退：逐行 LRC 歌词
         let response: LyricResponse?
         if track.sourcePlatform == "tx", let songmid = track.platformSongId {
             response = try? await QQMusicAPI.lyric(songmid: songmid)
@@ -1243,8 +1259,8 @@ final class PlayerService: ObservableObject {
         lyrics = response.map(LyricsParser.parse)
         updateLyricsCursor(at: progress)
 
-        // QQ音乐歌曲保底：向网易云搜索同名同歌手匹配封面，供 AMLL 背景提取颜色
-        if track.sourcePlatform == "tx" {
+        // QQ音乐歌曲保底：仅当本身无封面时，向网易云搜索同名同歌手匹配封面，供 AMLL 背景提取颜色
+        if track.sourcePlatform == "tx", (track.album.picUrl ?? "").isEmpty {
             await matchCoverFromNetEase(for: track, generation: generation)
         }
     }
