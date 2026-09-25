@@ -149,35 +149,15 @@ enum NeteaseAPI {
 
     // MARK: - 最近播放（按时间顺序）
 
-    struct RecentSongData: Decodable {
-        let id: Int
-        let name: String
-        let ar: [ArtistSummary]?
-        let al: AlbumSummary?
-        let dt: Int?
-
-        var track: Track {
-            Track(
-                id: id,
-                name: name,
-                artists: ar ?? [],
-                album: al ?? AlbumSummary(id: 0, name: "", picUrl: nil),
-                duration: TimeInterval((dt ?? 0) / 1000),
-                fee: 0,
-                url: nil
-            )
-        }
-    }
-
     struct RecentSongsResponse: Decodable {
-        let data: [RecentSongData]?
+        let data: [Track]?
     }
 
     /// 获取最近播放的歌曲（按时间顺序，最多100首）
     static func recentSongs(limit: Int = 100) async throws -> [Track] {
         let resp = try await weapi(RecentSongsResponse.self, "/record/recent/song",
                                    ["limit": limit])
-        return (resp.data ?? []).map { $0.track }
+        return resp.data ?? []
     }
 
     struct CloudResponse: Decodable {
