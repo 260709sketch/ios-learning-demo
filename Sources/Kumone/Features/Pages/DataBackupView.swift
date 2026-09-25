@@ -155,24 +155,38 @@ struct DataBackupView: View {
     }
 
     private func restoreBackup(from url: URL) {
+        // fileImporter返回的URL需要安全范围访问
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
         do {
+            DebugLogger.shared.log("数据备份", "开始恢复文件: \(url.lastPathComponent)")
             // 读取文件
             let data = try Data(contentsOf: url)
+            DebugLogger.shared.log("数据备份", "文件大小: \(data.count) 字节")
             guard let backup = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 throw NSError(domain: "Backup", code: -1, userInfo: [NSLocalizedDescriptionKey: "文件格式错误"])
             }
+            DebugLogger.shared.log("数据备份", "备份文件键: \(Array(backup.keys))")
 
             // 1. 恢复设置
             if let settings = backup["settings"] as? [String: Any],
                let bundleID = Bundle.main.bundleIdentifier {
                 UserDefaults.standard.setPersistentDomain(settings, forName: bundleID)
+                DebugLogger.shared.log("数据备份", "恢复设置: \(settings.count) 项", level: .success)
             }
 
-            // 2. 恢复收藏歌单
-            if let playlistArray = backup["favoritePlaylist"] as? [[String: Any]] {
+            // 2. 恢复收藏歌单（兼容旧键名localPlaylist）
+            let playlistArray = (backup["favoritePlaylist"] as? [[String: Any]]) ?? (backup["localPlaylist"] as? [[String: Any]])
+            if let playlistArray = playlistArray {
                 let playlistData = try JSONSerialization.data(withJSONObject: playlistArray)
                 let tracks = try JSONDecoder().decode([Track].self, from: playlistData)
                 localStore.replaceAll(tracks)
+                DebugLogger.shared.log("数据备份", "恢复收藏歌单: \(tracks.count) 首", level: .success)
             }
 
             alertTitle = "恢复成功"
@@ -180,6 +194,7 @@ struct DataBackupView: View {
             showAlert = true
             statusMessage = "已从 \(url.lastPathComponent) 恢复数据"
         } catch {
+            DebugLogger.shared.log("数据备份", "恢复失败: \(error.localizedDescription)", level: .error)
             alertTitle = "恢复失败"
             alertMessage = error.localizedDescription
             showAlert = true

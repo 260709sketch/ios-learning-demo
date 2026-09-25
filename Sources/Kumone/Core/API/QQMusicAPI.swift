@@ -438,8 +438,12 @@ enum QQMusicAPI {
                              (songInfo["isExplicit"] as? Int ?? 0) != 0 ||
                              (item["isExplicit"] as? Int ?? 0) != 0
 
-            // 调试：打印第一首歌的所有字段，帮助定位脏标
+            // 调试：打印第一首歌的完整JSON，帮助定位脏标
             if isFirstSong {
+                if let jsonData = try? JSONSerialization.data(withJSONObject: item, options: [.prettyPrinted]),
+                   let jsonStr = String(data: jsonData, encoding: .utf8) {
+                    DebugLogger.shared.log("QQ脏标", "歌曲[\(name)] 完整JSON: \(jsonStr.prefix(2000))")
+                }
                 DebugLogger.shared.log("QQ脏标", "歌曲[\(name)] item.keys=\(Array(item.keys)) songInfo.keys=\(Array(songInfo.keys)) status=\(status) action=\(action) payPay=\(payPay) isExplicit=\(isExplicit)")
                 isFirstSong = false
             }
