@@ -19,6 +19,8 @@ struct LXSourceInfo: Codable, Identifiable, Hashable {
     var importDate: Date
     /// 音源测试结果（不持久化，运行时刷新）。
     var testStatus: TestStatus? = nil
+    /// 各平台测试结果（wy=网易云，tx=QQ音乐），nil=未测试
+    var platformTestResults: [String: Bool] = [:]
 
     enum TestStatus: String, Codable {
         case untested
@@ -348,30 +350,57 @@ final class LXMusicEngine: NSObject {
     }
 
     /// 测试音源是否能真正获取播放链接（用固定测试歌曲实际请求 musicUrl）
-    func testMusicURL() async -> Bool {
-        let testInfo: [String: Any] = [
-            "name": "thank u, next",
-            "singer": "Ariana Grande",
-            "source": "wy",
-            "songmid": "1330348068",
-            "interval": "03:27",
-            "albumName": "thank u, next",
-            "img": "",
-            "typeUrl": [:] as [String: String],
-            "albumId": 0,
-            "types": [["type": "128k", "size": ""]],
-            "_types": ["128k": ["size": ""]],
-            "id": "1330348068",
-            "songId": "1330348068",
-            "pic": "",
-            "album": "thank u, next",
-            "hash": "",
-            "rid": ""
-        ]
+    /// - Parameter platform: 测试平台，"wy"=网易云，"tx"=QQ音乐
+    func testMusicURL(platform: String = "wy") async -> Bool {
+        // 不同平台用不同的测试歌曲信息
+        let testInfo: [String: Any]
+        if platform == "tx" {
+            // QQ音乐测试歌曲：晴天（周杰伦）
+            testInfo = [
+                "name": "晴天",
+                "singer": "周杰伦",
+                "source": "tx",
+                "songmid": "001fXNtB2b58tO",
+                "interval": "04:29",
+                "albumName": "叶惠美",
+                "img": "",
+                "typeUrl": [:] as [String: String],
+                "albumId": 0,
+                "types": [["type": "128k", "size": ""]],
+                "_types": ["128k": ["size": ""]],
+                "id": "001fXNtB2b58tO",
+                "songId": "001fXNtB2b58tO",
+                "pic": "",
+                "album": "叶惠美",
+                "hash": "",
+                "rid": ""
+            ]
+        } else {
+            // 网易云测试歌曲：thank u, next
+            testInfo = [
+                "name": "thank u, next",
+                "singer": "Ariana Grande",
+                "source": "wy",
+                "songmid": "1330348068",
+                "interval": "03:27",
+                "albumName": "thank u, next",
+                "img": "",
+                "typeUrl": [:] as [String: String],
+                "albumId": 0,
+                "types": [["type": "128k", "size": ""]],
+                "_types": ["128k": ["size": ""]],
+                "id": "1330348068",
+                "songId": "1330348068",
+                "pic": "",
+                "album": "thank u, next",
+                "hash": "",
+                "rid": ""
+            ]
+        }
         let payload: [String: Any] = [
             "requestKey": "",
             "data": [
-                "source": "wy",
+                "source": platform,
                 "action": "musicUrl",
                 "info": ["type": "128k", "musicInfo": testInfo]
             ]

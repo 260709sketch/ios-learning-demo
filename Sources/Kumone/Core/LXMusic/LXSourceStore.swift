@@ -223,10 +223,12 @@ final class LXSourceStore: ObservableObject {
 
     // MARK: 音源测试
 
-    /// 测试音源：加载后实际发起 musicUrl 请求，验证是否能真正获取播放链接。
+    /// 测试音源：加载后实际发起 musicUrl 请求，同时测试网易云和QQ音乐两个平台。
     /// 测试完成后恢复之前激活的音源。
     func test(_ source: LXSourceInfo) async -> LXSourceInfo.TestStatus {
         setTestStatus(id: source.id, status: .testing)
+        setPlatformTestResult(id: source.id, platform: "wy", result: nil)
+        setPlatformTestResult(id: source.id, platform: "tx", result: nil)
         guard let script = script(for: source.id) else {
             setTestStatus(id: source.id, status: .failed)
             return .failed
@@ -239,9 +241,15 @@ final class LXSourceStore: ObservableObject {
                 setTestStatus(id: source.id, status: .failed)
                 return .failed
             }
-            // 实际发起 musicUrl 请求，验证是否能真正获取播放链接
-            let canPlay = await engine.testMusicURL()
-            let status: LXSourceInfo.TestStatus = canPlay ? .working : .failed
+            // 同时测试网易云和QQ音乐两个平台
+            async let wyResult = engine.testMusicURL(platform: "wy")
+            async let txResult = engine.testMusicURL(platform: "tx")
+            let canPlayWY = await wyResult
+            let canPlayTX = await txResult
+            setPlatformTestResult(id: source.id, platform: "wy", result: canPlayWY)
+            setPlatformTestResult(id: source.id, platform: "tx", result: canPlayTX)
+            // 任一平台可用即为 working
+            let status: LXSourceInfo.TestStatus = (canPlayWY || canPlayTX) ? .working : .failed
             setTestStatus(id: source.id, status: status)
         } catch {
             setTestStatus(id: source.id, status: .failed)
@@ -262,6 +270,16 @@ final class LXSourceStore: ObservableObject {
         if let index = sources.firstIndex(where: { $0.id == id }) {
             sources[index].testStatus = status
             persistList()
+        }
+    }
+
+    private func setPlatformTestResult(id: String, platform: String, result: Bool?) {
+        if let index = sources.firstIndex(where: { $0.id == id }) {
+            if let result {
+                sources[index].platformTestResults[platform] = result
+            } else {
+                sources[index].platformTestResults.removeValue(forKey: platform)
+            }
         }
     }
 

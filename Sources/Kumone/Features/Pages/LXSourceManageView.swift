@@ -274,9 +274,47 @@ private struct SourceRow: View {
     private var testBadge: some View {
         switch source.testStatus {
         case .working:
-            Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+            // 显示哪些平台可用
+            HStack(spacing: 4) {
+                if source.platformTestResults["wy"] == true {
+                    Text("网易")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(.green))
+                }
+                if source.platformTestResults["tx"] == true {
+                    Text("QQ")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(.green))
+                }
+                // 如果都没标记但整体是working，显示对勾
+                if source.platformTestResults["wy"] != true && source.platformTestResults["tx"] != true {
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+                }
+            }
         case .failed:
-            Image(systemName: "xmark.seal.fill").foregroundStyle(.red)
+            HStack(spacing: 4) {
+                if source.platformTestResults["wy"] == false {
+                    Text("网易")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(.red))
+                }
+                if source.platformTestResults["tx"] == false {
+                    Text("QQ")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(.red))
+                }
+                if source.platformTestResults.isEmpty {
+                    Image(systemName: "xmark.seal.fill").foregroundStyle(.red)
+                }
+            }
         default:
             EmptyView()
         }

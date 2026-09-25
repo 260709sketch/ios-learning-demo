@@ -12,8 +12,16 @@ final class SearchViewModel: ObservableObject {
         var id: String { rawValue }
     }
 
+    enum Platform: String, CaseIterable, Identifiable {
+        case netease = "网易云"
+        case qq = "QQ音乐"
+
+        var id: String { rawValue }
+    }
+
     var query: String
     @Published var tab: Tab = .all
+    @Published var platform: Platform = .netease
     @Published var songs: [Track] = []
     @Published var artists: [ArtistSummary] = []
     @Published var albums: [AlbumSummary] = []
@@ -35,6 +43,16 @@ final class SearchViewModel: ObservableObject {
         playlists = []
     }
 
+    func setPlatform(_ newPlatform: Platform) {
+        guard newPlatform != platform else { return }
+        platform = newPlatform
+        loadedTabs.removeAll()
+        songs = []
+        artists = []
+        albums = []
+        playlists = []
+    }
+
     func load(tab: Tab) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -45,22 +63,48 @@ final class SearchViewModel: ObservableObject {
 
         switch tab {
         case .all:
-            async let songsTask = try? NeteaseAPI.search(trimmed, type: .songs, limit: 12)
-            async let artistsTask = try? NeteaseAPI.search(trimmed, type: .artists, limit: 10)
-            async let albumsTask = try? NeteaseAPI.search(trimmed, type: .albums, limit: 10)
-            async let playlistsTask = try? NeteaseAPI.search(trimmed, type: .playlists, limit: 10)
-            songs = (await songsTask)?.songs ?? []
-            artists = (await artistsTask)?.artists ?? []
-            albums = (await albumsTask)?.albums ?? []
-            playlists = (await playlistsTask)?.playlists ?? []
+            if platform == .qq {
+                async let songsTask = try? QQMusicAPI.searchSongs(trimmed, limit: 12)
+                async let artistsTask = try? QQMusicAPI.searchArtists(trimmed, limit: 10)
+                async let albumsTask = try? QQMusicAPI.searchAlbums(trimmed, limit: 10)
+                songs = await songsTask ?? []
+                artists = await artistsTask ?? []
+                albums = await albumsTask ?? []
+                playlists = []
+            } else {
+                async let songsTask = try? NeteaseAPI.search(trimmed, type: .songs, limit: 12)
+                async let artistsTask = try? NeteaseAPI.search(trimmed, type: .artists, limit: 10)
+                async let albumsTask = try? NeteaseAPI.search(trimmed, type: .albums, limit: 10)
+                async let playlistsTask = try? NeteaseAPI.search(trimmed, type: .playlists, limit: 10)
+                songs = (await songsTask)?.songs ?? []
+                artists = (await artistsTask)?.artists ?? []
+                albums = (await albumsTask)?.albums ?? []
+                playlists = (await playlistsTask)?.playlists ?? []
+            }
         case .songs:
-            songs = (try? await NeteaseAPI.search(trimmed, type: .songs, limit: 100))?.songs ?? songs
+            if platform == .qq {
+                songs = (try? await QQMusicAPI.searchSongs(trimmed, limit: 50)) ?? songs
+            } else {
+                songs = (try? await NeteaseAPI.search(trimmed, type: .songs, limit: 100))?.songs ?? songs
+            }
         case .artists:
-            artists = (try? await NeteaseAPI.search(trimmed, type: .artists, limit: 50))?.artists ?? artists
+            if platform == .qq {
+                artists = (try? await QQMusicAPI.searchArtists(trimmed, limit: 50)) ?? artists
+            } else {
+                artists = (try? await NeteaseAPI.search(trimmed, type: .artists, limit: 50))?.artists ?? artists
+            }
         case .albums:
-            albums = (try? await NeteaseAPI.search(trimmed, type: .albums, limit: 50))?.albums ?? albums
+            if platform == .qq {
+                albums = (try? await QQMusicAPI.searchAlbums(trimmed, limit: 50)) ?? albums
+            } else {
+                albums = (try? await NeteaseAPI.search(trimmed, type: .albums, limit: 50))?.albums ?? albums
+            }
         case .playlists:
-            playlists = (try? await NeteaseAPI.search(trimmed, type: .playlists, limit: 50))?.playlists ?? playlists
+            if platform == .qq {
+                playlists = []
+            } else {
+                playlists = (try? await NeteaseAPI.search(trimmed, type: .playlists, limit: 50))?.playlists ?? playlists
+            }
         }
     }
 }
@@ -79,6 +123,17 @@ struct SearchView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    // 平台切换：网易云 / QQ音乐
+                    Picker("", selection: $model.platform) {
+                        ForEach(SearchViewModel.Platform.allCases) { p in
+                            Text(p.rawValue).tag(p)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .padding(.horizontal, Theme.Layout.contentInset)
+                    .padding(.top, 12)
+
                     Picker("", selection: $model.tab) {
                         ForEach(SearchViewModel.Tab.allCases) { tab in
                             Text(LocalizedStringKey(tab.rawValue)).tag(tab)
@@ -87,7 +142,7 @@ struct SearchView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .padding(.horizontal, Theme.Layout.contentInset)
-                    .padding(.top, 12)
+                    .padding(.top, 8)
 
                     if model.isLoading && currentEmpty {
                         ProgressView()
@@ -122,6 +177,9 @@ struct SearchView: View {
         #endif
         .navigationTitle(searchText.isEmpty ? "搜索" : String(localized: "搜索：\(searchText)"))
         .task(id: model.tab) {
+            await model.load(tab: model.tab)
+        }
+        .task(id: model.platform) {
             await model.load(tab: model.tab)
         }
     }
