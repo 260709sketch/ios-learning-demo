@@ -83,8 +83,10 @@ enum QQMusicAPI {
                 artists = singerList.map { s in
                     let sid = (s["id"] as? Int) ?? 0
                     let sname = (s["name"] as? String) ?? ""
-                    let smid = (s["mid"] as? String) ?? (s["singerMID"] as? String)
-                    return ArtistRef(id: sid, name: sname, singerMid: smid)
+                    let smid = (s["mid"] as? String) ?? (s["singerMID"] as? String) ?? ""
+                    // QQ音乐部分接口singer无id字段，用mid的hash保证唯一，避免ForEach重复导致跳转错误
+                    let artistID = sid > 0 ? sid : abs(smid.hashValue)
+                    return ArtistRef(id: artistID, name: sname, singerMid: smid.isEmpty ? nil : smid)
                 }
             }
 
@@ -384,8 +386,9 @@ enum QQMusicAPI {
                 artists = singerList.map { s in
                     let sid = (s["id"] as? Int) ?? 0
                     let sname = (s["name"] as? String) ?? ""
-                    let smid = (s["mid"] as? String) ?? (s["singerMID"] as? String)
-                    return ArtistRef(id: sid, name: sname, singerMid: smid)
+                    let smid = (s["mid"] as? String) ?? (s["singerMID"] as? String) ?? ""
+                    let artistID = sid > 0 ? sid : abs(smid.hashValue)
+                    return ArtistRef(id: artistID, name: sname, singerMid: smid.isEmpty ? nil : smid)
                 }
             }
 
@@ -472,8 +475,9 @@ enum QQMusicAPI {
                 artists = singerList.map { s in
                     let sid = (s["id"] as? Int) ?? 0
                     let sname = (s["name"] as? String) ?? ""
-                    let smid = (s["mid"] as? String) ?? (s["singerMID"] as? String)
-                    return ArtistRef(id: sid, name: sname, singerMid: smid)
+                    let smid = (s["mid"] as? String) ?? (s["singerMID"] as? String) ?? ""
+                    let artistID = sid > 0 ? sid : abs(smid.hashValue)
+                    return ArtistRef(id: artistID, name: sname, singerMid: smid.isEmpty ? nil : smid)
                 }
             }
 
