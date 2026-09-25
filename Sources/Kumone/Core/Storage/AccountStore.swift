@@ -93,18 +93,22 @@ final class AccountStore: ObservableObject {
             return
         }
         let like = !likedTrackIDs.contains(trackID)
+        DebugLogger.shared.log("收藏", "网易云歌曲 trackID=\(trackID) like=\(like) track=\(track != nil) sourcePlatform=\(track?.sourcePlatform ?? "nil")")
         // Optimistic update
         if like { likedTrackIDs.insert(trackID) } else { likedTrackIDs.remove(trackID) }
         // 同步到本地歌单（收藏时添加，取消收藏时移除）
         if let track = track {
             if like {
                 LocalPlaylistStore.shared.addTrack(track)
+                DebugLogger.shared.log("收藏", "已添加到本地歌单 歌曲=\(track.name) 本地歌单数量=\(LocalPlaylistStore.shared.count)", level: .success)
             } else {
                 LocalPlaylistStore.shared.removeTrack(track)
+                DebugLogger.shared.log("收藏", "已从本地歌单移除 歌曲=\(track.name)", level: .success)
             }
         } else if !like {
             // 没有 track 对象时，按 id 和平台移除（平台为 nil 时只按 id 匹配网易云）
             LocalPlaylistStore.shared.removeTrack(trackID: trackID, sourcePlatform: nil)
+            DebugLogger.shared.log("收藏", "无track对象，按id移除本地歌单 trackID=\(trackID)")
         }
         do {
             try await NeteaseAPI.likeTrack(id: trackID, like: like)
