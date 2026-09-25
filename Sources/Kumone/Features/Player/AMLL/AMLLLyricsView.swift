@@ -135,7 +135,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
     }
 
     /// 应用歌词布局（位置、字号、字重、字体、显示/隐藏、背景模式）
-    func applyLayout(top: Int, bottom: Int, horizontal: Int, fontSize: Int, fontWeight: Int, fontFamily: String, showLyrics: Bool, backgroundMode: SettingsManager.AMLLBackgroundMode) {
+    func applyLayout(top: Int, bottom: Int, horizontal: Int, fontSize: Int, fontWeight: Int, fontFamily: String, showLyrics: Bool, backgroundMode: SettingsManager.AMLLBackgroundMode = .flowing) {
         // 记录切换前的状态，用于检测"从隐藏切到显示"
         let wasHidden = !layoutShowLyrics
         layoutTop = top
