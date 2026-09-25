@@ -347,21 +347,21 @@ final class LXMusicEngine: NSObject {
     /// 测试音源是否能真正获取播放链接（用固定测试歌曲实际请求 musicUrl）
     func testMusicURL() async -> Bool {
         let testInfo: [String: Any] = [
-            "name": "晴天",
-            "singer": "周杰伦",
+            "name": "thank u, next",
+            "singer": "Ariana Grande",
             "source": "wy",
-            "songmid": "186016",
-            "interval": "04:29",
-            "albumName": "叶惠美",
+            "songmid": "1330348068",
+            "interval": "03:27",
+            "albumName": "thank u, next",
             "img": "",
             "typeUrl": [:] as [String: String],
             "albumId": 0,
             "types": [["type": "128k", "size": ""]],
             "_types": ["128k": ["size": ""]],
-            "id": "186016",
-            "songId": "186016",
+            "id": "1330348068",
+            "songId": "1330348068",
             "pic": "",
-            "album": "叶惠美",
+            "album": "thank u, next",
             "hash": "",
             "rid": ""
         ]

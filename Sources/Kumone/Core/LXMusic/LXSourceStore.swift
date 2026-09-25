@@ -37,6 +37,7 @@ final class LXSourceStore: ObservableObject {
 
     private let engine = LXMusicEngine.shared
     private let activeSourceKey = "lxmusic.activeSourceID"
+    private var activateTask: Task<Void, Never>?
 
     private init() {
         // 应用启动时立即恢复音源列表和激活状态
@@ -93,11 +94,11 @@ final class LXSourceStore: ObservableObject {
         let savedID = UserDefaults.standard.string(forKey: activeSourceKey)
         if let savedID, let source = sources.first(where: { $0.id == savedID }) {
             activeSourceID = savedID
-            Task { await activate(source) }
+            activate(source)
         } else if let firstSource = sources.first {
             // 兜底：没有保存的激活音源但列表不为空，自动激活第一个
             activeSourceID = firstSource.id
-            Task { await activate(firstSource) }
+            activate(firstSource)
         }
     }
 
@@ -131,7 +132,7 @@ final class LXSourceStore: ObservableObject {
         persistList()
 
         // 导入后自动激活（设为优先音源）
-        await activate(info)
+        activate(info)
 
         return info
     }
@@ -191,31 +192,34 @@ final class LXSourceStore: ObservableObject {
     // MARK: 激活 / 停用
 
     /// 加载并激活音源。
-    func activate(_ source: LXSourceInfo) async {
-        guard let script = script(for: source.id) else {
-            lastError = "音源脚本不存在"
-            return
-        }
-        // 如果正在初始化，先取消上一次再开始新的，避免按钮永久禁用
-        if isInitializing {
-            await engine.unload()
+    @discardableResult
+    func activate(_ source: LXSourceInfo) -> Task<Void, Never> {
+        // 取消上一次激活任务，避免并发干扰导致超时
+        activateTask?.cancel()
+        let task = Task {
+            guard let script = script(for: source.id) else {
+                lastError = "音源脚本不存在"
+                isInitializing = false
+                return
+            }
+            isInitializing = true
+            lastError = nil
+            do {
+                let caps = try await engine.load(source: source, script: script)
+                if Task.isCancelled { return }
+                if caps.isEmpty {
+                    lastError = "音源未声明任何可用平台"
+                } else {
+                    activeSourceID = source.id
+                }
+            } catch {
+                if Task.isCancelled { return }
+                lastError = error.localizedDescription
+            }
             isInitializing = false
         }
-        isInitializing = true
-        lastError = nil
-        do {
-            let caps = try await engine.load(source: source, script: script)
-            if caps.isEmpty {
-                lastError = "音源未声明任何可用平台"
-                // 不清除 activeSourceID，保持用户选择，下次启动重试
-            } else {
-                activeSourceID = source.id
-            }
-        } catch {
-            lastError = error.localizedDescription
-            // 激活失败不清除 activeSourceID，避免 UserDefaults 被清空导致下次启动不自动激活
-        }
-        isInitializing = false
+        activateTask = task
+        return task
     }
 
     func deactivate() async {
@@ -257,7 +261,7 @@ final class LXSourceStore: ObservableObject {
         // 恢复之前的音源
         if previousActiveID != source.id {
             if let prev = sources.first(where: { $0.id == previousActiveID }) {
-                await activate(prev)
+                activate(prev)
             } else {
                 await deactivate()
             }

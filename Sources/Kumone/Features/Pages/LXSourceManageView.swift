@@ -83,7 +83,7 @@ struct LXSourceManageView: View {
                                 if source.id == store.activeSourceID {
                                     await store.deactivate()
                                 } else {
-                                    await store.activate(source)
+                                    await store.activate(source).value
                                     // 切换音源成功后，立即用新音源重新解析当前歌曲
                                     if store.activeSourceID == source.id {
                                         PlayerService.shared.reloadCurrentTrack()
