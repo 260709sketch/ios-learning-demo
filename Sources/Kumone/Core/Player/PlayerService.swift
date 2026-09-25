@@ -853,7 +853,7 @@ final class PlayerService: ObservableObject {
         let lxEngine = LXMusicEngine.shared
         let targetQuality = lxEngine.lxQuality(from: SettingsManager.shared.audioQuality)
         let platform = track.sourcePlatform ?? "wy"
-        DebugLogger.shared.log("LX", "\(preloadOnly ? "[预加载]" : "[播放]") 开始解析 歌曲=\(track.name) 平台=\(platform) songmid=\(track.platformSongId ?? track.id) 请求音质=\(targetQuality)")
+        DebugLogger.shared.log("LX", "\(preloadOnly ? "[预加载]" : "[播放]") 开始解析 歌曲=\(track.name) 平台=\(platform) songmid=\(track.platformSongId ?? String(track.id)) 请求音质=\(targetQuality)")
 
         // 构建音源尝试顺序：优先音源排第一，其余按导入顺序
         var sourcesToTry = lxStore.sources
@@ -1110,7 +1110,7 @@ final class PlayerService: ObservableObject {
         itemStatusObservation?.invalidate()
         itemStatusObservation = nil
         // 所有音源都观察 AVPlayerItem status，加载失败时记录日志并处理
-        itemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+        itemStatusObservation = item.observe(\.status, options: [.new]) { [weak self, url] item, _ in
             guard item.status == .failed else { return }
             let errorDesc = item.error?.localizedDescription ?? "未知错误"
             DebugLogger.shared.log("Player", "AVPlayerItem加载失败: \(errorDesc) URL=\(url.absoluteString)", level: .error)
