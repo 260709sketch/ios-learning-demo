@@ -1110,10 +1110,11 @@ final class PlayerService: ObservableObject {
         itemStatusObservation?.invalidate()
         itemStatusObservation = nil
         // 所有音源都观察 AVPlayerItem status，加载失败时记录日志并处理
-        itemStatusObservation = item.observe(\.status, options: [.new]) { [weak self, url] item, _ in
+        let urlString = url.absoluteString
+        itemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             guard item.status == .failed else { return }
             let errorDesc = item.error?.localizedDescription ?? "未知错误"
-            DebugLogger.shared.log("Player", "AVPlayerItem加载失败: \(errorDesc) URL=\(url.absoluteString)", level: .error)
+            DebugLogger.shared.log("Player", "AVPlayerItem加载失败: \(errorDesc) URL=\(urlString)", level: .error)
             Task { @MainActor in
                 if let sourceID = self?.currentUnblockSourceID {
                     self?.handleUnblockItemFailure(track: track, generation: generation, sourceID: sourceID)
