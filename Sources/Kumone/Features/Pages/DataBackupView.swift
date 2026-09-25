@@ -18,7 +18,7 @@ struct DataBackupView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("会备份以下数据：")
                         .font(.headline)
-                    Text("• 本地歌单的所有歌曲")
+                    Text("• 收藏歌单的所有歌曲")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text("• 应用设置（音质、预加载、主题、播放页模式、歌词设置、AMLL设置等）")
@@ -90,17 +90,25 @@ struct DataBackupView: View {
 
     private func createBackup() {
         do {
-            // 1. 导出所有 UserDefaults 设置
+            // 1. 导出所有 UserDefaults 设置（过滤掉NSData等无法JSON序列化的类型）
             var settingsDict: [String: Any] = [:]
             if let bundleID = Bundle.main.bundleIdentifier {
-                // 导出所有 UserDefaults 键值
                 let defaults = UserDefaults.standard
                 if let dict = defaults.persistentDomain(forName: bundleID) {
-                    settingsDict = dict
+                    for (key, value) in dict {
+                        // 只保留可以JSON序列化的类型
+                        if value is String || value is Int || value is Double || value is Bool || value is [String: Any] || value is [Any] {
+                            settingsDict[key] = value
+                        } else if let data = value as? Data {
+                            // NSData转为base64字符串
+                            settingsDict[key] = data.base64EncodedString()
+                        }
+                        // 其他类型（如Date、URL等）跳过
+                    }
                 }
             }
 
-            // 2. 导出本地歌单歌曲
+            // 2. 导出收藏歌单歌曲
             let playlistData = try JSONEncoder().encode(localStore.tracks)
             let playlistArray = try JSONSerialization.jsonObject(with: playlistData) as? [[String: Any]] ?? []
 
@@ -109,7 +117,7 @@ struct DataBackupView: View {
                 "version": 1,
                 "timestamp": Date().timeIntervalSince1970,
                 "settings": settingsDict,
-                "localPlaylist": playlistArray
+                "favoritePlaylist": playlistArray
             ]
 
             // 4. 序列化为 JSON
@@ -118,7 +126,7 @@ struct DataBackupView: View {
             // 5. 保存到临时文件
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
-            let filename = "WellMusic_backup_\(dateFormatter.string(from: Date())).json"
+            let filename = "Kumone_backup_\(dateFormatter.string(from: Date())).json"
             let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
             try jsonData.write(to: tempURL)
 
@@ -160,8 +168,8 @@ struct DataBackupView: View {
                 UserDefaults.standard.setPersistentDomain(settings, forName: bundleID)
             }
 
-            // 2. 恢复本地歌单
-            if let playlistArray = backup["localPlaylist"] as? [[String: Any]] {
+            // 2. 恢复收藏歌单
+            if let playlistArray = backup["favoritePlaylist"] as? [[String: Any]] {
                 let playlistData = try JSONSerialization.data(withJSONObject: playlistArray)
                 let tracks = try JSONDecoder().decode([Track].self, from: playlistData)
                 localStore.replaceAll(tracks)

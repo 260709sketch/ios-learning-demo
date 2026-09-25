@@ -12,23 +12,29 @@ struct LocalPlaylistView: View {
             VStack(spacing: 0) {
                 // 顶部：封面 + 标题信息
                 HStack(alignment: .top, spacing: 16) {
-                    // 封面：渐变背景 + 音乐图标
+                    // 封面：有歌曲时显示第一首歌封面，没歌曲时显示默认渐变封面
                     ZStack {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(LinearGradient(
-                                colors: [Theme.accent, Theme.accent.opacity(0.7)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ))
-                        Image(systemName: "music.note.list")
-                            .font(.system(size: 48, weight: .light))
-                            .foregroundStyle(.white.opacity(0.9))
+                        if let firstTrack = localStore.tracks.first, let coverUrl = firstTrack.album.picUrl {
+                            CachedAsyncImage(url: coverUrl.resizedImageURL(300), animated: false)
+                                .aspectRatio(contentMode: .fill)
+                        } else {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(LinearGradient(
+                                    colors: [Theme.accent, Theme.accent.opacity(0.7)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ))
+                            Image(systemName: "music.note.list")
+                                .font(.system(size: 48, weight: .light))
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
                     }
                     .frame(width: 120, height: 120)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("本地歌单")
+                        Text("收藏歌单")
                             .font(.system(size: 20, weight: .bold))
                             .lineLimit(2)
 
@@ -87,7 +93,7 @@ struct LocalPlaylistView: View {
                         Text("还没有收藏的歌曲")
                             .font(.headline)
                             .foregroundStyle(.secondary)
-                        Text("收藏歌曲时会自动保存一份到本地歌单")
+                        Text("收藏歌曲时会自动保存一份到收藏歌单")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -161,7 +167,7 @@ struct LocalPlaylistView: View {
                         Button(role: .destructive) {
                             LocalPlaylistStore.shared.removeAll()
                         } label: {
-                            Label("清空本地歌单", systemImage: "trash")
+                            Label("清空收藏歌单", systemImage: "trash")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")

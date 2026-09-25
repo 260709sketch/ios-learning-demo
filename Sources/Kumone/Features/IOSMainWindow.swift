@@ -703,7 +703,7 @@ struct IOSLibraryView: View {
                                 .foregroundStyle(Theme.accent)
                                 .frame(width: 32, height: 32)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text("本地歌单")
+                                Text("收藏歌单")
                                     .font(.system(size: 14))
                                     .lineLimit(1)
                                 Text("\(localPlaylist.count) 首")
