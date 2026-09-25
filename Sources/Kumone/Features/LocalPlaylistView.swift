@@ -95,8 +95,7 @@ struct LocalPlaylistView: View {
                     .padding(.vertical, 80)
                 } else {
                     LazyVStack(spacing: 0) {
-                        ForEach(0..<localStore.tracks.count, id: \.self) { index in
-                            let track = localStore.tracks[index]
+                        ForEach(localStore.tracks) { track in
                             Button {
                                 player.play(tracks: localStore.tracks, source: .none, startAt: track)
                             } label: {
@@ -143,7 +142,7 @@ struct LocalPlaylistView: View {
                                 }
                             }
 
-                            if index < localStore.tracks.count - 1 {
+                            if track.id != localStore.tracks.last?.id {
                                 Divider()
                                     .padding(.leading, 76)
                             }
