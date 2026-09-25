@@ -69,10 +69,6 @@ final class AccountStore: ObservableObject {
         LocalPlaylistStore.shared.contains(track)
     }
 
-    func isLiked(_ trackID: Int) -> Bool {
-        likedTrackIDs.contains(trackID)
-    }
-
     func toggleLike(trackID: Int, track: Track? = nil) async {
         // 有 track 对象：所有歌曲先存本地歌单，再判断是否需要同步网易云
         if let track = track {
