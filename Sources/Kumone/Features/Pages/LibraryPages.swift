@@ -53,7 +53,7 @@ struct RecentsView: View {
                 PlayerClearanceSpacer()
             }
         }
-        .navigationTitle("最近播放")
+        .navigationTitle("历史播放")
         .task(id: week) {
             await load()
         }
@@ -82,6 +82,60 @@ struct RecentsView: View {
         }
         isLoading = records.isEmpty
         records = (try? await NeteaseAPI.playRecords(uid: uid, week: week)) ?? []
+        isLoading = false
+    }
+}
+
+// MARK: - 最近播放（按时间顺序）
+
+struct RecentPlaysView: View {
+    @State private var tracks: [Track] = []
+    @State private var isLoading = true
+
+    @EnvironmentObject private var player: PlayerService
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Spacer()
+                    Button {
+                        player.play(tracks: tracks, source: .none, context: .recents)
+                    } label: {
+                        Label("播放全部", systemImage: "play.fill")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(Theme.accentGradient, in: Capsule())
+                    }
+                    .buttonStyle(.pressable)
+                    .disabled(tracks.isEmpty)
+                }
+                .padding(.horizontal, Theme.Layout.contentInset)
+                .padding(.top, 12)
+
+                if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                } else if tracks.isEmpty {
+                    EmptyStateView(icon: "clock", title: "暂无最近播放")
+                        .frame(minHeight: 300)
+                } else {
+                    TrackListView(tracks: tracks)
+                        .padding(.horizontal, Theme.Layout.contentInset - 10)
+                }
+                PlayerClearanceSpacer()
+            }
+        }
+        .navigationTitle("最近播放")
+        .task {
+            await load()
+        }
+    }
+
+    private func load() async {
+        tracks = (try? await NeteaseAPI.recentSongs(limit: 100)) ?? []
         isLoading = false
     }
 }

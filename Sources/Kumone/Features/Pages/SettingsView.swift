@@ -19,10 +19,6 @@ struct SettingsView: View {
                 Text("播放5秒后自动预加载下一首歌，切换时秒开不卡顿")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle("搜索历史", isOn: $settings.enableSearchHistory)
-                Text("保存最近15条搜索记录，可在搜索页查看和清除")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section {

@@ -94,8 +94,6 @@ final class SettingsManager: ObservableObject {
     private enum Keys {
         static let quality = "settings.audioQuality"
         static let preloadNextTrack = "settings.preloadNextTrack"
-        static let enableSearchHistory = "settings.enableSearchHistory"
-        static let searchHistory = "settings.searchHistory"
         static let appearance = "settings.appearance"
         static let nowPlayingMode = "settings.nowPlayingMode"
         static let showTranslation = "settings.showLyricsTranslation"
@@ -143,33 +141,6 @@ final class SettingsManager: ObservableObject {
     /// 预加载下一首歌（播放5秒后预加载下一首，切换时不卡顿）
     @Published var preloadNextTrack: Bool {
         didSet { UserDefaults.standard.set(preloadNextTrack, forKey: Keys.preloadNextTrack) }
-    }
-
-    /// 搜索历史开关
-    @Published var enableSearchHistory: Bool {
-        didSet { UserDefaults.standard.set(enableSearchHistory, forKey: Keys.enableSearchHistory) }
-    }
-
-    /// 搜索历史记录（最多15条，最新的在前）
-    @Published var searchHistory: [String] {
-        didSet { UserDefaults.standard.set(searchHistory, forKey: Keys.searchHistory) }
-    }
-
-    /// 添加搜索历史（去重，最多15条）
-    func addSearchHistory(_ query: String) {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        var history = searchHistory.filter { $0 != trimmed }
-        history.insert(trimmed, at: 0)
-        if history.count > 15 {
-            history = Array(history.prefix(15))
-        }
-        searchHistory = history
-    }
-
-    /// 清除搜索历史
-    func clearSearchHistory() {
-        searchHistory = []
     }
 
     static let audioCacheSizeRangeMB = 100...1_000
@@ -371,8 +342,6 @@ final class SettingsManager: ObservableObject {
         let defaults = UserDefaults.standard
         audioQuality = defaults.string(forKey: Keys.quality).flatMap(AudioQuality.init) ?? .exhigh
         preloadNextTrack = defaults.object(forKey: Keys.preloadNextTrack) as? Bool ?? true
-        enableSearchHistory = defaults.object(forKey: Keys.enableSearchHistory) as? Bool ?? true
-        searchHistory = defaults.stringArray(forKey: Keys.searchHistory) ?? []
         enableAudioCache = defaults.object(forKey: Keys.enableAudioCache) as? Bool ?? true
         let storedAudioCacheSizeMB = defaults.object(forKey: Keys.audioCacheSizeMB) as? Int
             ?? AudioCache.defaultMaximumSizeMB

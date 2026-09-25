@@ -129,11 +129,13 @@ public struct IOSMainWindow: View {
                 dismissAnimation: nil
             )
             .presentationBackground(.clear)
+            .ignoresSafeArea()
         } else {
             nowPlayingPresentation(
                 usesSystemInteractiveDismissal: true,
                 dismissAnimation: nil
             )
+            .ignoresSafeArea()
         }
     }
 
@@ -678,8 +680,11 @@ struct IOSLibraryView: View {
                     NavigationLink(value: Destination.daily) {
                         Label("每日推荐", systemImage: "calendar")
                     }
-                    NavigationLink(value: Destination.recents) {
+                    NavigationLink(value: Destination.recentPlays) {
                         Label("最近播放", systemImage: "clock.fill")
+                    }
+                    NavigationLink(value: Destination.recents) {
+                        Label("历史播放", systemImage: "chart.bar.fill")
                     }
                     NavigationLink(value: Destination.collections) {
                         Label("我的收藏", systemImage: "star.fill")
