@@ -109,8 +109,11 @@ final class LXMusicEngine: NSObject {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[LXSourceCapability], Error>) in
             jsQueue.async {
                 self.cleanupLocked()
-                self.createJSEnv(source: source, script: script)
+                // 关键：必须在 createJSEnv 之前设置 initContinuation，
+                // 因为音源脚本在 evaluateScript 时会同步触发 init 事件，
+                // 此时 handleInit 需要 resume continuation，设置晚了会导致 init 丢失、15秒超时
                 self.initContinuation = cont
+                self.createJSEnv(source: source, script: script)
 
                 // init 超时
                 let work = DispatchWorkItem { [weak self] in
