@@ -187,6 +187,15 @@ final class PlayerService: ObservableObject {
     private var scrobbled = false
     private var startScrobbled = false
 
+    // MARK: - LX 解析 URL 缓存（避免每次播放都重新请求音源后端）
+    private struct LXCachedURL {
+        let url: String
+        let quality: String
+        let timestamp: Date
+    }
+    private var lxURLCache: [String: LXCachedURL] = [:]
+    private let lxURLCacheTTL: TimeInterval = 20 * 60 // 缓存 20 分钟（音源 URL 有时效性）
+
     // MARK: - 预加载下一首
     /// 预加载的下一首歌 AVPlayerItem
     private var preloadedNextItem: AVPlayerItem?
@@ -699,6 +708,25 @@ final class PlayerService: ObservableObject {
         // 有 LX 自定义音源激活时，所有歌曲只向 LX 音源请求播放地址，
         // 音质由设置中的音质选项控制，自动遍历所有音源换源，不 fallback 到网易云官方或内置音源
         if hasLXSource {
+            // 先查 LX URL 缓存，命中则直接播放，跳过音源请求（优化启动速度）
+            let targetQuality = LXMusicEngine.shared.lxQuality(from: SettingsManager.shared.audioQuality)
+            let cacheKey = "\(track.id)_\(targetQuality)"
+            if let cached = lxURLCache[cacheKey],
+               Date().timeIntervalSince(cached.timestamp) < lxURLCacheTTL,
+               let cachedURL = URL(string: cached.url.replacingOccurrences(of: "http://", with: "https://")) {
+                if !preloadOnly {
+                    currentUnblockSourceID = nil
+                    unblockSource = "缓存"
+                    servedQuality = cached.quality
+                    isTrial = false
+                }
+                if case .loaded = await loadResolvedURL(track, url: cachedURL, durationMS: nil, generation: generation, preloadOnly: preloadOnly) {
+                    return
+                }
+                // 缓存播放失败，清除该缓存，走正常解析流程
+                lxURLCache.removeValue(forKey: cacheKey)
+            }
+
             if await resolveFromLXSource(track, generation: generation, preloadOnly: preloadOnly) { return }
             // 预加载失败静默处理，不影响当前播放、不弹提示、不切歌
             if preloadOnly { return }
@@ -811,6 +839,12 @@ final class PlayerService: ObservableObject {
             let startTime = Date()
             let isPriority = index == 0
 
+            // 预加载时不切换音源——unload/load 会打断当前播放。
+            // 只用当前已加载的音源解析下一首；当前音源不匹配则跳过。
+            if preloadOnly && lxEngine.currentSource?.id != source.id {
+                continue
+            }
+
             do {
                 // 切换音源（如果当前加载的不是这个音源）
                 if lxEngine.currentSource?.id != source.id {
@@ -832,10 +866,13 @@ final class PlayerService: ObservableObject {
                     continue
                 }
 
-                currentUnblockSourceID = nil
-                unblockSource = source.name
-                servedQuality = result.quality
-                isTrial = false
+                // 全局状态只在正常播放时修改，预加载不干扰当前播放
+                if !preloadOnly {
+                    currentUnblockSourceID = nil
+                    unblockSource = source.name
+                    servedQuality = result.quality
+                    isTrial = false
+                }
 
                 let loadResult = await loadResolvedURL(
                     track,
@@ -869,6 +906,9 @@ final class PlayerService: ObservableObject {
                         ToastCenter.shared.show("自动换源：已使用「\(source.name)」播放")
                     }
                 }
+                // 写入 URL 缓存，下次播放同一首歌直接命中，跳过音源请求
+                let cacheKey = "\(track.id)_\(targetQuality)"
+                lxURLCache[cacheKey] = LXCachedURL(url: result.url, quality: result.quality, timestamp: Date())
                 return true
             } catch {
                 let log = LXRequestLog(
@@ -917,7 +957,8 @@ final class PlayerService: ObservableObject {
         generation: Int,
         preloadOnly: Bool = false
     ) async -> ResolvedURLLoadResult {
-        consecutiveFailures = 0
+        // 预加载不重置连续失败计数，不影响当前播放状态
+        if !preloadOnly { consecutiveFailures = 0 }
 
         var asset = AVURLAsset(url: url)
         var resourceLoader: CachingAudioResourceLoader?
@@ -932,7 +973,8 @@ final class PlayerService: ObservableObject {
                     source: source,
                     maximumCacheSizeMB: SettingsManager.shared.audioCacheSizeMB
                 )
-                guard generation == resolveGeneration else {
+                // 预加载 generation > resolveGeneration 也允许执行；旧任务才丢弃
+                guard generation >= resolveGeneration else {
                     loader.cancel()
                     return .superseded
                 }
