@@ -1,537 +1,594 @@
-/*
- * LX Music 自定义音源 preload 运行环境
- * 移植自 lx-music-mobile 的 user-api-preload.js
- * 运行在 JavaScriptCore 中，通过 __lx_native 与 Swift 桥接。
- */
-(function () {
-  'use strict'
+'use strict'
 
-  var native = function (action, data) {
-    return globalThis.__lx_native ? globalThis.__lx_native(action, data === undefined ? null : data) : null
+globalThis.lx_setup = (key, id, name, description, version, author, homepage, rawScript) => {
+  delete globalThis.lx_setup
+  const _nativeCall = globalThis.__lx_native_call__
+  delete globalThis.__lx_native_call__
+  const checkLength = (str, length = 1048576) => {
+    if (typeof str == 'string' && str.length > length) throw new Error('Input too long')
+    return str
+  }
+  const nativeFuncNames = [
+    '__lx_native_call__set_timeout',
+    '__lx_native_call__utils_str2b64',
+    '__lx_native_call__utils_b642buf',
+    '__lx_native_call__utils_str2md5',
+    '__lx_native_call__utils_aes_encrypt',
+    '__lx_native_call__utils_rsa_encrypt',
+  ]
+  const nativeFuncs = {}
+  for (const name of nativeFuncNames) {
+    const nativeFunc = globalThis[name]
+    delete globalThis[name]
+    nativeFuncs[name.replace('__lx_native_call__', '')] = (...args) => {
+      for (const arg of args) checkLength(arg)
+      return nativeFunc(...args)
+    }
+  }
+  // const set_timeout = globalThis.__lx_native_call__set_timeout
+  // delete globalThis.__lx_native_call__set_timeout
+  // const utils_str2b64 = globalThis.__lx_native_call__utils_str2b64
+  // delete globalThis.__lx_native_call__utils_str2b64
+  // const utils_b642buf = globalThis.__lx_native_call__utils_b642buf
+  // delete globalThis.__lx_native_call__utils_b642buf
+  // const utils_str2md5 = globalThis.__lx_native_call__utils_str2md5
+  // delete globalThis.__lx_native_call__utils_str2md5
+  // const utils_aes_encrypt = globalThis.__lx_native_call__utils_aes_encrypt
+  // delete globalThis.__lx_native_call__utils_aes_encrypt
+  // const utils_rsa_encrypt = globalThis.__lx_native_call__utils_rsa_encrypt
+  // delete globalThis.__lx_native_call__utils_rsa_encrypt
+  const KEY_PREFIX = {
+    publicKeyStart: '-----BEGIN PUBLIC KEY-----',
+    publicKeyEnd: '-----END PUBLIC KEY-----',
+    privateKeyStart: '-----BEGIN PRIVATE KEY-----',
+    privateKeyEnd: '-----END PRIVATE KEY-----',
+  }
+  const RSA_PADDING = {
+    OAEPWithSHA1AndMGF1Padding: 'RSA/ECB/OAEPWithSHA1AndMGF1Padding',
+    NoPadding: 'RSA/ECB/NoPadding',
+  }
+  const AES_MODE = {
+    CBC_128_PKCS7Padding: 'AES/CBC/PKCS7Padding',
+    ECB_128_NoPadding: 'AES',
+  }
+  const nativeCall = (action, data) => {
+    data = JSON.stringify(data)
+    // console.log('nativeCall', action, data)
+    checkLength(data, 2097152)
+    _nativeCall(key, action, data)
   }
 
-  // ───────────────────────── base64 / hex ─────────────────────────
-  var B64CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  function b64Encode(bytes) {
-    var len = bytes.length
-    var out = ''
-    for (var i = 0; i < len; i += 3) {
-      var b0 = bytes[i]
-      var b1 = i + 1 < len ? bytes[i + 1] : 0
-      var b2 = i + 2 < len ? bytes[i + 2] : 0
-      out += B64CHARS[b0 >> 2]
-      out += B64CHARS[((b0 & 3) << 4) | (b1 >> 4)]
-      out += i + 1 < len ? B64CHARS[((b1 & 15) << 2) | (b2 >> 6)] : '='
-      out += i + 2 < len ? B64CHARS[b2 & 63] : '='
-    }
-    return out
+  const callbacks = new Map()
+  let timeoutId = 0
+  const _setTimeout = (callback, timeout = 0, ...params) => {
+    if (typeof callback !== 'function') throw new Error('callback required a function')
+    if (typeof timeout !== 'number' || timeout < 0) throw new Error('timeout required a number')
+    if (timeoutId > 90000000000) throw new Error('max timeout')
+    const id = timeoutId++
+    callbacks.set(id, {
+      callback(...args) {
+        // eslint-disable-next-line n/no-callback-literal
+        callback(...args)
+      },
+      params,
+    })
+    nativeFuncs.set_timeout(id, parseInt(timeout))
+    return id
   }
-  function b64Decode(str) {
-    str = String(str).replace(/[^A-Za-z0-9+/=]/g, '')
-    var bytes = []
-    for (var i = 0; i < str.length; i += 4) {
-      var c0 = B64CHARS.indexOf(str.charAt(i))
-      var c1 = B64CHARS.indexOf(str.charAt(i + 1))
-      var c2 = B64CHARS.indexOf(str.charAt(i + 2))
-      var c3 = B64CHARS.indexOf(str.charAt(i + 3))
-      bytes.push((c0 << 2) | (c1 >> 4))
-      if (c2 !== 64) bytes.push(((c1 & 15) << 4) | (c2 >> 2))
-      if (c3 !== 64) bytes.push(((c2 & 3) << 6) | c3)
-    }
-    return bytes
+  const _clearTimeout = (id) => {
+    const tagret = callbacks.get(id)
+    if (!tagret) return
+    callbacks.delete(id)
   }
-  var HEXCHARS = '0123456789abcdef'
-  function hexEncode(bytes) {
-    var out = ''
-    for (var i = 0; i < bytes.length; i++) {
-      out += HEXCHARS[bytes[i] >> 4] + HEXCHARS[bytes[i] & 15]
-    }
-    return out
-  }
-  function hexDecode(str) {
-    str = String(str).replace(/[^0-9a-fA-F]/g, '')
-    var bytes = []
-    for (var i = 0; i < str.length; i += 2) {
-      bytes.push(parseInt(str.substr(i, 2), 16))
-    }
-    return bytes
+  const handleSetTimeout = (id) => {
+    const tagret = callbacks.get(id)
+    if (!tagret) return
+    callbacks.delete(id)
+    tagret.callback(...tagret.params)
   }
 
-  // UTF-8 字符串 <-> 字节
-  function strToBytes(str) {
-    var bytes = []
-    for (var i = 0; i < str.length; i++) {
-      var code = str.charCodeAt(i)
-      if (code < 0x80) bytes.push(code)
-      else if (code < 0x800) {
-        bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f))
-      } else if (code >= 0xd800 && code <= 0xdbff) {
-        var hi = code
-        var lo = str.charCodeAt(++i)
-        var cp = 0x10000 + ((hi - 0xd800) << 10) + (lo - 0xdc00)
-        bytes.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 0x3f), 0x80 | ((cp >> 6) & 0x3f), 0x80 | (cp & 0x3f))
-      } else {
-        bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f))
-      }
-    }
-    return bytes
-  }
-  function bytesToBytesStr(bytes) {
-    var out = ''
-    for (var i = 0; i < bytes.length; i++) {
-      var b = bytes[i]
-      if (b < 0x80) out += String.fromCharCode(b)
-      else if (b < 0xe0) {
-        out += String.fromCharCode(((b & 0x1f) << 6) | (bytes[++i] & 0x3f))
-      } else if (b < 0xf0) {
-        out += String.fromCharCode(((b & 0xf) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f))
+  // 将字节数组解码为字符串（UTF-8）
+  function bytesToString(bytes) {
+    let result = ''
+    let i = 0
+    while (i < bytes.length) {
+      const byte = bytes[i]
+      if (byte < 128) {
+        result += String.fromCharCode(byte)
+        i++
+      } else if (byte >= 192 && byte < 224) {
+        result += String.fromCharCode(((byte & 31) << 6) | (bytes[i + 1] & 63))
         i += 2
       } else {
-        var cp = ((b & 7) << 18) | ((bytes[i + 1] & 0x3f) << 12) | ((bytes[i + 2] & 0x3f) << 6) | (bytes[i + 3] & 0x3f)
-        cp -= 0x10000
-        out += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 0x3ff))
+        result += String.fromCharCode(((byte & 15) << 12) | ((bytes[i + 1] & 63) << 6) | (bytes[i + 2] & 63))
         i += 3
       }
     }
-    return out
+    return result
+  }
+  // 将字符串编码为字节数组（UTF-8）
+  function stringToBytes(inputString) {
+    const bytes = []
+    for (let i = 0; i < inputString.length; i++) {
+      const charCode = inputString.charCodeAt(i)
+      if (charCode < 128) {
+        bytes.push(charCode)
+      } else if (charCode < 2048) {
+        bytes.push((charCode >> 6) | 192)
+        bytes.push((charCode & 63) | 128)
+      } else {
+        bytes.push((charCode >> 12) | 224)
+        bytes.push(((charCode >> 6) & 63) | 128)
+        bytes.push((charCode & 63) | 128)
+      }
+    }
+    return bytes
   }
 
-  // ───────────────────────── Buffer polyfill ─────────────────────────
-  function BufferLike(input, encodingOrOffset, length) {
-    var bytes
-    if (typeof input === 'string') {
-      var enc = (encodingOrOffset || 'utf8').toLowerCase()
-      if (enc === 'base64') bytes = b64Decode(input)
-      else if (enc === 'hex') bytes = hexDecode(input)
-      else if (enc === 'binary' || enc === 'latin1') {
-        bytes = []
-        for (var k = 0; k < input.length; k++) bytes.push(input.charCodeAt(k) & 0xff)
-      } else bytes = strToBytes(input)
-    } else if (typeof input === 'number') {
-      bytes = new Array(input)
-      for (var n = 0; n < input; n++) bytes[n] = 0
-    } else if (input && typeof input.length === 'number') {
-      bytes = []
-      for (var p = 0; p < input.length; p++) bytes.push(input[p] & 0xff)
-    } else {
-      bytes = []
-    }
-    var u8 = new Uint8Array(bytes)
-    if (typeof encodingOrOffset === 'number' && typeof length === 'number') {
-      u8 = u8.subarray(encodingOrOffset, encodingOrOffset + length)
-    }
-    return u8
+  const NATIVE_EVENTS_NAMES = {
+    init: 'init',
+    showUpdateAlert: 'showUpdateAlert',
+    request: 'request',
+    cancelRequest: 'cancelRequest',
+    response: 'response',
+    // 'utils.crypto.aesEncrypt': 'utils.crypto.aesEncrypt',
+    // 'utils.crypto.rsaEncrypt': 'utils.crypto.rsaEncrypt',
+    // 'utils.crypto.randomBytes': 'utils.crypto.randomBytes',
+    // 'utils.crypto.md5': 'utils.crypto.md5',
+    // 'utils.buffer.from': 'utils.buffer.from',
+    // 'utils.buffer.bufToString': 'utils.buffer.bufToString',
+    // 'utils.zlib.inflate': 'utils.zlib.inflate',
+    // 'utils.zlib.deflate': 'utils.zlib.deflate',
   }
-  function bufferToString(u8, enc) {
-    enc = (enc || 'utf8').toLowerCase()
-    var arr = Array.prototype.slice.call(u8)
-    if (enc === 'base64') return b64Encode(arr)
-    if (enc === 'hex') return hexEncode(arr)
-    if (enc === 'binary' || enc === 'latin1') {
-      var s = ''
-      for (var i = 0; i < arr.length; i++) s += String.fromCharCode(arr[i])
-      return s
-    }
-    return bytesToBytesStr(arr)
+  const EVENT_NAMES = {
+    request: 'request',
+    inited: 'inited',
+    updateAlert: 'updateAlert',
   }
-  var BufferShim = function (input, enc, len) { return BufferLike(input, enc, len) }
-  BufferShim.from = function (input, enc) { return BufferLike(input, enc) }
-  BufferShim.alloc = function (size, fill) {
-    var u8 = new Uint8Array(size)
-    if (fill !== undefined) for (var i = 0; i < size; i++) u8[i] = fill & 0xff
-    return u8
+  const eventNames = Object.values(EVENT_NAMES)
+  const events = {
+    request: null,
   }
-  BufferShim.concat = function (list, totalLength) {
-    if (totalLength === undefined) {
-      totalLength = 0
-      for (var i = 0; i < list.length; i++) totalLength += list[i].length
-    }
-    var out = new Uint8Array(totalLength)
-    var offset = 0
-    for (var j = 0; j < list.length; j++) {
-      out.set(list[j], offset)
-      offset += list[j].length
-    }
-    return out
-  }
-  BufferShim.isBuffer = function (obj) { return obj instanceof Uint8Array }
-  // 给 Uint8Array 注入 toString 编码支持
-  var origToString = Uint8Array.prototype.toString
-  Uint8Array.prototype.toString = function (enc) {
-    if (enc === undefined) return origToString.call(this)
-    return bufferToString(this, enc)
-  }
-
-  // ───────────────────────── 运行时 ─────────────────────────
-  var EVENT_NAMES = { request: 'request', inited: 'inited', updateAlert: 'updateAlert' }
-  var allSources = ['kw', 'kg', 'tx', 'wy', 'mg', 'local']
-  var supportQualitys = {
+  const allSources = ['kw', 'kg', 'tx', 'wy', 'mg', 'local']
+  const supportQualitys = {
     kw: ['128k', '320k', 'flac', 'flac24bit'],
     kg: ['128k', '320k', 'flac', 'flac24bit'],
     tx: ['128k', '320k', 'flac', 'flac24bit'],
     wy: ['128k', '320k', 'flac', 'flac24bit'],
     mg: ['128k', '320k', 'flac', 'flac24bit'],
-    local: []
+    local: [],
   }
-  var supportActions = {
-    kw: ['musicUrl'], kg: ['musicUrl'], tx: ['musicUrl'],
-    wy: ['musicUrl'], mg: ['musicUrl'], xm: ['musicUrl'],
-    local: ['musicUrl', 'lyric', 'pic']
+  const supportActions = {
+    kw: ['musicUrl'],
+    kg: ['musicUrl'],
+    tx: ['musicUrl'],
+    wy: ['musicUrl'],
+    mg: ['musicUrl'],
+    xm: ['musicUrl'],
+    local: ['musicUrl', 'lyric', 'pic'],
   }
 
-  function verifyLyricInfo(info) {
-    if (typeof info !== 'object' || typeof info.lyric !== 'string') throw new Error('failed')
+  const verifyLyricInfo = (info) => {
+    if (typeof info != 'object' || typeof info.lyric != 'string') throw new Error('failed')
     if (info.lyric.length > 51200) throw new Error('failed')
     return {
       lyric: info.lyric,
-      tlyric: typeof info.tlyric === 'string' && info.tlyric.length < 5120 ? info.tlyric : null,
-      rlyric: typeof info.rlyric === 'string' && info.rlyric.length < 5120 ? info.rlyric : null,
-      lxlyric: typeof info.lxlyric === 'string' && info.lxlyric.length < 8192 ? info.lxlyric : null
+      tlyric: (typeof info.tlyric == 'string' && info.tlyric.length < 5120) ? info.tlyric : null,
+      rlyric: (typeof info.rlyric == 'string' && info.rlyric.length < 5120) ? info.rlyric : null,
+      lxlyric: (typeof info.lxlyric == 'string' && info.lxlyric.length < 8192) ? info.lxlyric : null,
     }
   }
 
-  function Runtime(scriptInfo) {
-    this.info = scriptInfo
-    this.requestHandler = null
-    this.pendingNativeRequests = {}
-    this.pendingApiRequests = {}
-    this.timers = {}
-    this.timerSeq = 1
-    this.isInited = false
-    this.showedUpdate = false
-    this.destroyed = false
-  }
+  const requestQueue = new Map()
+  let isInitedApi = false
+  let isShowedUpdateAlert = false
 
-  Runtime.prototype.emitLog = function (type, text) {
-    native('log', { type: type, msg: text })
-  }
-  Runtime.prototype.makeConsole = function () {
-    var self = this
-    function send(type, args) {
-      var parts = []
-      for (var i = 0; i < args.length; i++) {
-        var a = args[i]
-        if (typeof a === 'string') parts.push(a)
-        else if (a instanceof Error) parts.push(a.stack || a.message)
-        else { try { parts.push(JSON.stringify(a)) } catch (e) { parts.push(String(a)) } }
-      }
-      self.emitLog(type, parts.join(' '))
-    }
-    return {
-      log: function () { send('log', arguments) },
-      info: function () { send('info', arguments) },
-      warn: function () { send('warn', arguments) },
-      error: function () { send('error', arguments) },
-      debug: function () { send('log', arguments) }
-    }
-  }
-  Runtime.prototype.setTimeout = function (cb, timeout) {
-    var args = Array.prototype.slice.call(arguments, 2)
-    var id = this.timerSeq++
-    var self = this
-    this.timers[id] = {
-      interval: 0,
-      fire: function () {
-        try { cb.apply(null, args) } catch (e) { self.emitLog('error', (e && e.stack) || String(e)) }
-      }
-    }
-    native('setTimeout', { id: id, timeout: Math.max(0, Number(timeout) || 0) })
-    return id
-  }
-  Runtime.prototype.setInterval = function (cb, interval) {
-    var args = Array.prototype.slice.call(arguments, 2)
-    var id = this.timerSeq++
-    var self = this
-    var iv = Math.max(0, Number(interval) || 0)
-    this.timers[id] = {
-      interval: iv,
-      fire: function () {
-        try { cb.apply(null, args) } catch (e) { self.emitLog('error', (e && e.stack) || String(e)) }
-      }
-    }
-    native('setTimeout', { id: id, timeout: iv })
-    return id
-  }
-  Runtime.prototype.clearTimeout = function (id) { delete this.timers[id] }
-  Runtime.prototype.clearInterval = function (id) { delete this.timers[id] }
-  Runtime.prototype.fireTimer = function (id) {
-    var t = this.timers[id]
-    if (!t) return
-    t.fire()
-    if (t.interval) native('setTimeout', { id: id, timeout: t.interval })
-  }
-
-  Runtime.prototype.buildSourceInfo = function (data) {
-    if (!data) throw new Error('Missing required parameter init info')
-    var sources = {}
-    for (var i = 0; i < allSources.length; i++) {
-      var source = allSources[i]
-      var us = data.sources && data.sources[source]
-      if (!us || us.type !== 'music') continue
-      var self = this
-      sources[source] = {
-        type: 'music',
-        name: us.name || source,
-        actions: supportActions[source].filter(function (a) { return us.actions && us.actions.indexOf(a) !== -1 }),
-        qualitys: supportQualitys[source].filter(function (q) { return us.qualitys && us.qualitys.indexOf(q) !== -1 })
-      }
-    }
-    return { sources: sources }
-  }
-
-  Runtime.prototype.buildUtils = function () {
-    var rt = this
-    function toB64(data) {
-      if (typeof data === 'string') return b64Encode(strToBytes(data))
-      var arr = Array.prototype.slice.call(data)
-      return b64Encode(arr)
-    }
-    return {
-      crypto: {
-        aesEncrypt: function (buffer, mode, key, iv) {
-          var res = native('aes', {
-            mode: mode,
-            data: toB64(buffer),
-            key: toB64(key),
-            iv: iv ? toB64(iv) : ''
-          })
-          return BufferShim.from(res, 'base64')
-        },
-        rsaEncrypt: function (buffer, key) {
-          if (typeof key !== 'string') throw new Error('Invalid RSA key')
-          key = key.replace('-----BEGIN PUBLIC KEY-----', '').replace('-----END PUBLIC KEY-----', '')
-          var res = native('rsa', { data: toB64(buffer), key: key })
-          return BufferShim.from(res, 'base64')
-        },
-        randomBytes: function (size) {
-          var bytes = new Uint8Array(size)
-          for (var i = 0; i < size; i++) bytes[i] = Math.floor(Math.random() * 256)
-          return bytes
-        },
-        md5: function (str) {
-          if (typeof str !== 'string') throw new Error('param required a string')
-          return native('md5', encodeURIComponent(str))
-        }
+  const sendNativeRequest = (url, options, callback) => {
+    const requestKey = Math.random().toString()
+    const requestInfo = {
+      aborted: false,
+      abort: () => {
+        nativeCall(NATIVE_EVENTS_NAMES.cancelRequest, requestKey)
       },
-      buffer: {
-        from: function (input, enc) { return BufferShim.from(input, enc) },
-        bufToString: function (buf, format) { return bufferToString(buf, format) }
-      }
+    }
+    requestQueue.set(requestKey, {
+      callback,
+      // timeout: setTimeout(() => {
+      //   const req = requestQueue.get(requestKey)
+      //   if (req) req.timeout = null
+      //   nativeCall(NATIVE_EVENTS_NAMES.cancelRequest, requestKey)
+      // }, 30000),
+      requestInfo,
+    })
+
+    nativeCall(NATIVE_EVENTS_NAMES.request, { requestKey, url, options })
+    return requestInfo
+  }
+  const handleNativeResponse = ({ requestKey, error, response }) => {
+    const targetRequest = requestQueue.get(requestKey)
+    if (!targetRequest) return
+    requestQueue.delete(requestKey)
+    targetRequest.requestInfo.aborted = true
+    // if (targetRequest.timeout) clearTimeout(targetRequest.timeout)
+    if (error == null) targetRequest.callback(null, response)
+    else targetRequest.callback(new Error(error), null)
+  }
+
+  const handleRequest = ({ requestKey, data }) => {
+    // console.log(data)
+    if (!events.request) return nativeCall(NATIVE_EVENTS_NAMES.response, { requestKey, status: false, errorMessage: 'Request event is not defined' })
+    try {
+      events.request.call(globalThis.lx, { source: data.source, action: data.action, info: data.info }).then(response => {
+        let result
+        switch (data.action) {
+          case 'musicUrl':
+            if (typeof response != 'string' || response.length > 2048 || !/^https?:/.test(response)) throw new Error('failed')
+            result = {
+              source: data.source,
+              action: data.action,
+              data: {
+                type: data.info.type,
+                url: response,
+              },
+            }
+            break
+          case 'lyric':
+            result = {
+              source: data.source,
+              action: data.action,
+              data: verifyLyricInfo(response),
+            }
+            break
+          case 'pic':
+            if (typeof response != 'string' || response.length > 2048 || !/^https?:/.test(response)) throw new Error('failed')
+            result = {
+              source: data.source,
+              action: data.action,
+              data: response,
+            }
+            break
+        }
+        nativeCall(NATIVE_EVENTS_NAMES.response, { requestKey, status: true, result })
+      }).catch(err => {
+        // console.log('handleRequest err', err)
+        nativeCall(NATIVE_EVENTS_NAMES.response, { requestKey, status: false, errorMessage: err.message })
+      })
+    } catch (err) {
+      // console.log('handleRequest call err', err)
+      nativeCall(NATIVE_EVENTS_NAMES.response, { requestKey, status: false, errorMessage: err.message })
     }
   }
 
-  Runtime.prototype.handleNativeResponse = function (data) {
-    var target = this.pendingNativeRequests[data.requestKey]
-    if (!target) return
-    delete this.pendingNativeRequests[data.requestKey]
-    if (data.error == null) {
-      var resp = data.response || {}
-      var body = resp.body
-      if (resp.bodyEncoding === 'base64') body = BufferShim.from(body || '', 'base64')
-      target(null, {
-        statusCode: resp.statusCode,
-        statusMessage: resp.statusMessage,
-        headers: resp.headers || {},
-        body: body
-      }, body)
-    } else {
-      target(new Error(data.error), null, null)
+  const jsCall = (action, data) => {
+    // console.log('jsCall', action, data)
+    switch (action) {
+      case '__run_error__':
+        if (!isInitedApi) isInitedApi = true
+        return
+      case '__set_timeout__':
+        handleSetTimeout(data)
+        return
+      case 'request':
+        handleRequest(data)
+        return
+      case 'response':
+        handleNativeResponse(data)
+        return
     }
+    return 'Unknown action: ' + action
   }
 
-  // Swift 发起的音源请求
-  Runtime.prototype.startApiRequest = function (requestKey, params) {
-    var rt = this
-    if (!this.requestHandler) {
-      native('requestResult', { requestKey: requestKey, status: false, error: 'Request event is not defined' })
+  Object.defineProperty(globalThis, '__lx_native__', {
+    enumerable: false,
+    configurable: false,
+    writable: false,
+    value: (_key, action, data) => {
+      if (key != _key) return 'Invalid key'
+      return data == null ? jsCall(action) : jsCall(action, JSON.parse(data))
+    },
+  })
+
+
+  /**
+   *
+   * @param {*} info {
+   *                    sources: {
+   *                         kw: ['128k', '320k', 'flac', 'flac24bit'],
+   *                         kg: ['128k', '320k', 'flac', 'flac24bit'],
+   *                         tx: ['128k', '320k', 'flac', 'flac24bit'],
+   *                         wy: ['128k', '320k', 'flac', 'flac24bit'],
+   *                         mg: ['128k', '320k', 'flac', 'flac24bit'],
+   *                     }
+   *                 }
+   */
+  const handleInit = (info) => {
+    if (!info) {
+      nativeCall(NATIVE_EVENTS_NAMES.init, { info: null, status: false, errorMessage: 'Missing required parameter init info' })
+      // sendMessage(NATIVE_EVENTS_NAMES.init, false, null, typeof info.message === 'string' ? info.message.substring(0, 100) : '')
       return
     }
-    Promise.resolve()
-      .then(function () { return rt.requestHandler({ source: params.source, action: params.action, info: params.info }) })
-      .then(function (response) {
-        var result
-        if (params.action === 'musicUrl') {
-          // 支持字符串或对象返回值，不限制 URL 长度
-          var url
-          if (typeof response === 'string') {
-            url = response
-          } else if (response && typeof response === 'object') {
-            url = response.url || response.data || response.src || response.songUrl || ''
-          } else {
-            url = ''
-          }
-          if (typeof url !== 'string' || !url || !/^https?:/.test(url)) {
-            throw new Error('failed')
-          }
-          result = { source: params.source, action: 'musicUrl', data: { type: params.info.type, url: url } }
-        } else if (params.action === 'lyric') {
-          result = { source: params.source, action: 'lyric', data: verifyLyricInfo(response) }
-        } else if (params.action === 'pic') {
-          var picUrl
-          if (typeof response === 'string') {
-            picUrl = response
-          } else if (response && typeof response === 'object') {
-            picUrl = response.url || response.data || response.src || ''
-          } else {
-            picUrl = ''
-          }
-          if (typeof picUrl !== 'string' || !picUrl || !/^https?:/.test(picUrl)) {
-            throw new Error('failed')
-          }
-          result = { source: params.source, action: 'pic', data: picUrl }
-        } else {
-          throw new Error('Unknown action')
-        }
-        native('requestResult', { requestKey: requestKey, status: true, result: result })
-      })
-      .catch(function (err) {
-        native('requestResult', { requestKey: requestKey, status: false, error: (err && err.message) || 'failed' })
-      })
-  }
-
-  Runtime.prototype.execute = function () {
-    var consoleApi = this.makeConsole()
-    var rt = this
-    var blockedEval = function () { throw new Error('eval is not available') }
-    var blockedFunction = function () { throw new Error('Dynamic code execution is not allowed.') }
-
-    var lx = {
-      EVENT_NAMES: EVENT_NAMES,
-      env: 'mobile',
-      version: '2.0.0',
-      currentScriptInfo: {
-        name: this.info.name,
-        description: this.info.description,
-        version: this.info.version,
-        author: this.info.author,
-        homepage: this.info.homepage,
-        rawScript: this.info.script
-      },
-      request: function (url, options, callback) {
-        options = options || {}
-        var requestKey = 'script_request_' + Math.random().toString(36).slice(2)
-        rt.pendingNativeRequests[requestKey] = callback
-        native('http', {
-          requestKey: requestKey,
-          url: url,
-          options: {
-            method: options.method || 'get',
-            timeout: options.timeout || 15000,
-            headers: options.headers || {},
-            body: options.body !== undefined ? options.body : null,
-            form: options.form || null,
-            formData: options.formData || null,
-            binary: options.binary === true
-          }
-        })
-        return function () {
-          if (!rt.pendingNativeRequests[requestKey]) return
-          delete rt.pendingNativeRequests[requestKey]
-          native('cancelHttp', { requestKey: requestKey })
-        }
-      },
-      send: function (eventName, data) {
-        return new Promise(function (resolve, reject) {
-          if (eventName === EVENT_NAMES.inited) {
-            if (rt.isInited) return reject(new Error('Script is inited'))
-            rt.isInited = true
-            try {
-              var info = rt.buildSourceInfo(data)
-              native('inited', { status: true, info: info })
-              resolve()
-            } catch (e) {
-              native('inited', { status: false, error: (e && e.message) || 'Init failed' })
-              reject(e)
-            }
-          } else if (eventName === EVENT_NAMES.updateAlert) {
-            if (rt.showedUpdate) return reject(new Error('update alert once'))
-            rt.showedUpdate = true
-            native('updateAlert', {
-              name: rt.info.name,
-              log: String((data && data.log) || ''),
-              updateUrl: data && typeof data.updateUrl === 'string' ? data.updateUrl : ''
-            })
-            resolve()
-          } else {
-            reject(new Error('event not supported: ' + eventName))
-          }
-        })
-      },
-      on: function (eventName, handler) {
-        if (eventName !== EVENT_NAMES.request) {
-          return Promise.reject(new Error('event not supported: ' + eventName))
-        }
-        rt.requestHandler = handler
-        return Promise.resolve()
-      },
-      utils: this.buildUtils()
+    // if (!info.status) {
+    //   nativeCall(NATIVE_EVENTS_NAMES.init, { info: null, status: false, errorMessage: 'Init failed' })
+    //   // sendMessage(NATIVE_EVENTS_NAMES.init, false, null, typeof info.message === 'string' ? info.message.substring(0, 100) : '')
+    //   return
+    // }
+    const sourceInfo = {
+      sources: {},
     }
-
-    var sandbox = {
-      lx: lx,
-      console: consoleApi,
-      Buffer: BufferShim,
-      setTimeout: function (cb, t) { return rt.setTimeout.apply(rt, arguments) },
-      clearTimeout: function (id) { return rt.clearTimeout(id) },
-      setInterval: function (cb, t) { return rt.setInterval.apply(rt, arguments) },
-      clearInterval: function (id) { return rt.clearInterval(id) },
-      Function: blockedFunction,
-      eval: blockedEval,
-      Promise: Promise,
-      Uint8Array: Uint8Array,
-      Math: Math, Date: Date, JSON: JSON,
-      encodeURIComponent: encodeURIComponent, decodeURIComponent: decodeURIComponent,
-      encodeURI: encodeURI, decodeURI: decodeURI,
-      Error: Error, TypeError: TypeError, Object: Object, Array: Array,
-      String: String, Number: Number, Boolean: Boolean, RegExp: RegExp
-    }
-    sandbox.globalThis = sandbox
-    sandbox.window = sandbox
-    sandbox.self = sandbox
-    sandbox.global = sandbox
-
     try {
-      var runner = new Function(
-        'globalThis', 'window', 'self', 'global', 'lx', 'console',
-        'Buffer', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
-        'Function', 'eval',
-        this.info.script + '\n//# sourceURL=' + this.info.id + '.user-api.js'
-      )
-      runner(
-        sandbox, sandbox, sandbox, sandbox, lx, consoleApi,
-        BufferShim, sandbox.setTimeout, sandbox.clearTimeout, sandbox.setInterval, sandbox.clearInterval,
-        blockedFunction, blockedEval
-      )
-    } catch (e) {
-      native('inited', { status: false, error: (e && e.message) || 'Load script failed' })
+      for (const source of allSources) {
+        const userSource = info.sources[source]
+        if (!userSource || userSource.type !== 'music') continue
+        const qualitys = supportQualitys[source]
+        const actions = supportActions[source]
+        sourceInfo.sources[source] = {
+          type: 'music',
+          actions: actions.filter(a => userSource.actions.includes(a)),
+          qualitys: qualitys.filter(q => userSource.qualitys.includes(q)),
+        }
+      }
+    } catch (error) {
+      // console.log(error)
+      nativeCall(NATIVE_EVENTS_NAMES.init, { info: null, status: false, errorMessage: error.message })
+      return
+    }
+    nativeCall(NATIVE_EVENTS_NAMES.init, { info: sourceInfo, status: true })
+  }
+  const handleShowUpdateAlert = (data, resolve, reject) => {
+    if (!data || typeof data != 'object') return reject(new Error('parameter format error.'))
+    if (!data.log || typeof data.log != 'string') return reject(new Error('log is required.'))
+    if (data.updateUrl && !/^https?:\/\/[^\s$.?#].[^\s]*$/.test(data.updateUrl) && data.updateUrl.length > 1024) delete data.updateUrl
+    if (data.log.length > 1024) data.log = data.log.substring(0, 1024) + '...'
+    nativeCall(NATIVE_EVENTS_NAMES.showUpdateAlert, { log: data.log, updateUrl: data.updateUrl, name })
+    resolve()
+  }
+
+  const dataToB64 = (data) => {
+    if (typeof data === 'string') return nativeFuncs.utils_str2b64(data)
+    else if (Array.isArray(data) || ArrayBuffer.isView(data)) return utils.buffer.bufToString(data, 'base64')
+    throw new Error('data type error: ' + typeof data + ' raw data: ' + data)
+  }
+  const utils = {
+    crypto: {
+      aesEncrypt(buffer, mode, key, iv) {
+        // console.log('aesEncrypt', buffer, mode, key, iv)
+        switch (mode) {
+          case 'aes-128-cbc':
+            return utils.buffer.from(nativeFuncs.utils_aes_encrypt(dataToB64(buffer), dataToB64(key), dataToB64(iv), AES_MODE.CBC_128_PKCS7Padding), 'base64')
+          case 'aes-128-ecb':
+            return utils.buffer.from(nativeFuncs.utils_aes_encrypt(dataToB64(buffer), dataToB64(key), '', AES_MODE.ECB_128_NoPadding), 'base64')
+          default:
+            throw new Error('Binary encoding is not supported for input strings')
+        }
+      },
+      rsaEncrypt(buffer, key) {
+        // console.log('rsaEncrypt', buffer, key)
+        if (typeof key !== 'string') throw new Error('Invalid RSA key')
+        key = key.replace(KEY_PREFIX.publicKeyStart, '')
+          .replace(KEY_PREFIX.publicKeyEnd, '')
+        return utils.buffer.from(nativeFuncs.utils_rsa_encrypt(dataToB64(buffer), key, RSA_PADDING.NoPadding), 'base64')
+      },
+      randomBytes(size) {
+        const byteArray = new Uint8Array(size)
+        for (let i = 0; i < size; i++) {
+          byteArray[i] = Math.floor(Math.random() * 256) // 随机生成一个字节的值（0-255）
+        }
+        return byteArray
+      },
+      md5(str) {
+        if (typeof str !== 'string') throw new Error('param required a string')
+        const md5 = nativeFuncs.utils_str2md5(encodeURIComponent(str))
+        // console.log('md5', str, md5)
+        return md5
+      },
+    },
+    buffer: {
+      from(input, encoding) {
+        // console.log('buffer.from', input, encoding)
+        if (typeof input === 'string') {
+          switch (encoding) {
+            case 'binary':
+              throw new Error('Binary encoding is not supported for input strings')
+            case 'base64':
+              return new Uint8Array(JSON.parse(nativeFuncs.utils_b642buf(input)))
+            case 'hex':
+              return new Uint8Array(input.match(/.{1,2}/g).map(byte => parseInt(byte, 16)))
+            default:
+              return new Uint8Array(stringToBytes(input))
+          }
+        } else if (Array.isArray(input)) {
+          return new Uint8Array(input)
+        } else {
+          throw new Error('Unsupported input type: ' + input + ' encoding: ' + encoding)
+        }
+      },
+      bufToString(buf, format) {
+        // console.log('buffer.bufToString', buf, format)
+        if (Array.isArray(buf) || ArrayBuffer.isView(buf)) {
+          switch (format) {
+            case 'binary':
+              // return new TextDecoder('latin1').decode(new Uint8Array(buf))
+              return buf
+            case 'hex':
+              return new Uint8Array(buf).reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
+            case 'base64':
+              return nativeFuncs.utils_str2b64(bytesToString(Array.from(buf)))
+            case 'utf8':
+            case 'utf-8':
+            default:
+              return bytesToString(Array.from(buf))
+          }
+        } else {
+          throw new Error('Input is not a valid buffer: ' + buf + ' format: ' + format)
+        }
+      },
+    },
+    // zlib: {
+    //   inflate(buf) {
+    //     return new Promise((resolve, reject) => {
+    //       zlib.inflate(buf, (err, data) => {
+    //         if (err) reject(new Error(err.message))
+    //         else resolve(data)
+    //       })
+    //     })
+    //   },
+    //   deflate(data) {
+    //     return new Promise((resolve, reject) => {
+    //       zlib.deflate(data, (err, buf) => {
+    //         if (err) reject(new Error(err.message))
+    //         else resolve(buf)
+    //       })
+    //     })
+    //   },
+    // }),
+  }
+
+  globalThis.lx = {
+    EVENT_NAMES,
+    request(url, { method = 'get', timeout, headers, body, form, formData, binary }, callback) {
+      let options = { headers, binary: binary === true }
+      // let data
+      // if (body) {
+      //   data = body
+      // } else if (form) {
+      //   data = form
+      //   // data.content_type = 'application/x-www-form-urlencoded'
+      //   options.json = false
+      // } else if (formData) {
+      //   data = formData
+      //   // data.content_type = 'multipart/form-data'
+      //   options.json = false
+      // }
+      if (timeout && typeof timeout == 'number' && timeout > 0) options.timeout = Math.min(timeout, 60_000)
+
+      let request = sendNativeRequest(url, { method, body, form, formData, ...options }, (err, resp) => {
+        if (err) {
+          callback(err, null, null)
+        } else {
+          callback(err, {
+            statusCode: resp.statusCode,
+            statusMessage: resp.statusMessage,
+            headers: resp.headers,
+            // bytes: resp.bytes,
+            // raw: resp.raw,
+            body: resp.body,
+          }, resp.body)
+        }
+      })
+
+      return () => {
+        if (!request.aborted) request.abort()
+        request = null
+      }
+    },
+    send(eventName, data) {
+      return new Promise((resolve, reject) => {
+        if (!eventNames.includes(eventName)) return reject(new Error('The event is not supported: ' + eventName))
+        switch (eventName) {
+          case EVENT_NAMES.inited:
+            if (isInitedApi) return reject(new Error('Script is inited'))
+            isInitedApi = true
+            handleInit(data)
+            resolve()
+            break
+          case EVENT_NAMES.updateAlert:
+            if (isShowedUpdateAlert) return reject(new Error('The update alert can only be called once.'))
+            isShowedUpdateAlert = true
+            handleShowUpdateAlert(data, resolve, reject)
+            break
+          default:
+            reject(new Error('Unknown event name: ' + eventName))
+        }
+      })
+    },
+    on(eventName, handler) {
+      if (!eventNames.includes(eventName)) return Promise.reject(new Error('The event is not supported: ' + eventName))
+      switch (eventName) {
+        case EVENT_NAMES.request:
+          events.request = handler
+          break
+        default: return Promise.reject(new Error('The event is not supported: ' + eventName))
+      }
+      return Promise.resolve()
+    },
+    utils,
+    currentScriptInfo: {
+      name,
+      description,
+      version,
+      author,
+      homepage,
+      rawScript,
+    },
+    version: '2.0.0',
+    env: 'mobile',
+  }
+
+  globalThis.setTimeout = _setTimeout
+  globalThis.clearTimeout = _clearTimeout
+
+  const freezeObject = (obj) => {
+    if (typeof obj != 'object') return
+    Object.freeze(obj)
+    for (const subObj of Object.values(obj)) freezeObject(subObj)
+  }
+  freezeObject(globalThis.lx)
+
+  const _toString = Function.prototype.toString
+  // eslint-disable-next-line no-extend-native
+  Function.prototype.toString = function() {
+    return Object.getOwnPropertyDescriptors(this).name.configurable
+      ? _toString.apply(this)
+      : `function ${this.name}() { [native code] }`
+  }
+  // eslint-disable-next-line no-eval
+  globalThis.eval = function() {
+    throw new Error('eval is not available')
+  }
+  const proxyFunctionConstructor = new Proxy(Function.prototype.constructor, {
+    apply() {
+      throw new Error('Dynamic code execution is not allowed.')
+    },
+    construct() {
+      throw new Error('Dynamic code execution is not allowed.')
+    },
+  })
+  // eslint-disable-next-line no-extend-native
+  Object.defineProperty(Function.prototype, 'constructor', {
+    value: proxyFunctionConstructor,
+    writable: false,
+    configurable: false,
+    enumerable: false,
+  })
+  globalThis.Function = proxyFunctionConstructor
+  // globalThis.Function = function() {
+  //   throw new Error('Function is not available')
+  // }
+
+  const excludes = [
+    Function.prototype.toString,
+    Function.prototype.toLocaleString,
+    Object.prototype.toString,
+  ]
+  const freezeObjectProperty = (obj, freezedObj = new Set()) => {
+    if (obj == null) return
+    switch (typeof obj) {
+      case 'object':
+      case 'function':
+        if (freezedObj.has(obj)) return
+        // Object.freeze(obj)
+        freezedObj.add(obj)
+        for (const [name, { ...config }] of Object.entries(Object.getOwnPropertyDescriptors(obj))) {
+          if (!excludes.includes(config.value)) {
+            if (config.writable) config.writable = false
+            if (config.configurable) config.configurable = false
+            Object.defineProperty(obj, name, config)
+          }
+          freezeObjectProperty(config.value, freezedObj)
+        }
     }
   }
+  freezeObjectProperty(globalThis)
 
-  Runtime.prototype.destroy = function () {
-    this.destroyed = true
-    this.requestHandler = null
-    this.pendingNativeRequests = {}
-    this.timers = {}
-  }
-
-  // ───────────────────────── 对外接口（Swift 调用）─────────────────────────
-  var current = null
-  globalThis.__lx_load = function (scriptInfo) {
-    if (current) current.destroy()
-    current = new Runtime(scriptInfo)
-    current.execute()
-  }
-  globalThis.__lx_http_response = function (data) {
-    if (current) current.handleNativeResponse(data)
-  }
-  globalThis.__lx_start_api_request = function (requestKey, params) {
-    if (current) current.startApiRequest(requestKey, params)
-  }
-  globalThis.__lx_fire_timer = function (id) {
-    if (current) current.fireTimer(id)
-  }
-  globalThis.__lx_destroy = function () {
-    if (current) current.destroy()
-    current = null
-  }
-})()
+  console.log('Preload finished.')
+}

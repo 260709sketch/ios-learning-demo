@@ -67,108 +67,60 @@ enum LXEngineError: LocalizedError {
 // MARK: - 引擎
 
 /// 基于 JavaScriptCore 的 LX Music 音源引擎。
-/// 加载并执行 LX 音源脚本，桥接网络请求、加密、定时器。
+/// 架构与官方 lx-music-mobile 一致：
+/// 1. 创建 JSContext，注入原生函数（__lx_native_call__ 等）
+/// 2. evaluate(preload.js)
+/// 3. 调用 lx_setup(...)
+/// 4. 在全局作用域 evaluate(音源脚本)
 final class LXMusicEngine: NSObject {
     static let shared = LXMusicEngine()
 
-    private var context: JSContext!
+    private var context: JSContext?
     private let jsQueue = DispatchQueue(label: "im.missuo.kumone.lxmusic")
-    private var didSetup = false
 
+    /// 每次音源环境的校验 key。
+    private var currentKey = UUID().uuidString
     /// 当前已加载音源。
     private(set) var currentSource: LXSourceInfo?
     /// 当前音源能力。
     private(set) var capabilities: [LXSourceCapability] = []
 
-    // 续体
+    // init 续体与超时
     private var initContinuation: CheckedContinuation<[LXSourceCapability], Error>?
-    private var pendingAPIRequests: [String: CheckedContinuation<[String: Any], Error>] = [:]
+    private var initTimeoutWork: DispatchWorkItem?
 
-    // HTTP 任务与定时器
+    // musicUrl/lyric/pic 请求续体（requestKey 以 "request__" 开头）
+    private var pendingRequests: [String: CheckedContinuation<[String: Any], Error>] = [:]
+    private var requestTimeoutWorks: [String: DispatchWorkItem] = [:]
+
+    // HTTP 任务（requestKey 以 "script_request_" 开头）
     private var httpTasks: [String: URLSessionDataTask] = [:]
-    private var timerItems: [Int: DispatchWorkItem] = [:]   // Swift 内部超时
-    private var jsTimerItems: [Int: DispatchWorkItem] = [:] // JS setTimeout
-    private var timerSeq = 1
+    // JS setTimeout
+    private var timeoutTasks: [Int: DispatchWorkItem] = [:]
 
     private override init() {
         super.init()
     }
 
-    // MARK: 初始化 JSContext
-
-    private func ensureSetup() {
-        guard !didSetup else { return }
-        didSetup = true
-
-        guard let ctx = JSContext() else { return }
-        ctx.name = "KumoneLXMusic"
-        ctx.exceptionHandler = { _, exception in
-            let msg = exception?.toString() ?? "unknown"
-            print("[LXMusic][JS Exception] \(msg)")
-        }
-
-        // 注入统一桥接
-        let nativeBlock: @convention(block) (String, Any?) -> Any? = { [weak self] action, data in
-            self?.handleNative(action: action, data: data)
-        }
-        ctx.setObject(nativeBlock, forKeyedSubscript: "__lx_native" as NSString)
-
-        // 加载 preload
-        guard let url = Bundle.module.url(forResource: "LXMusicPreload", withExtension: "js"),
-              let preload = try? String(contentsOf: url, encoding: .utf8) else {
-            print("[LXMusic] preload.js not found in Bundle.module")
-            return
-        }
-        ctx.evaluateScript(preload)
-        context = ctx
-    }
-
-    /// 确保引擎已就绪（异步）。
-    private func setupIfNeeded() async {
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            jsQueue.async {
-                self.ensureSetup()
-                cont.resume()
-            }
-        }
-    }
-
-    // MARK: 加载音源
+    // MARK: - 加载音源
 
     /// 加载并初始化一条音源脚本。返回该音源声明的能力。
     func load(source: LXSourceInfo, script: String) async throws -> [LXSourceCapability] {
-        await setupIfNeeded()
-        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[LXSourceCapability], Error>) in
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[LXSourceCapability], Error>) in
             jsQueue.async {
-                self.ensureSetup()
-                guard self.context != nil else {
-                    cont.resume(throwing: LXEngineError.initFailed("引擎初始化失败"))
-                    return
-                }
+                self.cleanupLocked()
+                self.createJSEnv(source: source, script: script)
                 self.initContinuation = cont
-                self.currentSource = source
-                self.capabilities = []
 
-                let scriptInfo: [String: Any] = [
-                    "id": source.id,
-                    "name": source.name,
-                    "description": source.sourceDescription,
-                    "version": source.version,
-                    "author": source.author,
-                    "homepage": source.homepage,
-                    "script": script
-                ]
-                self.callJS("__lx_load", with: [scriptInfo])
-
-                // 初始化超时
+                // init 超时
                 let work = DispatchWorkItem { [weak self] in
                     guard let self, let c = self.initContinuation else { return }
                     self.initContinuation = nil
+                    self.initTimeoutWork = nil
                     c.resume(throwing: LXEngineError.timeout)
                 }
+                self.initTimeoutWork = work
                 self.jsQueue.asyncAfter(deadline: .now() + 15, execute: work)
-                self.timerItems[self.timerSeq] = work
-                self.timerSeq += 1
             }
         }
     }
@@ -177,21 +129,197 @@ final class LXMusicEngine: NSObject {
     func unload() async {
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             jsQueue.async {
-                self.callJS("__lx_destroy", with: [])
-                self.currentSource = nil
-                self.capabilities = []
-                for (_, task) in self.httpTasks { task.cancel() }
-                self.httpTasks.removeAll()
-                for (_, item) in self.timerItems { item.cancel() }
-                self.timerItems.removeAll()
-                for (_, item) in self.jsTimerItems { item.cancel() }
-                self.jsTimerItems.removeAll()
+                self.cleanupLocked()
                 cont.resume()
             }
         }
     }
 
-    // MARK: 音源查询
+    // MARK: - 创建 JS 环境（匹配官方 QuickJS.createJSEnv）
+
+    private func createJSEnv(source: LXSourceInfo, script: String) {
+        currentKey = UUID().uuidString
+        currentSource = source
+        capabilities = []
+
+        guard let ctx = JSContext() else {
+            failInit(LXEngineError.initFailed("JSContext 创建失败"))
+            return
+        }
+        ctx.name = "KumoneLXMusic"
+        ctx.exceptionHandler = { _, exception in
+            print("[LXMusic][JS Exception] \(exception?.toString() ?? "unknown")")
+        }
+
+        injectNativeFunctions(into: ctx)
+
+        // evaluate preload.js
+        guard let preloadURL = Bundle.module.url(forResource: "LXMusicPreload", withExtension: "js"),
+              let preload = try? String(contentsOf: preloadURL, encoding: .utf8) else {
+            print("[LXMusic] preload.js not found in Bundle.module")
+            failInit(LXEngineError.initFailed("preload.js 缺失"))
+            return
+        }
+        ctx.evaluateScript(preload)
+
+        // 调用 lx_setup(key, id, name, description, version, author, homepage, rawScript)
+        guard let lxSetup = ctx.objectForKeyedSubscript("lx_setup") else {
+            failInit(LXEngineError.initFailed("lx_setup 不存在"))
+            return
+        }
+        lxSetup.call(withArguments: [
+            currentKey, source.id, source.name, source.sourceDescription,
+            source.version, source.author, source.homepage, script
+        ])
+
+        // 在全局作用域执行音源脚本（关键：不用 new Function 包裹）
+        ctx.evaluateScript(script)
+
+        context = ctx
+    }
+
+    /// 注入官方 preload 期望的全部原生函数。
+    private func injectNativeFunctions(into ctx: JSContext) {
+        // __lx_native_call__(key, action, dataJsonString) —— 主通信
+        let nativeCall: @convention(block) (String, String, String) -> Any? = { [weak self] key, action, data in
+            guard let self, key == self.currentKey else { return nil }
+            self.handleNativeCall(action: action, dataJSON: data)
+            return nil
+        }
+        ctx.setObject(nativeCall, forKeyedSubscript: "__lx_native_call__" as NSString)
+
+        // set_timeout(id, timeoutMS)
+        let setTimeout: @convention(block) (Int, Int) -> Any? = { [weak self] id, ms in
+            self?.scheduleJSTimeout(id: id, ms: ms)
+            return nil
+        }
+        ctx.setObject(setTimeout, forKeyedSubscript: "__lx_native_call__set_timeout" as NSString)
+
+        // utils_str2b64(str) -> base64
+        let str2b64: @convention(block) (String) -> String = { str in
+            Data(str.utf8).base64EncodedString()
+        }
+        ctx.setObject(str2b64, forKeyedSubscript: "__lx_native_call__utils_str2b64" as NSString)
+
+        // utils_b642buf(b64) -> 字节数组 JSON 字符串 "[1,2,3]"
+        let b642buf: @convention(block) (String) -> String = { b64 in
+            guard let data = Data(base64Encoded: b64) else { return "[]" }
+            let arr = Array(data).map(String.init).joined(separator: ",")
+            return "[\(arr)]"
+        }
+        ctx.setObject(b642buf, forKeyedSubscript: "__lx_native_call__utils_b642buf" as NSString)
+
+        // utils_str2md5(encodeURIComponent(str)) -> md5 hex（先 URL decode）
+        let str2md5: @convention(block) (String) -> String = { encoded in
+            let decoded = encoded.removingPercentEncoding ?? encoded
+            return Crypto.md5(decoded)
+        }
+        ctx.setObject(str2md5, forKeyedSubscript: "__lx_native_call__utils_str2md5" as NSString)
+
+        // utils_aes_encrypt(data_b64, key_b64, iv_b64, mode) -> base64
+        let aesEncrypt: @convention(block) (String, String, String, String) -> String = { dataB64, keyB64, ivB64, mode in
+            guard let data = Data(base64Encoded: dataB64),
+                  let key = Data(base64Encoded: keyB64) else { return "" }
+            if mode == "AES" {
+                // ECB NoPadding
+                return Crypto.aesECBNoPaddingEncrypt(data: data, key: key)?.base64EncodedString() ?? ""
+            } else {
+                // CBC PKCS7Padding
+                let iv = Data(base64Encoded: ivB64) ?? Data()
+                return Crypto.aesCBCEncrypt(data: data, key: key, iv: iv)?.base64EncodedString() ?? ""
+            }
+        }
+        ctx.setObject(aesEncrypt, forKeyedSubscript: "__lx_native_call__utils_aes_encrypt" as NSString)
+
+        // utils_rsa_encrypt(data_b64, keyBase64, mode) -> base64（RSA/ECB/NoPadding）
+        let rsaEncrypt: @convention(block) (String, String, String) -> String = { dataB64, keyB64, _ in
+            guard let data = Data(base64Encoded: dataB64) else { return "" }
+            return Crypto.rsaRawEncrypt(data: data, publicKeyBase64: keyB64)?.base64EncodedString() ?? ""
+        }
+        ctx.setObject(rsaEncrypt, forKeyedSubscript: "__lx_native_call__utils_rsa_encrypt" as NSString)
+    }
+
+    // MARK: - JS -> Swift 分发
+
+    private func handleNativeCall(action: String, dataJSON: String) {
+        guard let data = dataJSON.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        switch action {
+        case "init":
+            handleInit(dict)
+        case "response":
+            // musicUrl/lyric/pic 的结果（requestKey = request__）
+            handleAPIResponse(dict)
+        case "request":
+            // 音源脚本发起的 HTTP 请求（requestKey = script_request_）
+            handleHTTPRequest(dict)
+        case "cancelRequest":
+            handleCancelHTTP(dict)
+        case "showUpdateAlert":
+            // 已移除更新提示，忽略
+            break
+        default:
+            break
+        }
+    }
+
+    /// 音源初始化结果。
+    private func handleInit(_ dict: [String: Any]) {
+        initTimeoutWork?.cancel()
+        initTimeoutWork = nil
+
+        guard let status = dict["status"] as? Bool, status,
+              let info = dict["info"] as? [String: Any],
+              let sources = info["sources"] as? [String: Any] else {
+            let msg = dict["errorMessage"] as? String ?? "初始化失败"
+            failInit(LXEngineError.initFailed(msg))
+            return
+        }
+
+        var caps: [LXSourceCapability] = []
+        for (platform, value) in sources {
+            guard let s = value as? [String: Any] else { continue }
+            caps.append(LXSourceCapability(
+                platform: platform,
+                name: platform,
+                actions: (s["actions"] as? [String]) ?? [],
+                qualities: (s["qualitys"] as? [String]) ?? []
+            ))
+        }
+        capabilities = caps
+        if let cont = initContinuation {
+            initContinuation = nil
+            cont.resume(returning: caps)
+        }
+    }
+
+    private func failInit(_ error: Error) {
+        initTimeoutWork?.cancel()
+        initTimeoutWork = nil
+        if let cont = initContinuation {
+            initContinuation = nil
+            cont.resume(throwing: error)
+        }
+    }
+
+    /// musicUrl/lyric/pic 请求的结果（JS 回调）。
+    private func handleAPIResponse(_ dict: [String: Any]) {
+        guard let key = dict["requestKey"] as? String else { return }
+        requestTimeoutWorks[key]?.cancel()
+        requestTimeoutWorks[key] = nil
+        guard let cont = pendingRequests[key] else { return }
+        pendingRequests[key] = nil
+
+        if let status = dict["status"] as? Bool, status {
+            cont.resume(returning: dict["result"] as? [String: Any] ?? [:])
+        } else {
+            let msg = (dict["error"] as? String)
+                ?? (dict["errorMessage"] as? String) ?? "failed"
+            cont.resume(throwing: LXEngineError.requestFailed(msg))
+        }
+    }
+
+    // MARK: - Swift -> JS 请求（musicUrl 等）
 
     /// 获取播放 URL。
     /// - Parameters:
@@ -199,12 +327,15 @@ final class LXMusicEngine: NSObject {
     ///   - quality: LX 音质标识（128k/320k/flac/flac24bit）
     func musicURL(for track: Track, quality: String) async throws -> (url: String, quality: String) {
         let musicInfo = lxMusicInfo(from: track)
-        let params: [String: Any] = [
-            "source": "wy",
-            "action": "musicUrl",
-            "info": ["type": quality, "musicInfo": musicInfo]
+        let payload: [String: Any] = [
+            "requestKey": "",
+            "data": [
+                "source": "wy",
+                "action": "musicUrl",
+                "info": ["type": quality, "musicInfo": musicInfo]
+            ]
         ]
-        let result = try await startAPIRequest(params: params, timeout: 20)
+        let result = try await sendJSRequest(payload: payload, timeout: 20)
         guard let data = result["data"] as? [String: Any],
               let url = data["url"] as? String else {
             throw LXEngineError.invalidResponse
@@ -213,190 +344,62 @@ final class LXMusicEngine: NSObject {
         return (url, actualQuality)
     }
 
-    /// 获取歌词。
-    func lyric(for track: Track) async throws -> [String: Any] {
-        let musicInfo = lxMusicInfo(from: track)
-        let params: [String: Any] = [
-            "source": "wy",
-            "action": "lyric",
-            "info": ["type": "320k", "musicInfo": musicInfo]
-        ]
-        let result = try await startAPIRequest(params: params, timeout: 15)
-        guard let data = result["data"] as? [String: Any] else {
-            throw LXEngineError.invalidResponse
-        }
-        return data
-    }
+    private func sendJSRequest(payload: [String: Any], timeout seconds: TimeInterval) async throws -> [String: Any] {
+        let requestKey = "request__\(UUID().uuidString)"
+        var payload = payload
+        payload["requestKey"] = requestKey
 
-    /// 获取封面 URL。
-    func pic(for track: Track) async throws -> String {
-        let musicInfo = lxMusicInfo(from: track)
-        let params: [String: Any] = [
-            "source": "wy",
-            "action": "pic",
-            "info": ["type": "320k", "musicInfo": musicInfo]
-        ]
-        let result = try await startAPIRequest(params: params, timeout: 15)
-        guard let data = result["data"] as? String else {
-            throw LXEngineError.invalidResponse
-        }
-        return data
-    }
-
-    /// 统一发起音源请求并等待结果。
-    private func startAPIRequest(params: [String: Any], timeout seconds: TimeInterval) async throws -> [String: Any] {
-        let key = "api_\(UUID().uuidString)"
-        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[String: Any], Error>) in
+        return try await withCheckedThrowingContinuation { cont in
             jsQueue.async {
-                self.pendingAPIRequests[key] = cont
-                self.callJS("__lx_start_api_request", with: [key, params])
+                self.pendingRequests[requestKey] = cont
+                guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
+                      let json = String(data: jsonData, encoding: .utf8) else {
+                    self.pendingRequests[requestKey] = nil
+                    cont.resume(throwing: LXEngineError.invalidResponse)
+                    return
+                }
+                self.callJSNative(action: "request", json: json)
 
                 let work = DispatchWorkItem { [weak self] in
-                    self?.failAPIRequest(key: key, error: LXEngineError.timeout)
+                    guard let self, let c = self.pendingRequests[requestKey] else { return }
+                    self.pendingRequests[requestKey] = nil
+                    self.requestTimeoutWorks[requestKey] = nil
+                    c.resume(throwing: LXEngineError.timeout)
                 }
+                self.requestTimeoutWorks[requestKey] = work
                 self.jsQueue.asyncAfter(deadline: .now() + seconds, execute: work)
-                self.timerItems[self.timerSeq] = work
-                self.timerSeq += 1
             }
         }
     }
 
-    private func succeedAPIRequest(key: String, result: [String: Any]) {
-        guard let cont = pendingAPIRequests[key] else { return }
-        pendingAPIRequests.removeValue(forKey: key)
-        cont.resume(returning: result)
+    /// 调用 preload 暴露的 __lx_native__(key, action, json)。
+    private func callJSNative(action: String, json: String) {
+        guard let fn = context?.objectForKeyedSubscript("__lx_native__") else { return }
+        fn.call(withArguments: [currentKey, action, json])
     }
 
-    private func failAPIRequest(key: String, error: Error) {
-        guard let cont = pendingAPIRequests[key] else { return }
-        pendingAPIRequests.removeValue(forKey: key)
-        cont.resume(throwing: error)
-    }
+    // MARK: - JS setTimeout
 
-    // MARK: JS 调用
-
-    private func callJS(_ function: String, with args: [Any]) {
-        guard let fn = context.objectForKeyedSubscript(function) else { return }
-        fn.call(withArguments: args)
-    }
-
-    // MARK: 原生桥接处理（在 jsQueue 上执行）
-
-    private func handleNative(action: String, data: Any?) -> Any? {
-        switch action {
-        case "inited":
-            handleInited(data)
-        case "requestResult":
-            handleRequestResult(data)
-        case "http":
-            handleHTTP(data)
-        case "cancelHttp":
-            handleCancelHTTP(data)
-        case "setTimeout":
-            handleSetTimeout(data)
-        case "log":
-            handleLog(data)
-        case "updateAlert":
-            handleUpdateAlert(data)
-        case "md5":
-            guard let str = data as? String else { return nil }
-            return Crypto.md5(str)
-        case "aes":
-            guard let dict = data as? [String: Any] else { return nil }
-            return handleAES(dict)
-        case "rsa":
-            guard let dict = data as? [String: Any] else { return nil }
-            return handleRSA(dict)
-        default:
-            return nil
-        }
-        return nil
-    }
-
-    private func handleInited(_ data: Any?) {
-        guard let dict = data as? [String: Any],
-              let status = dict["status"] as? Bool else {
-            initContinuation?.resume(throwing: LXEngineError.initFailed("无效的初始化响应"))
-            initContinuation = nil
-            return
-        }
-        if status {
-            var caps: [LXSourceCapability] = []
-            if let info = dict["info"] as? [String: Any],
-               let sources = info["sources"] as? [String: Any] {
-                for (platform, value) in sources {
-                    guard let s = value as? [String: Any] else { continue }
-                    caps.append(LXSourceCapability(
-                        platform: platform,
-                        name: (s["name"] as? String) ?? platform,
-                        actions: (s["actions"] as? [String]) ?? [],
-                        qualities: (s["qualitys"] as? [String]) ?? []
-                    ))
-                }
-            }
-            capabilities = caps
-            initContinuation?.resume(returning: caps)
-        } else {
-            let error = (dict["error"] as? String) ?? "未知错误"
-            initContinuation?.resume(throwing: LXEngineError.initFailed(error))
-        }
-        initContinuation = nil
-    }
-
-    private func handleRequestResult(_ data: Any?) {
-        guard let dict = data as? [String: Any],
-              let key = dict["requestKey"] as? String else { return }
-        if let status = dict["status"] as? Bool, status {
-            if let result = dict["result"] as? [String: Any] {
-                succeedAPIRequest(key: key, result: result)
-            } else {
-                failAPIRequest(key: key, error: LXEngineError.invalidResponse)
-            }
-        } else {
-            let msg = (dict["error"] as? String) ?? "failed"
-            failAPIRequest(key: key, error: LXEngineError.requestFailed(msg))
-        }
-    }
-
-    private func handleLog(_ data: Any?) {
-        guard let dict = data as? [String: Any],
-              let type = dict["type"] as? String,
-              let msg = dict["msg"] as? String else { return }
-        print("[LXMusic][\(type)] \(msg)")
-    }
-
-    private func handleUpdateAlert(_ data: Any?) {
-        guard let dict = data as? [String: Any] else { return }
-        let log = dict["log"] as? String ?? ""
-        print("[LXMusic][updateAlert] \(log)")
-    }
-
-    // MARK: 定时器桥接
-
-    private func handleSetTimeout(_ data: Any?) {
-        guard let dict = data as? [String: Any],
-              let idNum = dict["id"] as? NSNumber,
-              let timeout = dict["timeout"] as? NSNumber else { return }
-        let id = idNum.intValue
+    private func scheduleJSTimeout(id: Int, ms: Int) {
         let work = DispatchWorkItem { [weak self] in
-            self?.jsQueue.async {
-                self?.callJS("__lx_fire_timer", with: [idNum])
-            }
+            self?.timeoutTasks[id] = nil
+            guard let fn = self?.context?.objectForKeyedSubscript("__lx_native__"),
+                  let key = self?.currentKey else { return }
+            fn.call(withArguments: [key, "__set_timeout__", String(id)])
         }
-        jsTimerItems[id] = work
-        jsQueue.asyncAfter(deadline: .now() + .milliseconds(timeout.intValue), execute: work)
+        timeoutTasks[id] = work
+        jsQueue.asyncAfter(deadline: .now() + .milliseconds(max(ms, 0)), execute: work)
     }
 
-    // MARK: HTTP 桥接
+    // MARK: - HTTP 请求（音源脚本内部 lx.request）
 
-    private func handleHTTP(_ data: Any?) {
-        guard let dict = data as? [String: Any],
-              let key = dict["requestKey"] as? String,
+    private func handleHTTPRequest(_ dict: [String: Any]) {
+        guard let key = dict["requestKey"] as? String,
               let urlString = dict["url"] as? String,
               let options = dict["options"] as? [String: Any] else { return }
 
         guard let url = URL(string: urlString) else {
-            deliverHTTPError(key: key, message: "Invalid URL")
+            deliverHTTPResponse(key: key, error: "Invalid URL", response: nil)
             return
         }
 
@@ -415,22 +418,21 @@ final class LXMusicEngine: NSObject {
         }
 
         let binary = (options["binary"] as? Bool) ?? false
-        let timeout = (options["timeout"] as? NSNumber)?.doubleValue ?? 15
-        request.timeoutInterval = timeout / 1000
+        let timeoutMS = (options["timeout"] as? NSNumber)?.doubleValue ?? 15000
+        request.timeoutInterval = max(timeoutMS, 1000) / 1000
 
-        // 请求体
-        if method == "POST" || method == "PUT" || method == "PATCH" {
+        if ["POST", "PUT", "PATCH"].contains(method) {
             applyBody(to: &request, options: options)
         }
 
         let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             self?.jsQueue.async {
                 if let error = error {
-                    self?.deliverHTTPError(key: key, message: error.localizedDescription)
+                    self?.deliverHTTPResponse(key: key, error: error.localizedDescription, response: nil)
                     return
                 }
                 guard let http = response as? HTTPURLResponse else {
-                    self?.deliverHTTPError(key: key, message: "Invalid response")
+                    self?.deliverHTTPResponse(key: key, error: "Invalid response", response: nil)
                     return
                 }
                 var headers: [String: String] = [:]
@@ -438,36 +440,46 @@ final class LXMusicEngine: NSObject {
                     headers["\(k)".lowercased()] = "\(v)"
                 }
                 let payload = data ?? Data()
-
+                let body: Any
                 if binary {
-                    self?.deliverHTTP(
-                        key: key,
-                        statusCode: http.statusCode,
-                        statusMessage: "",
-                        headers: headers,
-                        body: payload.base64EncodedString(),
-                        bodyEncoding: "base64"
-                    )
+                    body = Array(payload)
+                } else if let json = try? JSONSerialization.jsonObject(with: payload) {
+                    body = json
                 } else {
-                    // 尝试 JSON，否则字符串
-                    if let json = try? JSONSerialization.jsonObject(with: payload) as Any {
-                        self?.deliverHTTP(
-                            key: key, statusCode: http.statusCode, statusMessage: "",
-                            headers: headers, body: json, bodyEncoding: nil
-                        )
-                    } else {
-                        let text = String(data: payload, encoding: .utf8) ?? ""
-                        self?.deliverHTTP(
-                            key: key, statusCode: http.statusCode, statusMessage: "",
-                            headers: headers, body: text, bodyEncoding: nil
-                        )
-                    }
+                    body = String(data: payload, encoding: .utf8) ?? ""
                 }
+                let resp: [String: Any] = [
+                    "statusCode": http.statusCode,
+                    "statusMessage": "",
+                    "headers": headers,
+                    "body": body
+                ]
+                self?.deliverHTTPResponse(key: key, error: nil, response: resp)
             }
         }
         httpTasks[key] = task
         task.resume()
     }
+
+    private func handleCancelHTTP(_ dict: [String: Any]) {
+        guard let key = dict["requestKey"] as? String else { return }
+        httpTasks[key]?.cancel()
+        httpTasks.removeValue(forKey: key)
+    }
+
+    private func deliverHTTPResponse(key: String, error: String?, response: [String: Any]?) {
+        httpTasks.removeValue(forKey: key)
+        let payload: [String: Any] = [
+            "requestKey": key,
+            "error": error ?? NSNull(),
+            "response": response ?? NSNull()
+        ]
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: jsonData, encoding: .utf8) else { return }
+        callJSNative(action: "response", json: json)
+    }
+
+    // MARK: - 请求体
 
     private func applyBody(to request: inout URLRequest, options: [String: Any]) {
         // form
@@ -505,61 +517,6 @@ final class LXMusicEngine: NSObject {
                 request.httpBody = data
             }
         }
-    }
-
-    private func handleCancelHTTP(_ data: Any?) {
-        guard let dict = data as? [String: Any], let key = dict["requestKey"] as? String else { return }
-        httpTasks[key]?.cancel()
-        httpTasks.removeValue(forKey: key)
-    }
-
-    private func deliverHTTP(
-        key: String,
-        statusCode: Int,
-        statusMessage: String,
-        headers: [String: String],
-        body: Any,
-        bodyEncoding: String?
-    ) {
-        httpTasks.removeValue(forKey: key)
-        var response: [String: Any] = [
-            "statusCode": statusCode,
-            "statusMessage": statusMessage,
-            "headers": headers,
-            "body": body
-        ]
-        if let bodyEncoding = bodyEncoding { response["bodyEncoding"] = bodyEncoding }
-        callJS("__lx_http_response", with: [["requestKey": key, "error": NSNull(), "response": response]])
-    }
-
-    private func deliverHTTPError(key: String, message: String) {
-        httpTasks.removeValue(forKey: key)
-        callJS("__lx_http_response", with: [["requestKey": key, "error": message, "response": NSNull()]])
-    }
-
-    // MARK: AES / RSA 桥接
-
-    private func handleAES(_ dict: [String: Any]) -> String? {
-        guard let b64data = dict["data"] as? String,
-              let b64key = dict["key"] as? String,
-              let mode = dict["mode"] as? String,
-              let data = Data(base64Encoded: b64data),
-              let key = Data(base64Encoded: b64key) else { return nil }
-        let iv = (dict["iv"] as? String).flatMap { Data(base64Encoded: $0) }
-        let result: Data?
-        if mode == "aes-128-ecb" {
-            result = Crypto.aesECBEncrypt(data: data, key: key)
-        } else {
-            result = Crypto.aesCBCEncrypt(data: data, key: key, iv: iv ?? Data())
-        }
-        return result?.base64EncodedString()
-    }
-
-    private func handleRSA(_ dict: [String: Any]) -> String? {
-        guard let b64data = dict["data"] as? String,
-              let keyB64 = dict["key"] as? String,
-              let data = Data(base64Encoded: b64data) else { return nil }
-        return Crypto.rsaRawEncrypt(data: data, publicKeyBase64: keyB64)?.base64EncodedString()
     }
 
     // MARK: Track -> LX MusicInfo
@@ -607,6 +564,30 @@ final class LXMusicEngine: NSObject {
             ]
         ]
     }
+
+    // MARK: - 清理
+
+    private func cleanupLocked() {
+        for (_, t) in httpTasks { t.cancel() }
+        httpTasks.removeAll()
+        for (_, w) in timeoutTasks { w.cancel() }
+        timeoutTasks.removeAll()
+        for (_, w) in requestTimeoutWorks { w.cancel() }
+        requestTimeoutWorks.removeAll()
+        initTimeoutWork?.cancel()
+        initTimeoutWork = nil
+
+        initContinuation?.resume(throwing: LXEngineError.notLoaded)
+        initContinuation = nil
+        for (_, cont) in pendingRequests {
+            cont.resume(throwing: LXEngineError.notLoaded)
+        }
+        pendingRequests.removeAll()
+
+        context = nil
+        currentSource = nil
+        capabilities = []
+    }
 }
 
 // MARK: - 加密工具
@@ -622,9 +603,9 @@ enum Crypto {
               options: CCOptions(kCCOptionPKCS7Padding), key: key, iv: iv, data: data)
     }
 
-    static func aesECBEncrypt(data: Data, key: Data) -> Data? {
+    static func aesECBNoPaddingEncrypt(data: Data, key: Data) -> Data? {
         crypt(operation: CCOperation(kCCEncrypt), algorithm: CCAlgorithm(kCCAlgorithmAES),
-              options: CCOptions(kCCOptionECBMode | kCCOptionPKCS7Padding), key: key, iv: Data(), data: data)
+              options: CCOptions(kCCOptionECBMode), key: key, iv: Data(), data: data)
     }
 
     private static func crypt(
