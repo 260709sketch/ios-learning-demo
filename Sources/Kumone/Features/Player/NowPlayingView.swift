@@ -280,7 +280,9 @@ struct NowPlayingView: View {
         let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
 
         return ZStack {
-            // 底层：AMLL WebView（流动背景 + 逐字歌词，大封面和队列状态隐藏歌词显示，但后台持续渲染）
+            // 底层：纯黑背景（静态模式下可见，流动模式下被AMLL背景覆盖）
+            Color.black.ignoresSafeArea()
+            // 第二层：AMLL WebView（流动背景 + 逐字歌词，静态模式下隐藏bg元素）
             AMLLLyricsView(
                 onSeek: { time in
                     player.seek(to: time)

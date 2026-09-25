@@ -63,11 +63,22 @@ struct SettingsView: View {
                 Toggle("显示歌词翻译", isOn: $settings.showLyricsTranslation)
                 Toggle("显示 VIP 歌曲标识", isOn: $settings.showVIPBadge)
                 Toggle("逐字歌词（卡拉OK）", isOn: $settings.verbatimLyrics)
-                Toggle("AMLL 沉浸式歌词（流动背景+扫光）", isOn: $settings.useAMLLImmersive)
-                if settings.useAMLLImmersive {
-                    Text("通过 WKWebView 嵌入开源 AMLL 组件；播放页将切换为 AMLL 流动背景和逐字扫光歌词")
+                // 播放页背景模式：流动背景 / 静态背景 / 原版背景
+                Picker("播放页背景", selection: $settings.amllBackgroundMode) {
+                    ForEach(SettingsManager.AMLLBackgroundMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                if settings.amllBackgroundMode == .flowing {
+                    Text("AMLL 流动渐变背景 + 逐字扫光歌词")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                } else if settings.amllBackgroundMode == .still {
+                    Text("纯黑静态背景 + AMLL 逐字歌词（已去除流动背景和扫光）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if settings.amllBackgroundMode != .original {
 
                     // 歌词顶部位置
                     VStack(alignment: .leading, spacing: 4) {

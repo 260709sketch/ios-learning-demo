@@ -35,6 +35,7 @@ struct AMLLLyricsView: View {
             fontWeight: settings.amllFontWeight,
             fontFamily: settings.amllFontFamily,
             showLyrics: showLyrics,
+            backgroundMode: settings.amllBackgroundMode,
             onSeek: onSeek
         )
         .ignoresSafeArea()
@@ -54,6 +55,7 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     let fontWeight: Int
     let fontFamily: String
     let showLyrics: Bool
+    let backgroundMode: SettingsManager.AMLLBackgroundMode
     let onSeek: ((TimeInterval) -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -68,7 +70,7 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
         context.coordinator.applyLayout(
             top: lyricTop, bottom: lyricBottom, horizontal: lyricHorizontal,
             fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFamily,
-            showLyrics: showLyrics
+            showLyrics: showLyrics, backgroundMode: backgroundMode
         )
     }
     #elseif os(macOS)
@@ -79,7 +81,7 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
         context.coordinator.applyLayout(
             top: lyricTop, bottom: lyricBottom, horizontal: lyricHorizontal,
             fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFamily,
-            showLyrics: showLyrics
+            showLyrics: showLyrics, backgroundMode: backgroundMode
         )
     }
     #endif
@@ -132,8 +134,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         super.init()
     }
 
-    /// 应用歌词布局（位置、字号、字重、字体、显示/隐藏）
-    func applyLayout(top: Int, bottom: Int, horizontal: Int, fontSize: Int, fontWeight: Int, fontFamily: String, showLyrics: Bool) {
+    /// 应用歌词布局（位置、字号、字重、字体、显示/隐藏、背景模式）
+    func applyLayout(top: Int, bottom: Int, horizontal: Int, fontSize: Int, fontWeight: Int, fontFamily: String, showLyrics: Bool, backgroundMode: SettingsManager.AMLLBackgroundMode) {
         // 记录切换前的状态，用于检测"从隐藏切到显示"
         let wasHidden = !layoutShowLyrics
         layoutTop = top
@@ -151,6 +153,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 元素在渲染树中，动画持续运行，切回时歌词已是最新状态。
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
+        // 静态背景模式：隐藏流动背景(bg元素) + 去除歌词逐字扫光(wordFadeWidth=0)
+        let bgDisplay = backgroundMode == .still ? "none" : "block"
+        let wordFadeWidth = backgroundMode == .still ? "0" : "0.5"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -160,6 +165,14 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 el.style.transform = 'translateX(\(horizontal)px)';
                 el.style.opacity = '\(opacityValue)';
                 el.style.pointerEvents = '\(pointerEvents)';
+            }
+            var bg = document.getElementById('bg');
+            if (bg) {
+                bg.style.display = '\(bgDisplay)';
+            }
+            // 去除/恢复歌词逐字扫光效果
+            if (typeof Ru !== 'undefined' && Ru.setWordFadeWidth) {
+                Ru.setWordFadeWidth(\(wordFadeWidth));
             }
         })();
         true;
