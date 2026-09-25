@@ -378,13 +378,14 @@ final class SettingsManager: ObservableObject {
         lyricsAnnotation = defaults.string(forKey: Keys.annotation).flatMap(LyricsAnnotation.init)
             ?? (defaults.bool(forKey: Keys.showRomaji) ? .romaji : .off)
         verbatimLyrics = defaults.object(forKey: Keys.verbatimLyrics) as? Bool ?? true
-        useAMLLImmersive = defaults.object(forKey: Keys.useAMLLImmersive) as? Bool ?? false
+        let storedUseAMLL = defaults.object(forKey: Keys.useAMLLImmersive) as? Bool ?? false
+        useAMLLImmersive = storedUseAMLL
         // 背景模式：优先读取新设置，否则根据旧的 useAMLLImmersive 推导（开启=flowing，关闭=original）
         if let storedMode = defaults.string(forKey: Keys.amllBackgroundMode),
            let mode = AMLLBackgroundMode(rawValue: storedMode) {
             amllBackgroundMode = mode
         } else {
-            amllBackgroundMode = useAMLLImmersive ? .flowing : .original
+            amllBackgroundMode = storedUseAMLL ? .flowing : .original
         }
         amllLyricTop = defaults.object(forKey: Keys.amllLyricTop) as? Int ?? 170
         amllLyricBottom = defaults.object(forKey: Keys.amllLyricBottom) as? Int ?? 230
