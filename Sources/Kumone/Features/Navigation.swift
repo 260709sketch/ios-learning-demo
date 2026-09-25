@@ -82,6 +82,7 @@ enum Destination: Hashable {
     case collections
     case cloud
     case search(String)
+    case localPlaylist
 }
 
 extension Array where Element == Destination {
@@ -123,6 +124,8 @@ struct DestinationsModifier: ViewModifier {
                     CloudView()
                 case .search(let query):
                     SearchView(query: query)
+                case .localPlaylist:
+                    LocalPlaylistView()
                 }
             }
             .playerContentInset()

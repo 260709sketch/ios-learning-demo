@@ -55,7 +55,7 @@ final class NowPlayingManager {
         center.likeCommand.addTarget { [weak player] _ in
             guard let track = player?.currentTrack else { return .noActionableNowPlayingItem }
             Task { @MainActor in
-                await AccountStore.shared.toggleLike(trackID: track.id)
+                await AccountStore.shared.toggleLike(trackID: track.id, track: track)
                 NowPlayingManager.shared.refreshLikeState()
             }
             return .success

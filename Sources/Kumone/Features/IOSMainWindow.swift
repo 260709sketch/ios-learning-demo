@@ -8,6 +8,7 @@ public struct IOSMainWindow: View {
     @StateObject private var toasts = ToastCenter.shared
     @StateObject private var updater = IOSUpdater.shared
     @StateObject private var artworkStore = NowPlayingArtworkStore()
+    @StateObject private var localPlaylist = LocalPlaylistStore.shared
     @Namespace private var nowPlayingTransition
     @Environment(\.colorScheme) private var systemColorScheme
 
@@ -689,6 +690,27 @@ struct IOSLibraryView: View {
                     }
                     NavigationLink(value: Destination.cloud) {
                         Label("音乐云盘", systemImage: "icloud.fill")
+                    }
+                }
+
+                // 本地歌单：收藏的歌曲自动保存一份到本地
+                Section {
+                    NavigationLink(value: Destination.localPlaylist) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "square.stack.fill")
+                                .font(.system(size: 16))
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 32, height: 32)
+                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Theme.accent.opacity(0.15)))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("本地歌单")
+                                    .font(.system(size: 14))
+                                    .lineLimit(1)
+                                Text("\(localPlaylist.count) 首")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
 

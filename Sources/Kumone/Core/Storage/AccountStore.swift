@@ -64,7 +64,7 @@ final class AccountStore: ObservableObject {
         likedTrackIDs.contains(trackID)
     }
 
-    func toggleLike(trackID: Int) async {
+    func toggleLike(trackID: Int, track: Track? = nil) async {
         guard isLoggedIn else {
             ToastCenter.shared.show(String(localized: "登录后即可收藏歌曲"))
             return
@@ -72,10 +72,25 @@ final class AccountStore: ObservableObject {
         let like = !likedTrackIDs.contains(trackID)
         // Optimistic update
         if like { likedTrackIDs.insert(trackID) } else { likedTrackIDs.remove(trackID) }
+        // 同步到本地歌单（收藏时添加，取消收藏时移除）
+        if let track = track {
+            if like {
+                LocalPlaylistStore.shared.addTrack(track)
+            } else {
+                LocalPlaylistStore.shared.removeTrack(track)
+            }
+        } else if !like {
+            // 没有 track 对象时，按 id 和平台移除（平台为 nil 时只按 id 匹配网易云）
+            LocalPlaylistStore.shared.removeTrack(trackID: trackID, sourcePlatform: nil)
+        }
         do {
             try await NeteaseAPI.likeTrack(id: trackID, like: like)
         } catch {
             if like { likedTrackIDs.remove(trackID) } else { likedTrackIDs.insert(trackID) }
+            // 回滚本地歌单
+            if let track = track {
+                if like { LocalPlaylistStore.shared.removeTrack(track) } else { LocalPlaylistStore.shared.addTrack(track) }
+            }
             ToastCenter.shared.show(error.localizedDescription)
         }
         NowPlayingManager.shared.refreshLikeState()
