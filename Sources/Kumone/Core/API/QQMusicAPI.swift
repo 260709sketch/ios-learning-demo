@@ -28,8 +28,8 @@ enum QQMusicAPI {
     private static func makeTrack(id: Int, name: String, artists: [ArtistRef], album: AlbumRef, durationMS: Int, sourcePlatform: String, platformSongId: String) -> Track? {
         let dict: [String: Any] = [
             "id": id, "name": name,
-            "ar": artists.map { ["id": $0.id, "name": $0.name] },
-            "al": ["id": album.id, "name": album.name, "picUrl": album.picUrl ?? ""],
+            "ar": artists.map { ["id": $0.id, "name": $0.name, "singerMid": $0.singerMid ?? ""] },
+            "al": ["id": album.id, "name": album.name, "picUrl": album.picUrl ?? "", "albumMid": album.albumMid ?? ""],
             "dt": durationMS, "alia": [], "tns": [], "fee": 0, "mv": 0, "no": 0,
             "sourcePlatform": sourcePlatform,
             "platformSongId": platformSongId
