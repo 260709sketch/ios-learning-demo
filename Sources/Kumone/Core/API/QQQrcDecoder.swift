@@ -334,25 +334,17 @@ enum QQQrcDecoder {
         let inputSize = data.count
         let outputSize = inputSize * 8 + 1024
         var outputBuffer = [UInt8](repeating: 0, count: outputSize)
-
-        func decode(_ algorithm: compression_algorithm) -> Int {
-            outputBuffer.withUnsafeMutableBytes { outputPtr -> Int in
-                data.withUnsafeBytes { inputPtr -> Int in
-                    compression_decode_buffer(
-                        outputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                        outputSize,
-                        inputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                        inputSize,
-                        nil,
-                        algorithm
-                    )
-                }
+        let decodedSize = outputBuffer.withUnsafeMutableBytes { outputPtr -> Int in
+            data.withUnsafeBytes { inputPtr -> Int in
+                compression_decode_buffer(
+                    outputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                    outputSize,
+                    inputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                    inputSize,
+                    nil,
+                    COMPRESSION_ZLIB
+                )
             }
-        }
-
-        var decodedSize = decode(COMPRESSION_ZLIB)
-        if decodedSize <= 0 {
-            decodedSize = decode(COMPRESSION_LZRAW)
         }
         guard decodedSize > 0 else { return nil }
         var result = Array(outputBuffer.prefix(decodedSize))
