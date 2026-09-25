@@ -699,7 +699,9 @@ final class PlayerService: ObservableObject {
         // 有 LX 自定义音源激活时，所有歌曲只向 LX 音源请求播放地址，
         // 音质由设置中的音质选项控制，自动遍历所有音源换源，不 fallback 到网易云官方或内置音源
         if hasLXSource {
-            if await resolveFromLXSource(track, generation: generation) { return }
+            if await resolveFromLXSource(track, generation: generation, preloadOnly: preloadOnly) { return }
+            // 预加载失败静默处理，不影响当前播放、不弹提示、不切歌
+            if preloadOnly { return }
             // 所有 LX 音源均失败，提示用户后直接跳下一首
             // 不调用 handleUnplayable，因为它会基于网易云 VIP 判断显示"VIP 专属"，具有误导性
             await MainActor.run {
@@ -787,7 +789,7 @@ final class PlayerService: ObservableObject {
     }
 
     /// 使用已激活的 LX 自定义音源脚本获取播放地址。
-    private func resolveFromLXSource(_ track: Track, generation: Int) async -> Bool {
+    private func resolveFromLXSource(_ track: Track, generation: Int, preloadOnly: Bool = false) async -> Bool {
         let lxStore = LXSourceStore.shared
         let lxEngine = LXMusicEngine.shared
         let targetQuality = lxEngine.lxQuality(from: SettingsManager.shared.audioQuality)
@@ -803,7 +805,9 @@ final class PlayerService: ObservableObject {
         guard !sourcesToTry.isEmpty else { return false }
 
         for (index, source) in sourcesToTry.enumerated() {
-            guard generation == resolveGeneration else { return false }
+            // 正常播放要求 generation 精确匹配；预加载 generation > resolveGeneration 也允许执行；
+            // 旧任务（generation < resolveGeneration）直接丢弃。
+            guard generation >= resolveGeneration else { return false }
             let startTime = Date()
             let isPriority = index == 0
 
@@ -816,7 +820,7 @@ final class PlayerService: ObservableObject {
                 }
 
                 let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
-                guard generation == resolveGeneration else { return false }
+                guard generation >= resolveGeneration else { return false }
                 guard let url = URL(string: result.url.replacingOccurrences(of: "http://", with: "https://")) else {
                     let log = LXRequestLog(
                         date: Date(), trackName: track.name, trackArtist: track.artistNames,
@@ -837,7 +841,8 @@ final class PlayerService: ObservableObject {
                     track,
                     url: url,
                     durationMS: nil,
-                    generation: generation
+                    generation: generation,
+                    preloadOnly: preloadOnly
                 )
                 guard case .loaded = loadResult else {
                     let log = LXRequestLog(
@@ -858,8 +863,8 @@ final class PlayerService: ObservableObject {
                 )
                 await MainActor.run { lxStore.addRequestLog(log) }
 
-                // 非优先音源成功时，提示自动换源
-                if !isPriority {
+                // 非优先音源成功时，提示自动换源（预加载不提示）
+                if !isPriority && !preloadOnly {
                     await MainActor.run {
                         ToastCenter.shared.show("自动换源：已使用「\(source.name)」播放")
                     }
