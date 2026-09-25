@@ -100,6 +100,7 @@ final class SettingsManager: ObservableObject {
         static let showRomaji = "settings.showLyricsRomaji"  // migrated to `annotation`
         static let annotation = "settings.lyricsAnnotation"
         static let verbatimLyrics = "settings.verbatimLyrics"
+        static let debugLogEnabled = "settings.debugLogEnabled"
         static let useAMLLImmersive = "settings.useAMLLImmersive"
         static let amllBackgroundMode = "settings.amllBackgroundMode"
         static let amllLyricTop = "settings.amllLyricTop"
@@ -208,6 +209,11 @@ final class SettingsManager: ObservableObject {
     /// (yrc) lyrics; falls back to line highlighting when it doesn't.
     @Published var verbatimLyrics: Bool {
         didSet { UserDefaults.standard.set(verbatimLyrics, forKey: Keys.verbatimLyrics) }
+    }
+
+    /// 调试日志开关：记录 LX 音源请求、QRC 歌词、播放状态等
+    @Published var debugLogEnabled: Bool {
+        didSet { UserDefaults.standard.set(debugLogEnabled, forKey: Keys.debugLogEnabled) }
     }
 
     /// Use AMLL (Apple Music Like Lyrics) WebView for immersive now-playing:
@@ -376,6 +382,7 @@ final class SettingsManager: ObservableObject {
         lyricsAnnotation = defaults.string(forKey: Keys.annotation).flatMap(LyricsAnnotation.init)
             ?? (defaults.bool(forKey: Keys.showRomaji) ? .romaji : .off)
         verbatimLyrics = defaults.object(forKey: Keys.verbatimLyrics) as? Bool ?? true
+        debugLogEnabled = defaults.object(forKey: Keys.debugLogEnabled) as? Bool ?? false
         let storedUseAMLL = defaults.object(forKey: Keys.useAMLLImmersive) as? Bool ?? false
         useAMLLImmersive = storedUseAMLL
         // 背景模式：优先读取新设置，否则根据旧的 useAMLLImmersive 推导（开启=flowing，关闭=still）

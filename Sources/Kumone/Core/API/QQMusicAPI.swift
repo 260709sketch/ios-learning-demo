@@ -492,6 +492,7 @@ enum QQMusicAPI {
     // MARK: - QQ音乐逐字歌词（QRC）
     /// 获取 QQ 音乐逐字歌词（QRC），返回解析后的 LyricLine 数组；失败返回 nil
     static func wordLyric(songmid: String) async -> [LyricLine]? {
+        DebugLogger.shared.log("QRC", "开始获取逐字歌词 songmid=\(songmid)")
         let body: [String: Any] = [
             "comm": ["uin": 0, "format": 1, "ct": 19, "cv": 0],
             "detail": [
@@ -516,18 +517,29 @@ enum QQMusicAPI {
         request.timeoutInterval = 10
 
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let httpStatus = (response as? HTTPURLResponse)?.statusCode ?? 0
+            DebugLogger.shared.log("QRC", "HTTP状态=\(httpStatus) 数据长度=\(data.count)")
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let detail = json["detail"] as? [String: Any],
                   let detailData = detail["data"] as? [String: Any],
                   let qrcFlag = detailData["qrc"] as? Int, qrcFlag == 1,
                   let encryptedLyric = detailData["lyric"] as? String,
                   !encryptedLyric.isEmpty else {
+                DebugLogger.shared.log("QRC", "响应解析失败或无qrc字段", level: .error)
                 return nil
             }
-            guard let decrypted = QQQrcDecoder.decrypt(encryptedLyric) else { return nil }
-            return parseQrc(decrypted)
+            DebugLogger.shared.log("QRC", "加密歌词长度=\(encryptedLyric.count) 前20字符=\(String(encryptedLyric.prefix(20)))")
+            guard let decrypted = QQQrcDecoder.decrypt(encryptedLyric) else {
+                DebugLogger.shared.log("QRC", "解密失败", level: .error)
+                return nil
+            }
+            DebugLogger.shared.log("QRC", "解密成功 长度=\(decrypted.count) 前50字符=\(String(decrypted.prefix(50)))")
+            let parsed = parseQrc(decrypted)
+            DebugLogger.shared.log("QRC", parsed != nil ? "解析成功 行数=\(parsed!.count)" : "解析失败", level: parsed != nil ? .success : .error)
+            return parsed
         } catch {
+            DebugLogger.shared.log("QRC", "请求异常: \(error.localizedDescription)", level: .error)
             return nil
         }
     }

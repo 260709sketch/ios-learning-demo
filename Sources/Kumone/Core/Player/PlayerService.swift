@@ -852,6 +852,8 @@ final class PlayerService: ObservableObject {
         let lxStore = LXSourceStore.shared
         let lxEngine = LXMusicEngine.shared
         let targetQuality = lxEngine.lxQuality(from: SettingsManager.shared.audioQuality)
+        let platform = track.sourcePlatform ?? "wy"
+        DebugLogger.shared.log("LX", "\(preloadOnly ? "[预加载]" : "[播放]") 开始解析 歌曲=\(track.name) 平台=\(platform) songmid=\(track.platformSongId ?? track.id) 请求音质=\(targetQuality)")
 
         // 构建音源尝试顺序：优先音源排第一，其余按导入顺序
         var sourcesToTry = lxStore.sources
@@ -886,8 +888,10 @@ final class PlayerService: ObservableObject {
 
                 let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
                 guard generation >= resolveGeneration else { return false }
+                DebugLogger.shared.log("LX", "音源[\(source.name)]返回 URL=\(result.url) 实际音质=\(result.quality) 耗时=\(String(format: "%.1f", Date().timeIntervalSince(startTime)))s", level: .success)
                 // LX音源返回的URL不做http→https替换——第三方音源服务器很多只支持HTTP，强制替换会导致无法播放
                 guard let url = URL(string: result.url) else {
+                    DebugLogger.shared.log("LX", "音源[\(source.name)]返回URL无效", level: .error)
                     let log = LXRequestLog(
                         date: Date(), trackName: track.name, trackArtist: track.artistNames,
                         requestedQuality: targetQuality, actualQuality: nil, url: nil,
@@ -1105,10 +1109,13 @@ final class PlayerService: ObservableObject {
 
         itemStatusObservation?.invalidate()
         itemStatusObservation = nil
-        if let sourceID = currentUnblockSourceID {
-            itemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
-                guard item.status == .failed else { return }
-                Task { @MainActor in
+        // 所有音源都观察 AVPlayerItem status，加载失败时记录日志并处理
+        itemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            guard item.status == .failed else { return }
+            let errorDesc = item.error?.localizedDescription ?? "未知错误"
+            DebugLogger.shared.log("Player", "AVPlayerItem加载失败: \(errorDesc) URL=\(url.absoluteString)", level: .error)
+            Task { @MainActor in
+                if let sourceID = self?.currentUnblockSourceID {
                     self?.handleUnblockItemFailure(track: track, generation: generation, sourceID: sourceID)
                 }
             }

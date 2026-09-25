@@ -331,11 +331,11 @@ final class LXMusicEngine: NSObject {
     ///   - track: 歌曲（网易云）
     ///   - quality: LX 音质标识（128k/320k/flac/flac24bit）
     func musicURL(for track: Track, quality: String) async throws -> (url: String, quality: String) {
-        var musicInfo = lxMusicInfo(from: track)
-        musicInfo["_quality"] = quality
         let source = track.sourcePlatform ?? "wy"
         // QQ音乐音源不支持 flac24bit，降级为 flac
         let adjustedQuality = (source == "tx" && quality == "flac24bit") ? "flac" : quality
+        var musicInfo = lxMusicInfo(from: track)
+        musicInfo["_quality"] = adjustedQuality
         let payload: [String: Any] = [
             "requestKey": "",
             "data": [

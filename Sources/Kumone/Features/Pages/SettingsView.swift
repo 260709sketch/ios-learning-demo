@@ -413,6 +413,25 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("调试") {
+                Toggle("启用调试日志", isOn: $settings.debugLogEnabled)
+                if settings.debugLogEnabled {
+                    NavigationLink {
+                        DebugLogView()
+                    } label: {
+                        HStack {
+                            Text("查看调试日志")
+                            Spacer()
+                            Text("\(DebugLogger.shared.logs.count)条")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text("记录 LX 音源请求、QRC 逐字歌词、播放状态等，用于排查问题")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         #if os(macOS)
