@@ -554,9 +554,9 @@ enum QQMusicAPI {
                 let t = nsBody.substring(with: wm.range(at: 1))
                 let abs = Int(nsBody.substring(with: wm.range(at: 2))) ?? 0
                 let dur = Int(nsBody.substring(with: wm.range(at: 3))) ?? 0
-                let start = max(0, abs) / 1000
-                let end = start + max(0, dur) / 1000
-                words.append(LyricWord(text: t, start: TimeInterval(start), duration: TimeInterval(max(end - start, 0.02))))
+                let start = TimeInterval(max(0, abs)) / 1000
+                let end = start + TimeInterval(max(0, dur)) / 1000
+                words.append(LyricWord(text: t, start: start, duration: max(end - start, 0.02)))
             }
             let lrc = words.map { $0.text }.joined().trimmingCharacters(in: .whitespaces)
             guard !lrc.isEmpty, !words.isEmpty else { continue }

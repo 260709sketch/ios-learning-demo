@@ -331,26 +331,47 @@ enum QQQrcDecoder {
     // MARK: - zlib 解压
     private static func decompress(_ data: [UInt8]) -> [UInt8]? {
         guard !data.isEmpty else { return nil }
-        let inputData = Data(data)
-        do {
-            let decompressed = try inputData.decompressed(using: .zlib)
-            var result = [UInt8](decompressed)
-            // 移除 UTF-8 BOM
+        let inputSize = data.count
+        let outputSize = inputSize * 8 + 1024
+        var outputBuffer = [UInt8](repeating: 0, count: outputSize)
+        let result = outputBuffer.withUnsafeMutableBytes { outputPtr -> Int in
+            data.withUnsafeBytes { inputPtr -> Int in
+                compression_decode_buffer(
+                    outputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                    outputSize,
+                    inputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                    inputSize,
+                    nil,
+                    COMPRESSION_ZLIB
+                )
+            }
+        }
+        guard result > 0 else {
+            // 尝试 raw deflate
+            let rawResult = outputBuffer.withUnsafeMutableBytes { outputPtr -> Int in
+                data.withUnsafeBytes { inputPtr -> Int in
+                    compression_decode_buffer(
+                        outputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                        outputSize,
+                        inputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                        inputSize,
+                        nil,
+                        COMPRESSION_RAW
+                    )
+                }
+            }
+            guard rawResult > 0 else { return nil }
+            var result = Array(outputBuffer.prefix(rawResult))
             if result.count >= 3 && result[0] == 0xEF && result[1] == 0xBB && result[2] == 0xBF {
                 result = Array(result.dropFirst(3))
             }
             return result
-        } catch {
-            // 尝试 raw deflate
-            if let raw = try? inputData.decompressed(using: .raw) {
-                var result = [UInt8](raw)
-                if result.count >= 3 && result[0] == 0xEF && result[1] == 0xBB && result[2] == 0xBF {
-                    result = Array(result.dropFirst(3))
-                }
-                return result
-            }
-            return nil
         }
+        var result = Array(outputBuffer.prefix(result))
+        if result.count >= 3 && result[0] == 0xEF && result[1] == 0xBB && result[2] == 0xBF {
+            result = Array(result.dropFirst(3))
+        }
+        return result
     }
 
     // MARK: - 公开接口
