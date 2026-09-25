@@ -95,7 +95,8 @@ struct LocalPlaylistView: View {
                     .padding(.vertical, 80)
                 } else {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(localStore.tracks.enumerated()), id: \.element.id) { index, track in
+                        ForEach(localStore.tracks.indices, id: \.self) { index in
+                            let track = localStore.tracks[index]
                             Button {
                                 player.play(tracks: localStore.tracks, source: .none, startAt: track)
                             } label: {
