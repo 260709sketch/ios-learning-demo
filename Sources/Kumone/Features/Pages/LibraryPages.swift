@@ -86,11 +86,23 @@ struct RecentsView: View {
     }
 }
 
-// MARK: - 最近播放（按时间顺序，本地记录）
+// MARK: - 最近播放（本地记录 + 网易云同步）
 
 struct RecentPlaysView: View {
     @EnvironmentObject private var player: PlayerService
-    @StateObject private var store = RecentPlaysStore.shared
+    @ObservedObject private var store = RecentPlaysStore.shared
+    @State private var neteaseTracks: [Track] = []
+
+    // 合并后的歌曲列表：本地记录优先，网易云补充
+    private var mergedTracks: [Track] {
+        var result = store.recentTracks
+        var existingIDs = Set(result.map { $0.id })
+        for t in neteaseTracks where !existingIDs.contains(t.id) {
+            result.append(t)
+            existingIDs.insert(t.id)
+        }
+        return Array(result.prefix(100))
+    }
 
     var body: some View {
         ScrollView {
@@ -98,7 +110,7 @@ struct RecentPlaysView: View {
                 HStack {
                     Spacer()
                     Button {
-                        player.play(tracks: store.recentTracks, source: .none, context: .recents)
+                        player.play(tracks: mergedTracks, source: .none, context: .recents)
                     } label: {
                         Label("播放全部", systemImage: "play.fill")
                             .font(.system(size: 12.5, weight: .semibold))
@@ -108,22 +120,26 @@ struct RecentPlaysView: View {
                             .background(Theme.accentGradient, in: Capsule())
                     }
                     .buttonStyle(.pressable)
-                    .disabled(store.recentTracks.isEmpty)
+                    .disabled(mergedTracks.isEmpty)
                 }
                 .padding(.horizontal, Theme.Layout.contentInset)
                 .padding(.top, 12)
 
-                if store.recentTracks.isEmpty {
+                if mergedTracks.isEmpty {
                     EmptyStateView(icon: "clock", title: "暂无最近播放")
                         .frame(minHeight: 300)
                 } else {
-                    TrackListView(tracks: store.recentTracks)
+                    TrackListView(tracks: mergedTracks)
                         .padding(.horizontal, Theme.Layout.contentInset - 10)
                 }
                 PlayerClearanceSpacer()
             }
         }
         .navigationTitle("最近播放")
+        .task {
+            // 后台请求网易云最近播放作为补充
+            neteaseTracks = (try? await NeteaseAPI.recentSongs(limit: 100)) ?? []
+        }
     }
 }
 
