@@ -10,12 +10,12 @@ struct LocalPlaylistView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // 顶部：封面 + 标题信息
-                HStack(alignment: .top, spacing: 16) {
+                // 顶部：封面 + 标题信息（照抄我喜欢的音乐布局）
+                HStack(alignment: .top, spacing: 14) {
                     // 封面：有歌曲时显示第一首歌封面，没歌曲时显示默认渐变封面
                     ZStack {
                         if let firstTrack = localStore.tracks.first, let coverUrl = firstTrack.album.picUrl {
-                            CachedAsyncImage(url: coverUrl.resizedImageURL(300), animated: false)
+                            CachedAsyncImage(url: coverUrl.resizedImageURL(384), animated: false)
                                 .aspectRatio(contentMode: .fill)
                         } else {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -35,17 +35,12 @@ struct LocalPlaylistView: View {
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text("收藏歌单")
-                            .font(.system(size: 20, weight: .bold))
-                            .lineLimit(2)
+                            .font(.system(size: 16, weight: .bold))
+                            .lineLimit(3)
 
                         Text("\(localStore.count) 首")
-                            .font(.system(size: 14))
+                            .font(.system(size: 11))
                             .foregroundStyle(.secondary)
-
-                        Text("收藏的歌曲自动保存到本地")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
                     }
                     .padding(.top, 4)
 
@@ -94,8 +89,6 @@ struct LocalPlaylistView: View {
                             .font(.headline)
                             .foregroundStyle(.secondary)
                         Text("收藏歌曲时会自动保存一份到收藏歌单")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 80)
@@ -125,15 +118,17 @@ struct LocalPlaylistView: View {
 
                                     Spacer()
 
-                                    // 收藏状态
-                                    Image(systemName: "heart.fill")
-                                        .font(.system(size: 14))
-                                        .foregroundStyle(.red)
+                                    // 收藏状态和时长（照抄我喜欢的音乐布局）
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "heart.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Theme.accent)
 
-                                    // 时长
-                                    Text(Formatters.duration(track.duration))
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.secondary)
+                                        Text(Formatters.duration(track.duration))
+                                            .font(.system(size: 11.5).monospacedDigit())
+                                            .foregroundStyle(.tertiary)
+                                            .frame(width: 36, alignment: .trailing)
+                                    }
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
@@ -146,11 +141,6 @@ struct LocalPlaylistView: View {
                                 } label: {
                                     Label("移除", systemImage: "trash")
                                 }
-                            }
-
-                            if track.id != localStore.tracks.last?.id {
-                                Divider()
-                                    .padding(.leading, 76)
                             }
                         }
                     }
