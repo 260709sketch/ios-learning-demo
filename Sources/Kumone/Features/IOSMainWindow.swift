@@ -129,13 +129,11 @@ public struct IOSMainWindow: View {
                 dismissAnimation: nil
             )
             .presentationBackground(.clear)
-            .ignoresSafeArea()
         } else {
             nowPlayingPresentation(
                 usesSystemInteractiveDismissal: true,
                 dismissAnimation: nil
             )
-            .ignoresSafeArea()
         }
     }
 

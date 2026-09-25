@@ -126,6 +126,7 @@ struct IOSNowPlayingPresentation<Content: View>: View {
 
     @Binding private var isPresented: Bool
     @State private var dragOffset: CGFloat = 0
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(
         isPresented: Binding<Bool>,
@@ -142,29 +143,28 @@ struct IOSNowPlayingPresentation<Content: View>: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let isInteractive = proxy.size.width < 720 && mode != .classic
-            let usesCustomDrag = isInteractive && !usesSystemInteractiveDismissal
+        // 不用 GeometryReader，避免 fullScreenCover 动画过程中尺寸不正确导致播放器只展开一半
+        let isInteractive = horizontalSizeClass == .compact && mode != .classic
+        let usesCustomDrag = isInteractive && !usesSystemInteractiveDismissal
 
-            ZStack(alignment: .top) {
-                content
-                    .environment(\.dismissNowPlayingAction, dismiss)
-                    .environment(
-                        \.dismissNowPlayingDragAction,
-                        dismissDragAction(usesCustomDrag: usesCustomDrag)
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack(alignment: .top) {
+            content
+                .environment(\.dismissNowPlayingAction, dismiss)
+                .environment(
+                    \.dismissNowPlayingDragAction,
+                    dismissDragAction(usesCustomDrag: usesCustomDrag)
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if isInteractive {
-                    dragIndicator
-                }
+            if isInteractive {
+                dragIndicator
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .offset(y: usesCustomDrag ? dragOffset : 0)
-            .onAppear {
-                // 强制重置拖动偏移，避免复用时残留旧位置导致播放器只展开一半
-                dragOffset = 0
-            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .offset(y: usesCustomDrag ? dragOffset : 0)
+        .onAppear {
+            // 强制重置拖动偏移，避免复用时残留旧位置导致播放器只展开一半
+            dragOffset = 0
         }
     }
 
