@@ -698,11 +698,17 @@ final class PlayerService: ObservableObject {
         // 音质由设置中的音质选项控制，自动遍历所有音源换源，不 fallback 到网易云官方或内置音源
         if hasLXSource {
             if await resolveFromLXSource(track, generation: generation) { return }
-            // 所有 LX 音源均失败，直接提示用户
+            // 所有 LX 音源均失败，提示用户后直接跳下一首
+            // 不调用 handleUnplayable，因为它会基于网易云 VIP 判断显示"VIP 专属"，具有误导性
             await MainActor.run {
                 ToastCenter.shared.show("所有音源均解析失败，请检查音源网络")
+                consecutiveFailures += 1
+                if consecutiveFailures < 5 {
+                    advanceToNext(userInitiated: false)
+                } else {
+                    isPlaying = false
+                }
             }
-            handleUnplayable(track)
             return
         }
 
@@ -875,10 +881,16 @@ final class PlayerService: ObservableObject {
 
     private func handleUnplayable(_ track: Track) {
         consecutiveFailures += 1
-        let reason = track.playability(privilege: nil,
+        // 有 LX 音源时不显示基于网易云 VIP 判断的 reason（如"VIP 专属"），避免误导
+        let hasLX = LXSourceStore.shared.activeSourceID != nil
+        let reason = hasLX ? nil : track.playability(privilege: nil,
                                        isLoggedIn: AccountStore.shared.isLoggedIn,
                                        vipType: AccountStore.shared.vipType).reason
-        ToastCenter.shared.show(String(localized: "《\(track.name)》无法播放\(reason.map { "：\($0)" } ?? "")"))
+        if let reason {
+            ToastCenter.shared.show(String(localized: "《\(track.name)》无法播放：\(reason)"))
+        } else if !hasLX {
+            ToastCenter.shared.show(String(localized: "《\(track.name)》无法播放"))
+        }
         guard isPlaying else {
             engine.replaceCurrentItem(with: nil)
             releaseCurrentPlaybackResources()
