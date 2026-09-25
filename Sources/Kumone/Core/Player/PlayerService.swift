@@ -187,15 +187,6 @@ final class PlayerService: ObservableObject {
     private var scrobbled = false
     private var startScrobbled = false
 
-    // MARK: - LX 解析 URL 缓存（避免每次播放都重新请求音源后端）
-    private struct LXCachedURL {
-        let url: String
-        let quality: String
-        let timestamp: Date
-    }
-    private var lxURLCache: [String: LXCachedURL] = [:]
-    private let lxURLCacheTTL: TimeInterval = 20 * 60 // 缓存 20 分钟（音源 URL 有时效性）
-
     // MARK: - 预加载下一首
     /// 预加载的下一首歌 AVPlayerItem
     private var preloadedNextItem: AVPlayerItem?
@@ -708,25 +699,7 @@ final class PlayerService: ObservableObject {
         // 有 LX 自定义音源激活时，所有歌曲只向 LX 音源请求播放地址，
         // 音质由设置中的音质选项控制，自动遍历所有音源换源，不 fallback 到网易云官方或内置音源
         if hasLXSource {
-            // 先查 LX URL 缓存，命中则直接播放，跳过音源请求（优化启动速度）
-            let targetQuality = LXMusicEngine.shared.lxQuality(from: SettingsManager.shared.audioQuality)
-            let cacheKey = "\(track.id)_\(targetQuality)"
-            if let cached = lxURLCache[cacheKey],
-               Date().timeIntervalSince(cached.timestamp) < lxURLCacheTTL,
-               let cachedURL = URL(string: cached.url.replacingOccurrences(of: "http://", with: "https://")) {
-                if !preloadOnly {
-                    currentUnblockSourceID = nil
-                    unblockSource = "缓存"
-                    servedQuality = cached.quality
-                    isTrial = false
-                }
-                if case .loaded = await loadResolvedURL(track, url: cachedURL, durationMS: nil, generation: generation, preloadOnly: preloadOnly) {
-                    return
-                }
-                // 缓存播放失败，清除该缓存，走正常解析流程
-                lxURLCache.removeValue(forKey: cacheKey)
-            }
-
+            // 直接向 LX 音源请求播放地址，不做 URL 缓存（音源链接有时效性，缓存会导致播放过期链接）
             if await resolveFromLXSource(track, generation: generation, preloadOnly: preloadOnly) { return }
             // 预加载失败静默处理，不影响当前播放、不弹提示、不切歌
             if preloadOnly { return }
@@ -906,9 +879,6 @@ final class PlayerService: ObservableObject {
                         ToastCenter.shared.show("自动换源：已使用「\(source.name)」播放")
                     }
                 }
-                // 写入 URL 缓存，下次播放同一首歌直接命中，跳过音源请求
-                let cacheKey = "\(track.id)_\(targetQuality)"
-                lxURLCache[cacheKey] = LXCachedURL(url: result.url, quality: result.quality, timestamp: Date())
                 return true
             } catch {
                 let log = LXRequestLog(
