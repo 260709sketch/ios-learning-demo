@@ -230,17 +230,19 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         userContent.add(self, name: "amllEvent")
 
         // 提前注入背景模式设置，避免 WebView 加载时流动背景闪烁
-        // 用 setInterval 轮询等待 Fu(MeshGradientRenderer) 初始化后立即应用
+        // original 模式下立即隐藏 bg（不等 Fu 初始化），still/flowing 模式等 Fu 初始化后设置
         let bgHide = (backgroundMode == .original) ? "true" : "false"
         let bgPause = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
         (function() {
+            // original 模式下立即隐藏 bg，避免流动背景闪烁
+            var bg = document.getElementById('bg');
+            if (bg && \(bgHide)) bg.style.display = 'none';
             var tries = 0;
             var timer = setInterval(function() {
                 tries++;
                 if (typeof Fu !== 'undefined' && Fu) {
                     clearInterval(timer);
-                    var bg = document.getElementById('bg');
                     if (bg) bg.style.display = \(bgHide) ? 'none' : 'block';
                     if (\(bgPause)) { Fu.pause(); } else { Fu.resume(); }
                 } else if (tries > 100) {
