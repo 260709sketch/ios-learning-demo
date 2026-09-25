@@ -2,6 +2,46 @@ import SwiftUI
 import WebKit
 import Combine
 
+// MARK: - AMLLLyricsManager（全局单例，后台持续渲染）
+
+/// 全局 AMLL 歌词管理器，持有唯一的 WKWebView 实例。
+/// 即使播放页关闭，WebView 和歌词同步定时器也持续运行，
+/// 回到播放页时歌词已是最新状态，无需重新加载。
+@MainActor
+final class AMLLLyricsManager {
+    static let shared = AMLLLyricsManager()
+
+    private var coordinator: Coordinator?
+    private var webView: WKWebView?
+
+    private init() {}
+
+    /// 获取全局 WebView（不存在则创建），同时更新背景模式和 seek 回调
+    func getWebView(backgroundMode: SettingsManager.AMLLBackgroundMode, onSeek: ((TimeInterval) -> Void)?) -> WKWebView {
+        if let coordinator, let webView {
+            coordinator.backgroundMode = backgroundMode
+            coordinator.setOnSeek(onSeek)
+            return webView
+        }
+        let coord = Coordinator(player: PlayerService.shared, onSeek: onSeek)
+        coord.backgroundMode = backgroundMode
+        let wv = coord.createWebView()
+        coordinator = coord
+        webView = wv
+        return wv
+    }
+
+    /// 更新歌词布局（位置、字号、字重、字体、显示状态、背景模式）
+    func updateLayout(top: Int, bottom: Int, horizontal: Int, fontSize: Int, fontWeight: Int, fontFamily: String, showLyrics: Bool, backgroundMode: SettingsManager.AMLLBackgroundMode) {
+        coordinator?.applyLayout(top: top, bottom: bottom, horizontal: horizontal, fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFamily, showLyrics: showLyrics, backgroundMode: backgroundMode)
+    }
+
+    /// 更新 seek 回调
+    func setOnSeek(_ onSeek: ((TimeInterval) -> Void)?) {
+        coordinator?.setOnSeek(onSeek)
+    }
+}
+
 // MARK: - AMLLLyricsView
 
 /// 基于 WKWebView 嵌入 AMLL（Apple Music Like Lyrics）的歌词 + 流动背景组件。
@@ -64,37 +104,37 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
 
     #if os(iOS)
     func makeUIView(context: Context) -> WKWebView {
-        context.coordinator.backgroundMode = backgroundMode
-        return context.coordinator.createWebView()
+        AMLLLyricsManager.shared.getWebView(backgroundMode: backgroundMode, onSeek: onSeek)
     }
     func updateUIView(_ webView: WKWebView, context: Context) {
-        context.coordinator.applyLayout(
+        AMLLLyricsManager.shared.updateLayout(
             top: lyricTop, bottom: lyricBottom, horizontal: lyricHorizontal,
             fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFamily,
             showLyrics: showLyrics, backgroundMode: backgroundMode
         )
+        AMLLLyricsManager.shared.setOnSeek(onSeek)
     }
     #elseif os(macOS)
     func makeNSView(context: Context) -> WKWebView {
-        context.coordinator.backgroundMode = backgroundMode
-        return context.coordinator.createWebView()
+        AMLLLyricsManager.shared.getWebView(backgroundMode: backgroundMode, onSeek: onSeek)
     }
     func updateNSView(_ webView: WKWebView, context: Context) {
-        context.coordinator.applyLayout(
+        AMLLLyricsManager.shared.updateLayout(
             top: lyricTop, bottom: lyricBottom, horizontal: lyricHorizontal,
             fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFamily,
             showLyrics: showLyrics, backgroundMode: backgroundMode
         )
+        AMLLLyricsManager.shared.setOnSeek(onSeek)
     }
     #endif
 
     #if os(iOS)
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
-        coordinator.cleanup()
+        // 不清理：WebView 是全局单例，后台持续渲染歌词
     }
     #elseif os(macOS)
     static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
-        coordinator.cleanup()
+        // 不清理：WebView 是全局单例，后台持续渲染歌词
     }
     #endif
 }
@@ -105,7 +145,11 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
 private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
 
     private let player: PlayerService
-    private let onSeek: ((TimeInterval) -> Void)?
+    private var onSeek: ((TimeInterval) -> Void)?
+
+    func setOnSeek(_ onSeek: ((TimeInterval) -> Void)?) {
+        self.onSeek = onSeek
+    }
 
     private weak var webView: WKWebView?
     private var isReady = false
@@ -159,11 +203,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
         // 背景模式控制：
-        // - flowing: bg显示 + Fu.resume() 流动渲染
-        // - still: bg显示 + Fu.pause() 渲染一帧后暂停，背景画面静止可见
-        // - original: bg隐藏 + Fu.pause()，底层用原版专辑封面渐变背景
-        let hideBackground = (backgroundMode == .original)
-        let bgDisplay = hideBackground ? "none" : "block"
+        // - flowing: Fu.resume() 流动渲染
+        // - still: Fu.pause() 渲染一帧后暂停，背景画面静止可见
         let bgRenderCmd = (backgroundMode == .flowing) ? "Fu.resume()" : "Fu.pause()"
         let js = """
         (function() {
@@ -174,10 +215,6 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 el.style.transform = 'translateX(\(horizontal)px)';
                 el.style.opacity = '\(opacityValue)';
                 el.style.pointerEvents = '\(pointerEvents)';
-            }
-            var bg = document.getElementById('bg');
-            if (bg) {
-                bg.style.display = '\(bgDisplay)';
             }
             // 静态模式暂停背景渲染器，流动模式恢复
             if (typeof Fu !== 'undefined') {
@@ -230,20 +267,15 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         userContent.add(self, name: "amllEvent")
 
         // 提前注入背景模式设置，避免 WebView 加载时流动背景闪烁
-        // original 模式下立即隐藏 bg（不等 Fu 初始化），still/flowing 模式等 Fu 初始化后设置
-        let bgHide = (backgroundMode == .original) ? "true" : "false"
+        // still 模式下等 Fu 初始化后暂停渲染，flowing 模式恢复渲染
         let bgPause = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
         (function() {
-            // original 模式下立即隐藏 bg，避免流动背景闪烁
-            var bg = document.getElementById('bg');
-            if (bg && \(bgHide)) bg.style.display = 'none';
             var tries = 0;
             var timer = setInterval(function() {
                 tries++;
                 if (typeof Fu !== 'undefined' && Fu) {
                     clearInterval(timer);
-                    if (bg) bg.style.display = \(bgHide) ? 'none' : 'block';
                     if (\(bgPause)) { Fu.pause(); } else { Fu.resume(); }
                 } else if (tries > 100) {
                     clearInterval(timer);

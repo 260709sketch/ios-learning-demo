@@ -74,7 +74,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    // 播放页背景模式：流动背景 / 静态背景 / 原版背景
+                    // 播放页背景模式：流动背景 / 静态背景
                     Picker("播放页背景", selection: $settings.amllBackgroundMode) {
                         ForEach(SettingsManager.AMLLBackgroundMode.allCases, id: \.self) { mode in
                             Text(mode.displayName).tag(mode)
@@ -84,12 +84,8 @@ struct SettingsView: View {
                         Text("AMLL 流动渐变背景 + 逐字扫光歌词")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else if settings.amllBackgroundMode == .still {
+                    } else {
                         Text("静止渐变背景 + AMLL 逐字扫光歌词")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if settings.amllBackgroundMode == .original {
-                        Text("原版专辑封面渐变背景 + AMLL 逐字扫光歌词")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -178,9 +174,6 @@ struct SettingsView: View {
                             Text("自定义").tag(settings.amllFontFamily)
                         }
                     }
-
-                    // 导入自定义字体
-                    FontImportButton()
 
                     // MARK: 播放器组件位置调整
                     Divider()
@@ -526,113 +519,5 @@ struct BottomBarSettingsView: View {
         }
         .navigationTitle("底部栏页面显示")
         .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-// MARK: - 字体导入按钮
-
-/// 导入自定义字体（.ttf/.otf），注册后用于 AMLL 歌词
-struct FontImportButton: View {
-    @EnvironmentObject private var settings: SettingsManager
-    @State private var showPicker = false
-
-    var body: some View {
-        Button {
-            showPicker = true
-        } label: {
-            HStack {
-                Label("导入自定义字体", systemImage: "textformat")
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .sheet(isPresented: $showPicker) {
-            FontPickerViewController { fontName in
-                if let fontName {
-                    settings.amllFontFamily = fontName
-                    ToastCenter.shared.show("字体已导入：\(fontName)")
-                }
-                showPicker = false
-            }
-            .ignoresSafeArea()
-        }
-    }
-}
-
-/// 字体选择器（UIViewControllerRepresentable 封装 UIDocumentPickerViewController）
-struct FontPickerViewController: UIViewControllerRepresentable {
-    let onPick: (String?) -> Void
-
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(
-            forOpeningContentTypes: [.font],
-            asCopy: true
-        )
-        picker.delegate = context.coordinator
-        picker.allowsMultipleSelection = false
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
-
-    class Coordinator: NSObject, UIDocumentPickerDelegate {
-        let onPick: (String?) -> Void
-
-        init(onPick: @escaping (String?) -> Void) {
-            self.onPick = onPick
-        }
-
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            guard let url = urls.first else { onPick(nil); return }
-
-            // 复制到 App 沙盒 Fonts 目录
-            let fontsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("Fonts", isDirectory: true)
-            try? FileManager.default.createDirectory(at: fontsDir, withIntermediateDirectories: true)
-
-            let destURL = fontsDir.appendingPathComponent(url.lastPathComponent)
-            do {
-                if FileManager.default.fileExists(atPath: destURL.path) {
-                    try FileManager.default.removeItem(at: destURL)
-                }
-                try FileManager.default.copyItem(at: url, to: destURL)
-            } catch {
-                DispatchQueue.main.async {
-                    ToastCenter.shared.show("字体文件复制失败")
-                }
-                onPick(nil)
-                return
-            }
-
-            // 注册字体
-            var error: Unmanaged<CFError>?
-            CTFontManagerRegisterFontsForURL(destURL as CFURL, .process, &error)
-            if let error = error?.takeRetainedValue() {
-                DispatchQueue.main.async {
-                    ToastCenter.shared.show("字体注册失败")
-                }
-                onPick(nil)
-                return
-            }
-
-            // 获取字体名称
-            if let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(destURL as CFURL) as? [CTFontDescriptor],
-               let firstDescriptor = fontDescriptors.first,
-               let fontName = CTFontDescriptorCopyAttribute(firstDescriptor, kCTFontNameAttribute) as? String {
-                onPick(fontName)
-            } else {
-                // 用文件名（去掉扩展名）作为字体名
-                let fileName = destURL.deletingPathExtension().lastPathComponent
-                onPick(fileName)
-            }
-        }
-
-        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            onPick(nil)
-        }
     }
 }

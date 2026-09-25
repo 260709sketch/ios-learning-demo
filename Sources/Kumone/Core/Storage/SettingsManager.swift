@@ -216,17 +216,15 @@ final class SettingsManager: ObservableObject {
         didSet { UserDefaults.standard.set(useAMLLImmersive, forKey: Keys.useAMLLImmersive) }
     }
 
-    /// AMLL 背景模式：流动背景 / 静态背景 / 原版背景
+    /// AMLL 背景模式：流动背景 / 静态背景
     enum AMLLBackgroundMode: String, CaseIterable {
         case flowing = "flowing"    // 流动背景（MeshGradient + 扫光歌词）
-        case still = "still"        // 静态背景（隐藏流动背景，纯黑底+歌词）
-        case original = "original"  // 原版背景（不使用AMLL，用原版布局）
+        case still = "still"        // 静态背景（暂停流动背景渲染，纯黑底+歌词）
 
         var displayName: String {
             switch self {
             case .flowing: return "流动背景"
             case .still: return "静态背景"
-            case .original: return "原版背景"
             }
         }
     }
@@ -380,12 +378,12 @@ final class SettingsManager: ObservableObject {
         verbatimLyrics = defaults.object(forKey: Keys.verbatimLyrics) as? Bool ?? true
         let storedUseAMLL = defaults.object(forKey: Keys.useAMLLImmersive) as? Bool ?? false
         useAMLLImmersive = storedUseAMLL
-        // 背景模式：优先读取新设置，否则根据旧的 useAMLLImmersive 推导（开启=flowing，关闭=original）
+        // 背景模式：优先读取新设置，否则根据旧的 useAMLLImmersive 推导（开启=flowing，关闭=still）
         if let storedMode = defaults.string(forKey: Keys.amllBackgroundMode),
            let mode = AMLLBackgroundMode(rawValue: storedMode) {
             amllBackgroundMode = mode
         } else {
-            amllBackgroundMode = storedUseAMLL ? .flowing : .original
+            amllBackgroundMode = storedUseAMLL ? .flowing : .still
         }
         amllLyricTop = defaults.object(forKey: Keys.amllLyricTop) as? Int ?? 170
         amllLyricBottom = defaults.object(forKey: Keys.amllLyricBottom) as? Int ?? 230

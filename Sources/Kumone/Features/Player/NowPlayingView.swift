@@ -280,16 +280,9 @@ struct NowPlayingView: View {
         let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
 
         return ZStack {
-            // 底层背景：根据模式切换
-            // - flowing: AMLL流动背景(bg元素显示+渲染运行)
-            // - still: 静止渐变背景(bg元素显示+渲染暂停，画面静止可见)
-            // - original: 原版专辑封面提取色渐变背景(bg隐藏+渲染暂停)
-            if settings.amllBackgroundMode == .original {
-                backdrop
-            } else {
-                Color.black.ignoresSafeArea()
-            }
-            // 第二层：AMLL WebView（逐字扫光歌词，流动/静态/原版模式下歌词效果都保留）
+            // 底层背景：纯黑（流动/静态背景都在 AMLL WebView 中渲染）
+            Color.black.ignoresSafeArea()
+            // 第二层：AMLL WebView（逐字扫光歌词，流动/静态模式下歌词效果都保留）
             AMLLLyricsView(
                 onSeek: { time in
                     player.seek(to: time)
