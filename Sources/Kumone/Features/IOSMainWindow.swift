@@ -616,6 +616,7 @@ struct IOSMiniPlayerBar: View {
 struct IOSLibraryView: View {
     @Binding var showLogin: Bool
     @EnvironmentObject private var account: AccountStore
+    @StateObject private var localPlaylist = LocalPlaylistStore.shared
     @State private var showSettings = false
     @State private var showNewPlaylist = false
     @State private var newPlaylistName = ""
