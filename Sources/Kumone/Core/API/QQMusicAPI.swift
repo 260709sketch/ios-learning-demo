@@ -367,40 +367,39 @@ enum QQMusicAPI {
         return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 
-    // MARK: - 歌手详情（参考 Well Music xiaoqiu.js getArtistSongs/getArtistAlbums）
+    // MARK: - 歌手详情（参考 Well Music：GetSingerSongList 接口）
     static func artistSongs(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> (tracks: [Track], total: Int) {
         DebugLogger.shared.log("QQ歌手", "artistSongs 请求 mid=\(singerMid) page=\(page) limit=\(limit)")
         let body: [String: Any] = [
             "comm": ["ct": 24, "cv": 0],
-            "singer": [
-                "method": "get_singer_detail_info",
+            "req": [
+                "module": "musichall.song_list_server",
+                "method": "GetSingerSongList",
                 "param": [
-                    "sort": 5,
-                    "singermid": singerMid,
-                    "sin": (page - 1) * limit,
-                    "num": limit
-                ],
-                "module": "music.web_singer_info_svr"
+                    "singerMid": singerMid,
+                    "begin": (page - 1) * limit,
+                    "num": limit,
+                    "order": 1
+                ]
             ]
         ]
         let json = try await musicuGET(body)
-        guard let singer = json["singer"] as? [String: Any],
-              let singerData = singer["data"] as? [String: Any],
-              let songlist = singerData["songlist"] as? [[String: Any]] else {
+        guard let req = json["req"] as? [String: Any],
+              let reqData = req["data"] as? [String: Any],
+              let songList = reqData["songList"] as? [[String: Any]] else {
             DebugLogger.shared.log("QQ歌手", "artistSongs 响应格式错误 mid=\(singerMid) jsonKeys=\(json.keys)", level: .error)
             return ([], 0)
         }
-        // 真实总数：totalNum 或 song_total
-        let total = (singerData["totalNum"] as? Int) ?? (singerData["song_total"] as? Int) ?? songlist.count
-        DebugLogger.shared.log("QQ歌手", "artistSongs 返回 \(songlist.count) 首 总数=\(total) mid=\(singerMid)", level: .success)
+        // 真实总数
+        let total = (reqData["totalNum"] as? Int) ?? songList.count
+        DebugLogger.shared.log("QQ歌手", "artistSongs 返回 \(songList.count) 首 总数=\(total) mid=\(singerMid)", level: .success)
 
-        let tracks = songlist.compactMap { item -> Track? in
-            // get_singer_detail_info 接口返回字段：name/title, mid, id, singer[], album{}
-            // 某些情况下歌曲信息在 songInfo 子对象中
+        let tracks = songList.compactMap { item -> Track? in
+            // GetSingerSongList 接口返回字段：songInfo 子对象或直接字段
             let songInfo = item["songInfo"] as? [String: Any] ?? item
             guard let songmid = (songInfo["mid"] as? String) ?? (item["mid"] as? String), !songmid.isEmpty else { return nil }
             let songid = (songInfo["id"] as? Int) ?? (item["id"] as? Int) ?? abs(songmid.hashValue)
-            let name = (songInfo["name"] as? String) ?? (songInfo["title"] as? String) ?? (item["name"] as? String) ?? ""
+            let name = (songInfo["name"] as? String) ?? (songInfo["title"] as? String) ?? (songInfo["songname"] as? String) ?? (item["name"] as? String) ?? ""
             let interval = (songInfo["interval"] as? Int) ?? (item["interval"] as? Int) ?? 0
 
             var artists: [ArtistRef] = []
@@ -487,39 +486,28 @@ enum QQMusicAPI {
         return (albums, total)
     }
 
-    // MARK: - 专辑详情（参考 Well Music xiaoqiu.js getAlbumInfo）
+    // MARK: - 专辑详情（参考 Well Music：fcg_v8_album_info_cp.fcg 接口）
     static func albumInfo(albumMid: String) async throws -> [Track] {
-        let body: [String: Any] = [
-            "comm": ["ct": 24, "cv": 10000],
-            "albumSonglist": [
-                "method": "GetAlbumSongList",
-                "param": [
-                    "albumMid": albumMid,
-                    "albumID": 0,
-                    "begin": 0,
-                    "num": 999,
-                    "order": 2
-                ],
-                "module": "music.musichallAlbum.AlbumSongList"
-            ]
-        ]
-        let json = try await musicuGET(body)
-        guard let albumSonglist = json["albumSonglist"] as? [String: Any],
-              let albumData = albumSonglist["data"] as? [String: Any],
-              let songList = albumData["songList"] as? [[String: Any]] else {
+        let urlStr = "https://i.y.qq.com/v8/fcg-bin/fcg_v8_album_info_cp.fcg?platform=h5page&albummid=\(albumMid)&g_tk=938407465&uin=0&format=json&inCharset=utf-8&outCharset=utf-8&notice=0&platform=h5&needNewCode=1"
+        guard let url = URL(string: urlStr) else { return [] }
+        var request = URLRequest(url: url)
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataDict = json["data"] as? [String: Any],
+              let songList = dataDict["list"] as? [[String: Any]] else {
             return []
         }
 
         return songList.compactMap { item -> Track? in
-            guard let songInfo = item["songInfo"] as? [String: Any] else { return nil }
-            // GetAlbumSongList 接口返回字段：name/title, mid, id, singer[], album{}
-            guard let songmid = songInfo["mid"] as? String, !songmid.isEmpty else { return nil }
-            let songid = (songInfo["id"] as? Int) ?? abs(songmid.hashValue)
-            let name = (songInfo["name"] as? String) ?? (songInfo["title"] as? String) ?? ""
-            let interval = (songInfo["interval"] as? Int) ?? 0
+            // fcg_v8_album_info_cp 接口返回字段：songname, songmid, songid, singer[], albumname, albummid, interval, status, action
+            guard let songmid = item["songmid"] as? String, !songmid.isEmpty else { return nil }
+            let songid = (item["songid"] as? Int) ?? abs(songmid.hashValue)
+            let name = (item["songname"] as? String) ?? (item["name"] as? String) ?? (item["title"] as? String) ?? ""
+            let interval = (item["interval"] as? Int) ?? 0
 
             var artists: [ArtistRef] = []
-            if let singerList = songInfo["singer"] as? [[String: Any]] {
+            if let singerList = item["singer"] as? [[String: Any]] {
                 artists = singerList.map { s in
                     let sid = (s["id"] as? Int) ?? 0
                     let sname = (s["name"] as? String) ?? ""
@@ -529,18 +517,16 @@ enum QQMusicAPI {
                 }
             }
 
-            // 专辑信息在 album 对象中
-            let albumDict = songInfo["album"] as? [String: Any] ?? [:]
-            let albumName = (albumDict["name"] as? String) ?? (albumDict["title"] as? String) ?? ""
-            let albumMid2 = (albumDict["mid"] as? String) ?? ""
-            let albumID = (albumDict["id"] as? Int) ?? 0
-            let picUrl = albumMid2.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid2).jpg"
-            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid2)
+            // 专辑信息
+            let albumName = (item["albumname"] as? String) ?? (dataDict["name"] as? String) ?? ""
+            let albumID = (dataDict["albumid"] as? Int) ?? 0
+            let picUrl = "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
+            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
-            // QQ音乐 Explicit 脏标：同时检查 item 层面和 songInfo 层面的多个字段
-            let status = (item["status"] as? Int) ?? (songInfo["status"] as? Int) ?? 0
-            let action = (item["action"] as? Int) ?? (songInfo["action"] as? Int) ?? 0
-            let payDict = (item["pay"] as? [String: Any]) ?? (songInfo["pay"] as? [String: Any]) ?? [:]
+            // QQ音乐 Explicit 脏标
+            let status = (item["status"] as? Int) ?? 0
+            let action = (item["action"] as? Int) ?? 0
+            let payDict = item["pay"] as? [String: Any] ?? [:]
             let payPay = (payDict["pay"] as? Int) ?? 0
             let isExplicit = (status & 128) != 0 || (status & 2048) != 0 || (action & 128) != 0 || (action & 2048) != 0 || (payPay & 128) != 0 || (payPay & 2048) != 0
 
