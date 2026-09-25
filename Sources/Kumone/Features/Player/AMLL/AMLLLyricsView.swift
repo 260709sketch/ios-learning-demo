@@ -153,8 +153,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 元素在渲染树中，动画持续运行，切回时歌词已是最新状态。
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
-        // 静态背景模式：隐藏流动背景(bg元素)，歌词扫光等其他效果保持不变
+        // 静态背景模式：隐藏流动背景(bg元素) + 暂停背景渲染器(避免后台空跑浪费性能)，歌词效果保持不变
         let bgDisplay = backgroundMode == .still ? "none" : "block"
+        let bgRenderCmd = backgroundMode == .still ? "Fu.pause()" : "Fu.resume()"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -168,6 +169,10 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             var bg = document.getElementById('bg');
             if (bg) {
                 bg.style.display = '\(bgDisplay)';
+            }
+            // 静态模式暂停背景渲染器，流动模式恢复
+            if (typeof Fu !== 'undefined') {
+                \(bgRenderCmd);
             }
         })();
         true;
