@@ -244,20 +244,8 @@ struct NowPlayingView: View {
     @ViewBuilder
     private func compactLayout(size: CGSize) -> some View {
         #if os(iOS)
-        if settings.useAMLLImmersive {
-            amllCompactLayout(size: size)
-        } else {
-            switch settings.nowPlayingMode {
-            case .vinyl:
-                vinylCompactLayout(size: size)
-            case .classic:
-                classicCompactLayout(size: size)
-            case .immersive:
-                immersiveCompactLayout(size: size)
-            case .minimal:
-                minimalCompactLayout(size: size)
-            }
-        }
+        // 三种背景模式都保留 AMLL 歌词扫光，只切换背景层
+        amllCompactLayout(size: size)
         #else
         switch settings.nowPlayingMode {
         case .vinyl:
@@ -280,9 +268,16 @@ struct NowPlayingView: View {
         let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
 
         return ZStack {
-            // 底层：纯黑背景（静态模式下可见，流动模式下被AMLL背景覆盖）
-            Color.black.ignoresSafeArea()
-            // 第二层：AMLL WebView（流动背景 + 逐字歌词，静态模式下隐藏bg元素）
+            // 底层背景：根据模式切换
+            // - flowing: AMLL流动背景(bg元素显示)
+            // - still: 纯黑静态背景(bg隐藏+渲染暂停)
+            // - original: 原版专辑封面提取色渐变背景(bg隐藏+渲染暂停)
+            if settings.amllBackgroundMode == .original {
+                backdrop
+            } else {
+                Color.black.ignoresSafeArea()
+            }
+            // 第二层：AMLL WebView（逐字扫光歌词，流动/静态/原版模式下歌词效果都保留）
             AMLLLyricsView(
                 onSeek: { time in
                     player.seek(to: time)

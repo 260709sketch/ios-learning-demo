@@ -153,9 +153,10 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 元素在渲染树中，动画持续运行，切回时歌词已是最新状态。
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
-        // 静态背景模式：隐藏流动背景(bg元素) + 暂停背景渲染器(避免后台空跑浪费性能)，歌词效果保持不变
-        let bgDisplay = backgroundMode == .still ? "none" : "block"
-        let bgRenderCmd = backgroundMode == .still ? "Fu.pause()" : "Fu.resume()"
+        // 静态/原版背景模式：隐藏流动背景(bg元素) + 暂停背景渲染器(避免后台空跑)，歌词扫光效果保持不变
+        let hideBackground = (backgroundMode == .still || backgroundMode == .original)
+        let bgDisplay = hideBackground ? "none" : "block"
+        let bgRenderCmd = hideBackground ? "Fu.pause()" : "Fu.resume()"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');

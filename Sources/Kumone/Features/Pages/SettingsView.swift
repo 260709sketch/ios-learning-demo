@@ -74,7 +74,11 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if settings.amllBackgroundMode == .still {
-                    Text("纯黑静态背景 + AMLL 逐字歌词（隐藏流动背景）")
+                    Text("纯黑静态背景 + AMLL 逐字扫光歌词")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if settings.amllBackgroundMode == .original {
+                    Text("原版专辑封面渐变背景 + AMLL 逐字扫光歌词")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

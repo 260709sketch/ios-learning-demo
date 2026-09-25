@@ -234,8 +234,7 @@ final class SettingsManager: ObservableObject {
     @Published var amllBackgroundMode: AMLLBackgroundMode {
         didSet {
             UserDefaults.standard.set(amllBackgroundMode.rawValue, forKey: Keys.amllBackgroundMode)
-            // 同步 useAMLLImmersive：original 模式关闭 AMLL，其他模式开启
-            useAMLLImmersive = (amllBackgroundMode != .original)
+            // 三种背景模式都保留 AMLL 歌词扫光，只切换背景层，不再关闭 AMLL
         }
     }
 
