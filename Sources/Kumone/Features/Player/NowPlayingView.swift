@@ -78,7 +78,7 @@ struct NowPlayingView: View {
             }
             #if os(iOS)
             .overlay {
-                if settings.nowPlayingMode == .minimal && showQueueOnMobile {
+                if showQueueOnMobile {
                     Color.clear
                         .contentShape(Rectangle())
                         .onTapGesture { showQueueOnMobile = false }
@@ -103,17 +103,9 @@ struct NowPlayingView: View {
         #endif
         #if os(iOS)
         .onAppear {
-            showLyricsOnMobile = settings.nowPlayingMode == .immersive
+            // AMLL 模式下默认显示歌词
+            showLyricsOnMobile = true
             showQueueOnMobile = false
-        }
-        .onChange(of: settings.nowPlayingMode) { _ in
-            showLyricsOnMobile = settings.nowPlayingMode == .immersive
-            showQueueOnMobile = false
-        }
-        .onChange(of: player.currentTrack?.id) { _ in
-            if settings.nowPlayingMode == .minimal || settings.nowPlayingMode == .vinyl {
-                showLyricsOnMobile = false
-            }
         }
         #endif
         #if os(macOS)
@@ -144,7 +136,8 @@ struct NowPlayingView: View {
 
     private func showsClassicChrome(isCompact: Bool) -> Bool {
         #if os(iOS)
-        return !isCompact || settings.nowPlayingMode == .classic
+        // iOS 现在统一使用 AMLL 布局，始终显示经典控制栏（关闭按钮、歌词切换按钮）
+        return true
         #else
         return true
         #endif

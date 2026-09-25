@@ -53,12 +53,6 @@ struct SettingsView: View {
                     Text(NowPlayingMode.vinyl.displayName).tag(NowPlayingMode.vinyl)
                     Text(NowPlayingMode.classic.displayName).tag(NowPlayingMode.classic)
                 }
-                #else
-                Picker("播放页模式", selection: $settings.nowPlayingMode) {
-                    ForEach(NowPlayingMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
                 #endif
                 Toggle("显示歌词翻译", isOn: $settings.showLyricsTranslation)
                 Toggle("显示 VIP 歌曲标识", isOn: $settings.showVIPBadge)
@@ -82,7 +76,6 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if settings.amllBackgroundMode != .original {
 
                     // 歌词顶部位置
                     VStack(alignment: .leading, spacing: 4) {
@@ -275,7 +268,6 @@ struct SettingsView: View {
                             set: { settings.playerTrackInfoRightOffset = Int($0) }
                         ), in: -200...200, step: 5)
                     }
-                }
                 Picker("日文歌词读音", selection: $settings.lyricsAnnotation) {
                     ForEach(LyricsAnnotation.allCases) { annotation in
                         Text(annotation.displayName).tag(annotation)
