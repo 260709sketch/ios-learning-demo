@@ -1110,7 +1110,7 @@ final class PlayerService: ObservableObject {
         itemStatusObservation?.invalidate()
         itemStatusObservation = nil
         // 所有音源都观察 AVPlayerItem status，加载失败时记录日志并处理
-        let urlString = url.absoluteString
+        let urlString = asset.url.absoluteString
         itemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             guard item.status == .failed else { return }
             let errorDesc = item.error?.localizedDescription ?? "未知错误"
