@@ -1232,10 +1232,60 @@ final class PlayerService: ObservableObject {
     }
 
     private func loadLyrics(for track: Track, generation: Int) async {
-        let response = try? await NeteaseAPI.lyric(id: track.id)
+        let response: LyricResponse?
+        if track.sourcePlatform == "tx", let songmid = track.platformSongId {
+            response = try? await QQMusicAPI.lyric(songmid: songmid)
+        } else {
+            response = try? await NeteaseAPI.lyric(id: track.id)
+        }
         guard generation == resolveGeneration else { return }
         lyrics = response.map(LyricsParser.parse)
         updateLyricsCursor(at: progress)
+
+        // QQ音乐歌曲保底：向网易云搜索同名同歌手匹配封面，供 AMLL 背景提取颜色
+        if track.sourcePlatform == "tx" {
+            await matchCoverFromNetEase(for: track, generation: generation)
+        }
+    }
+
+    // MARK: - QQ音乐封面保底（向网易云搜索同名同歌手同专辑匹配）
+    private func matchCoverFromNetEase(for track: Track, generation: Int) async {
+        // 构造搜索关键词：歌名 + 第一个歌手名
+        let artistName = track.artists.first?.name ?? ""
+        let keyword = "\(track.name) \(artistName)".trimmingCharacters(in: .whitespaces)
+        guard !keyword.isEmpty else { return }
+
+        // 调用网易云搜索
+        guard let searchResult = try? await NeteaseAPI.search(keyword, type: .song, limit: 10),
+              let songs = searchResult.songs, !songs.isEmpty else { return }
+
+        // 精准匹配：歌名相同 + 至少一个歌手名相同
+        let targetArtistNames = Set(track.artists.map { $0.name })
+        let matched = songs.first { candidate in
+            let candidateArtists = Set(candidate.artists.map { $0.name })
+            let nameMatch = candidate.name == track.name || candidate.name.contains(track.name) || track.name.contains(candidate.name)
+            let artistMatch = !targetArtistNames.isDisjoint(with: candidateArtists)
+            return nameMatch && artistMatch
+        } ?? songs.first
+
+        guard let matchedTrack = matched,
+              let coverURL = matchedTrack.album.picUrl,
+              !coverURL.isEmpty else { return }
+
+        // 用匹配到的封面替换当前歌曲的封面（通过 JSON 编码/解码修改 picUrl）
+        guard generation == resolveGeneration,
+              currentTrack?.id == track.id else { return }
+
+        if let data = try? JSONEncoder().encode(track),
+           var dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           var al = dict["al"] as? [String: Any] {
+            al["picUrl"] = coverURL
+            dict["al"] = al
+            if let newData = try? JSONSerialization.data(withJSONObject: dict),
+               let newTrack = try? JSONDecoder().decode(Track.self, from: newData) {
+                currentTrack = newTrack
+            }
+        }
     }
 
     // MARK: - Scrobble

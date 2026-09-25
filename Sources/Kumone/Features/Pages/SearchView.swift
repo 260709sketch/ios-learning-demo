@@ -20,8 +20,22 @@ final class SearchViewModel: ObservableObject {
     }
 
     var query: String
-    @Published var tab: Tab = .all
-    @Published var platform: Platform = .netease
+    @Published var tab: Tab = .all {
+        didSet {
+            // 模块切换时清空已加载标签，强制重新搜索
+            loadedTabs.removeAll()
+        }
+    }
+    @Published var platform: Platform = .netease {
+        didSet {
+            // 平台切换时清空已加载标签和所有结果，强制重新搜索
+            loadedTabs.removeAll()
+            songs = []
+            artists = []
+            albums = []
+            playlists = []
+        }
+    }
     @Published var songs: [Track] = []
     @Published var artists: [ArtistSummary] = []
     @Published var albums: [AlbumSummary] = []
@@ -268,7 +282,7 @@ struct SearchView: View {
     private func artistCards(_ items: some Collection<ArtistSummary>) -> some View {
         ForEach(Array(items)) { artist in
             NavigationLink {
-                ArtistDetailView(artistID: artist.id)
+                ArtistDetailView(artistID: artist.id, singerMid: artist.singerMid, initialArtist: artist)
             } label: {
                 VStack(spacing: 10) {
                     CachedAsyncImage(url: artist.picUrl?.resizedImageURL(256))
@@ -288,7 +302,7 @@ struct SearchView: View {
     private func albumCards(_ items: some Collection<AlbumSummary>) -> some View {
         ForEach(Array(items)) { album in
             NavigationLink {
-                AlbumDetailView(albumID: album.id)
+                AlbumDetailView(albumID: album.id, albumMid: album.albumMid, initialAlbum: album)
             } label: {
                 CoverCardBody(
                     coverURL: album.picUrl?.resizedImageURL(384),

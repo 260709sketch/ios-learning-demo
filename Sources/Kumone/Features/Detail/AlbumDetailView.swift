@@ -2,6 +2,10 @@ import SwiftUI
 
 struct AlbumDetailView: View {
     let albumID: Int
+    /// QQ音乐专辑 mid（字符串），不为空时使用 QQ 音乐 API
+    let albumMid: String?
+    /// 初始专辑信息（QQ音乐专辑从搜索结果传入）
+    let initialAlbum: AlbumSummary?
 
     @State private var album: AlbumDetail?
     @State private var tracks: [Track] = []
@@ -14,6 +18,14 @@ struct AlbumDetailView: View {
     @EnvironmentObject private var player: PlayerService
     @EnvironmentObject private var account: AccountStore
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var isQQ: Bool { albumMid != nil }
+
+    init(albumID: Int, albumMid: String? = nil, initialAlbum: AlbumSummary? = nil) {
+        self.albumID = albumID
+        self.albumMid = albumMid
+        self.initialAlbum = initialAlbum
+    }
 
     private var isCompact: Bool {
         #if os(iOS)
@@ -53,7 +65,9 @@ struct AlbumDetailView: View {
                             HStack(spacing: 16) {
                                 Spacer().frame(width: (isCompact ? 16 : Theme.Layout.contentInset) - 16)
                                 ForEach(otherAlbums) { item in
-                                    NavigationLink(value: Destination.album(item.id)) {
+                                    NavigationLink {
+                                        AlbumDetailView(albumID: item.id, albumMid: item.albumMid, initialAlbum: item)
+                                    } label: {
                                         CoverCardBody(
                                             coverURL: item.picUrl?.resizedImageURL(384),
                                             title: item.name,
@@ -83,7 +97,7 @@ struct AlbumDetailView: View {
         #else
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .task(id: albumID) {
+        .task(id: albumMid ?? String(albumID)) {
             await load()
         }
     }
@@ -91,6 +105,30 @@ struct AlbumDetailView: View {
     private func load() async {
         isLoading = true
         errorMessage = nil
+
+        if isQQ, let mid = albumMid {
+            // QQ音乐专辑：用初始信息构造 AlbumDetail，加载歌曲列表
+            if let initAlbum = initialAlbum {
+                let artistDict: [String: Any] = ["id": 0, "name": initAlbum.artistName]
+                var dict: [String: Any] = [
+                    "id": initAlbum.id, "name": initAlbum.name,
+                    "artist": artistDict,
+                    "publishTime": initAlbum.publishTime,
+                    "size": initAlbum.size
+                ]
+                if let pic = initAlbum.picUrl { dict["picUrl"] = pic }
+                if let subType = initAlbum.subType { dict["subType"] = subType }
+                if let data = try? JSONSerialization.data(withJSONObject: dict),
+                   let detail = try? JSONDecoder().decode(AlbumDetail.self, from: data) {
+                    album = detail
+                }
+            }
+            isLoading = false
+            tracks = (try? await QQMusicAPI.albumInfo(albumMid: mid)) ?? []
+            otherAlbums = []
+            return
+        }
+
         do {
             let response = try await NeteaseAPI.album(id: albumID)
             album = response.album
@@ -125,7 +163,9 @@ struct AlbumDetailView: View {
                         .lineLimit(3)
 
                     if let artist = album.artist {
-                        NavigationLink(value: Destination.artist(artist.id)) {
+                        NavigationLink {
+                            ArtistDetailView(artistID: artist.id, singerMid: artist.singerMid, initialArtist: artist)
+                        } label: {
                             Text(artist.name)
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(Theme.accent)
@@ -229,7 +269,9 @@ struct AlbumDetailView: View {
                     .lineLimit(2)
 
                 if let artist = album.artist {
-                    NavigationLink(value: Destination.artist(artist.id)) {
+                    NavigationLink {
+                        ArtistDetailView(artistID: artist.id, singerMid: artist.singerMid, initialArtist: artist)
+                    } label: {
                         Text(artist.name)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(Theme.accent)

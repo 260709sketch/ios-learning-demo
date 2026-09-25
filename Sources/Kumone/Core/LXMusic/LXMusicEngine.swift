@@ -605,7 +605,9 @@ final class LXMusicEngine: NSObject {
     }
 
     private func lxMusicInfo(from track: Track) -> [String: Any] {
-        let id = String(track.id)
+        // 根据来源平台选择正确的 source 和 songmid
+        let source = track.sourcePlatform ?? "wy"
+        let songmid = track.platformSongId ?? String(track.id)
         let pic = track.album.picUrl ?? ""
         // LX 音源标准：多歌手用"、"分隔
         let singer = track.artists.map { $0.name }.joined(separator: "、")
@@ -627,8 +629,8 @@ final class LXMusicEngine: NSObject {
             // 官方 LX Mobile 标准字段
             "name": track.name,
             "singer": singer,
-            "source": "wy",
-            "songmid": id,
+            "source": source,
+            "songmid": songmid,
             "interval": interval,
             "albumName": track.album.name,
             "img": pic,
@@ -637,17 +639,17 @@ final class LXMusicEngine: NSObject {
             "types": qualityInfo,
             "_types": qualityMap,
             // 兼容字段：部分音源使用这些名称
-            "id": id,
-            "songId": id,
-            "strMediaMid": id,
+            "id": songmid,
+            "songId": songmid,
+            "strMediaMid": songmid,
             "pic": pic,
             "album": track.album.name,
             "hash": "",
             "rid": "",
             // meta 保留旧格式兼容
             "meta": [
-                "songId": id,
-                "songmid": id,
+                "songId": songmid,
+                "songmid": songmid,
                 "albumId": track.album.id,
                 "albumName": track.album.name,
                 "picUrl": pic,

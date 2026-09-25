@@ -3,16 +3,26 @@ import Foundation
 struct ArtistRef: Codable, Hashable, Identifiable {
     let id: Int
     let name: String
+    /// QQ音乐歌手 mid（字符串），用于歌手详情页跳转
+    let singerMid: String?
 
     init(id: Int, name: String) {
         self.id = id
         self.name = name
+        self.singerMid = nil
+    }
+
+    init(id: Int, name: String, singerMid: String?) {
+        self.id = id
+        self.name = name
+        self.singerMid = singerMid
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? c.decode(Int.self, forKey: .id)) ?? 0
         name = (try? c.decode(String.self, forKey: .name)) ?? ""
+        singerMid = try? c.decode(String.self, forKey: .singerMid)
     }
 }
 
@@ -54,6 +64,10 @@ struct Track: Codable, Hashable, Identifiable {
     let isCloud: Bool
     /// Some endpoints (cloudsearch, FM) embed the privilege in the track itself.
     let embeddedPrivilege: TrackPrivilege?
+    /// 来源平台：nil=网易云，"tx"=QQ音乐。用于 LX 音源解析时选择正确的 source 和 songmid。
+    let sourcePlatform: String?
+    /// 平台特定的歌曲 ID（如 QQ 音乐的 songmid 字符串）。nil 时用 track.id。
+    let platformSongId: String?
 
     var artistNames: String { artists.map(\.name).joined(separator: " / ") }
     var duration: TimeInterval { TimeInterval(durationMS) / 1000 }
@@ -66,6 +80,7 @@ struct Track: Codable, Hashable, Identifiable {
         case dt, duration
         case alia, alias
         case tns, fee, mv, no, cd, noCopyrightRcmd, pc, privilege
+        case sourcePlatform, platformSongId
     }
 
     init(from decoder: Decoder) throws {
@@ -90,6 +105,8 @@ struct Track: Codable, Hashable, Identifiable {
             && (try? c.decodeNil(forKey: .noCopyrightRcmd)) == false
         isCloud = c.contains(.pc) && (try? c.decodeNil(forKey: .pc)) == false
         embeddedPrivilege = try? c.decode(TrackPrivilege.self, forKey: .privilege)
+        sourcePlatform = try? c.decode(String.self, forKey: .sourcePlatform)
+        platformSongId = try? c.decode(String.self, forKey: .platformSongId)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -105,6 +122,8 @@ struct Track: Codable, Hashable, Identifiable {
         try c.encode(mvID, forKey: .mv)
         try c.encode(trackNo, forKey: .no)
         try c.encodeIfPresent(disc, forKey: .cd)
+        try c.encodeIfPresent(sourcePlatform, forKey: .sourcePlatform)
+        try c.encodeIfPresent(platformSongId, forKey: .platformSongId)
     }
 }
 

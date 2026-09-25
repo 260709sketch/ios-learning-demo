@@ -25,26 +25,29 @@ enum QQMusicAPI {
     ]
 
     // MARK: - 对象构造辅助（这些 struct 有自定义 init(from:)，无成员初始化器，用 JSON 解码构造）
-    private static func makeTrack(id: Int, name: String, artists: [ArtistRef], album: AlbumRef, durationMS: Int) -> Track? {
+    private static func makeTrack(id: Int, name: String, artists: [ArtistRef], album: AlbumRef, durationMS: Int, sourcePlatform: String, platformSongId: String) -> Track? {
         let dict: [String: Any] = [
             "id": id, "name": name,
             "ar": artists.map { ["id": $0.id, "name": $0.name] },
             "al": ["id": album.id, "name": album.name, "picUrl": album.picUrl ?? ""],
-            "dt": durationMS, "alia": [], "tns": [], "fee": 0, "mv": 0, "no": 0
+            "dt": durationMS, "alia": [], "tns": [], "fee": 0, "mv": 0, "no": 0,
+            "sourcePlatform": sourcePlatform,
+            "platformSongId": platformSongId
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
         return try? JSONDecoder().decode(Track.self, from: data)
     }
 
-    private static func makeArtist(id: Int, name: String, picUrl: String?, musicSize: Int) -> ArtistSummary? {
-        var dict: [String: Any] = ["id": id, "name": name, "albumSize": 0, "musicSize": musicSize, "followed": false, "alias": []]
+    private static func makeArtist(id: Int, name: String, picUrl: String?, musicSize: Int, singerMid: String) -> ArtistSummary? {
+        var dict: [String: Any] = ["id": id, "name": name, "albumSize": 0, "musicSize": musicSize, "followed": false, "alias": [], "sourcePlatform": "tx", "singerMid": singerMid]
         if let picUrl, !picUrl.isEmpty { dict["picUrl"] = picUrl }
         guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
         return try? JSONDecoder().decode(ArtistSummary.self, from: data)
     }
 
-    private static func makeAlbum(id: Int, name: String, picUrl: String?, artistName: String, publishTime: Int) -> AlbumSummary? {
-        var dict: [String: Any] = ["id": id, "name": name, "artist": ["name": artistName], "publishTime": publishTime, "size": 0, "alias": []]
+    private static func makeAlbum(id: Int, name: String, picUrl: String?, artistName: String, publishTime: Int, albumMid: String = "") -> AlbumSummary? {
+        var dict: [String: Any] = ["id": id, "name": name, "artist": ["name": artistName], "publishTime": publishTime, "size": 0, "alias": [], "sourcePlatform": "tx"]
+        if !albumMid.isEmpty { dict["albumMid"] = albumMid }
         if let picUrl, !picUrl.isEmpty { dict["picUrl"] = picUrl }
         guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
         return try? JSONDecoder().decode(AlbumSummary.self, from: data)
@@ -80,7 +83,8 @@ enum QQMusicAPI {
                 artists = singerList.map { s in
                     let sid = (s["id"] as? Int) ?? 0
                     let sname = (s["name"] as? String) ?? ""
-                    return ArtistRef(id: sid, name: sname)
+                    let smid = (s["mid"] as? String) ?? (s["singerMID"] as? String)
+                    return ArtistRef(id: sid, name: sname, singerMid: smid)
                 }
             }
 
@@ -91,7 +95,7 @@ enum QQMusicAPI {
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl)
 
-            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000)
+            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
         }
     }
 
@@ -145,8 +149,9 @@ enum QQMusicAPI {
             guard !singerName.isEmpty else { return nil }
             let singerPic = (item["singerPic"] as? String) ?? (item["pic"] as? String) ?? ""
             let songNum = (item["songNum"] as? Int) ?? 0
+            let singerMid = (item["singerMID"] as? String) ?? (item["mid"] as? String) ?? ""
             let picUrl = singerPic.isEmpty ? nil : singerPic.replacingOccurrences(of: "http://", with: "https://")
-            return makeArtist(id: singerID, name: singerName, picUrl: picUrl, musicSize: songNum)
+            return makeArtist(id: singerID, name: singerName, picUrl: picUrl, musicSize: songNum, singerMid: singerMid)
         }
     }
 
@@ -171,7 +176,8 @@ enum QQMusicAPI {
             let singerName = (item["name"] as? String) ?? ""
             guard !singerName.isEmpty else { return nil }
             let singerPic = (item["pic"] as? String) ?? ""
-            return makeArtist(id: singerID, name: singerName, picUrl: singerPic.isEmpty ? nil : singerPic, musicSize: 0)
+            let singerMid = (item["mid"] as? String) ?? (item["singerMID"] as? String) ?? ""
+            return makeArtist(id: singerID, name: singerName, picUrl: singerPic.isEmpty ? nil : singerPic, musicSize: 0, singerMid: singerMid)
         }
     }
 
@@ -245,7 +251,7 @@ enum QQMusicAPI {
                 }
             }
 
-            return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: publishTime)
+            return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: publishTime, albumMid: albumMID)
         }
     }
 
@@ -278,7 +284,219 @@ enum QQMusicAPI {
                 singerName = singerList.compactMap { $0["name"] as? String }.joined(separator: " / ")
             }
 
-            return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: 0)
+            return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: 0, albumMid: albumMID)
+        }
+    }
+
+    // MARK: - 歌词（参考 Well Music src/components/utils/musicSdk/tx/lyric.js）
+    static func lyric(songmid: String) async throws -> LyricResponse {
+        let urlStr = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=\(songmid)&g_tk=5381&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&platform=yqq"
+        guard let url = URL(string: urlStr) else { throw NSError(domain: "QQMusicAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"]) }
+
+        var request = URLRequest(url: url)
+        request.allHTTPHeaderFields = headers.merging(["Referer": "https://y.qq.com/portal/player.html"]) { _, new in new }
+        request.timeoutInterval = 12
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let code = json["code"] as? Int, code == 0 else {
+            throw NSError(domain: "QQMusicAPI", code: -2, userInfo: [NSLocalizedDescriptionKey: "Lyric API error"])
+        }
+
+        // lyric 和 trans 都是 base64 编码
+        let lyricB64 = (json["lyric"] as? String) ?? ""
+        let transB64 = (json["trans"] as? String) ?? ""
+
+        let lyricText = decodeBase64(lyricB64)
+        let transText = decodeBase64(transB64)
+
+        // 构造 LyricResponse
+        let lrcBody = LyricResponse.LyricBody(lyric: lyricText.isEmpty ? nil : lyricText)
+        let tlyricBody = LyricResponse.LyricBody(lyric: transText.isEmpty ? nil : transText)
+
+        return LyricResponse(
+            lrc: lrcBody,
+            tlyric: tlyricBody,
+            romalrc: nil,
+            yrc: nil,
+            ytlrc: nil,
+            yromalrc: nil,
+            lyricUser: nil,
+            transUser: nil,
+            nolyric: lyricText.isEmpty,
+            uncollected: nil
+        )
+    }
+
+    private static func decodeBase64(_ b64: String) -> String {
+        guard !b64.isEmpty,
+              let data = Data(base64Encoded: b64, options: .ignoreUnknownCharacters),
+              let text = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return text
+    }
+
+    // MARK: - 歌手详情（参考 Well Music xiaoqiu.js getArtistSongs/getArtistAlbums）
+    static func artistSongs(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> [Track] {
+        let body: [String: Any] = [
+            "comm": ["ct": 24, "cv": 0],
+            "singer": [
+                "method": "get_singer_detail_info",
+                "param": [
+                    "sort": 5,
+                    "singermid": singerMid,
+                    "sin": (page - 1) * limit,
+                    "num": limit
+                ],
+                "module": "music.web_singer_info_svr"
+            ]
+        ]
+        guard let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg"),
+              let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return [] }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.allHTTPHeaderFields = headers.merging(["Content-Type": "application/json"]) { _, new in new }
+        request.httpBody = httpBody
+        request.timeoutInterval = 12
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let singer = json["singer"] as? [String: Any],
+              let singerData = singer["data"] as? [String: Any],
+              let songlist = singerData["songlist"] as? [[String: Any]] else {
+            return []
+        }
+
+        return songlist.compactMap { item -> Track? in
+            guard let songmid = item["songmid"] as? String, !songmid.isEmpty else { return nil }
+            let songid = (item["songid"] as? Int) ?? abs(songmid.hashValue)
+            let name = (item["songname"] as? String) ?? (item["title"] as? String) ?? ""
+            let interval = (item["interval"] as? Int) ?? 0
+
+            var artists: [ArtistRef] = []
+            if let singerList = item["singer"] as? [[String: Any]] {
+                artists = singerList.map { s in
+                    let sid = (s["id"] as? Int) ?? 0
+                    let sname = (s["name"] as? String) ?? ""
+                    let smid = (s["mid"] as? String) ?? (s["singerMID"] as? String)
+                    return ArtistRef(id: sid, name: sname, singerMid: smid)
+                }
+            }
+
+            let albumName = (item["albumname"] as? String) ?? ""
+            let albumMid = (item["albummid"] as? String) ?? ""
+            let albumID = (item["albumid"] as? Int) ?? 0
+            let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
+            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl)
+
+            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
+        }
+    }
+
+    static func artistAlbums(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> [AlbumSummary] {
+        let body: [String: Any] = [
+            "comm": ["ct": 24, "cv": 0],
+            "singerAlbum": [
+                "method": "get_singer_album",
+                "param": [
+                    "singermid": singerMid,
+                    "order": "time",
+                    "begin": (page - 1) * limit,
+                    "num": limit,
+                    "exstatus": 1
+                ],
+                "module": "music.web_singer_info_svr"
+            ]
+        ]
+        guard let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg"),
+              let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return [] }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.allHTTPHeaderFields = headers.merging(["Content-Type": "application/json"]) { _, new in new }
+        request.httpBody = httpBody
+        request.timeoutInterval = 12
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let singerAlbum = json["singerAlbum"] as? [String: Any],
+              let albumData = singerAlbum["data"] as? [String: Any],
+              let list = albumData["list"] as? [[String: Any]] else {
+            return []
+        }
+
+        return list.compactMap { item -> AlbumSummary? in
+            let albumID = (item["albumID"] as? Int) ?? (item["id"] as? Int) ?? 0
+            let albumName = (item["albumName"] as? String) ?? (item["name"] as? String) ?? ""
+            guard !albumName.isEmpty else { return nil }
+            let albumMID = (item["albumMID"] as? String) ?? (item["mid"] as? String) ?? ""
+            let albumPic = (item["albumPic"] as? String) ?? (item["pic"] as? String) ?? ""
+            let picUrl = albumPic.isEmpty ? (albumMID.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMID).jpg") : albumPic.replacingOccurrences(of: "http://", with: "https://")
+            let singerName = (item["singerName"] as? String) ?? ""
+            let publishTime = (item["publishTime"] as? Int) ?? 0
+            return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: publishTime, albumMid: albumMID)
+        }
+    }
+
+    // MARK: - 专辑详情（参考 Well Music xiaoqiu.js getAlbumInfo）
+    static func albumInfo(albumMid: String) async throws -> [Track] {
+        let body: [String: Any] = [
+            "comm": ["ct": 24, "cv": 10000],
+            "albumSonglist": [
+                "method": "GetAlbumSongList",
+                "param": [
+                    "albumMid": albumMid,
+                    "albumID": 0,
+                    "begin": 0,
+                    "num": 999,
+                    "order": 2
+                ],
+                "module": "music.musichallAlbum.AlbumSongList"
+            ]
+        ]
+        guard let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg"),
+              let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return [] }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.allHTTPHeaderFields = headers.merging(["Content-Type": "application/json"]) { _, new in new }
+        request.httpBody = httpBody
+        request.timeoutInterval = 15
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let albumSonglist = json["albumSonglist"] as? [String: Any],
+              let albumData = albumSonglist["data"] as? [String: Any],
+              let songList = albumData["songList"] as? [[String: Any]] else {
+            return []
+        }
+
+        return songList.compactMap { item -> Track? in
+            guard let songInfo = item["songInfo"] as? [String: Any] else { return nil }
+            guard let songmid = songInfo["songmid"] as? String, !songmid.isEmpty else { return nil }
+            let songid = (songInfo["songid"] as? Int) ?? abs(songmid.hashValue)
+            let name = (songInfo["songname"] as? String) ?? (songInfo["title"] as? String) ?? ""
+            let interval = (songInfo["interval"] as? Int) ?? 0
+
+            var artists: [ArtistRef] = []
+            if let singerList = songInfo["singer"] as? [[String: Any]] {
+                artists = singerList.map { s in
+                    let sid = (s["id"] as? Int) ?? 0
+                    let sname = (s["name"] as? String) ?? ""
+                    let smid = (s["mid"] as? String) ?? (s["singerMID"] as? String)
+                    return ArtistRef(id: sid, name: sname, singerMid: smid)
+                }
+            }
+
+            let albumName = (songInfo["albumname"] as? String) ?? ""
+            let albumMid2 = (songInfo["albummid"] as? String) ?? ""
+            let albumID = (songInfo["albumid"] as? Int) ?? 0
+            let picUrl = albumMid2.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid2).jpg"
+            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl)
+
+            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
         }
     }
 }

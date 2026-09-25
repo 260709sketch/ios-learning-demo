@@ -2,6 +2,16 @@ import SwiftUI
 
 struct ArtistDetailView: View {
     let artistID: Int
+    /// QQ音乐歌手 mid（字符串），不为空时使用 QQ 音乐 API
+    let singerMid: String?
+    /// 初始歌手信息（QQ音乐歌手从搜索结果传入，避免额外请求）
+    let initialArtist: ArtistSummary?
+
+    init(artistID: Int, singerMid: String? = nil, initialArtist: ArtistSummary? = nil) {
+        self.artistID = artistID
+        self.singerMid = singerMid
+        self.initialArtist = initialArtist
+    }
 
     @State private var artist: ArtistSummary?
     @State private var hotSongs: [Track] = []
@@ -15,6 +25,8 @@ struct ArtistDetailView: View {
     @EnvironmentObject private var player: PlayerService
     @EnvironmentObject private var account: AccountStore
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var isQQ: Bool { singerMid != nil }
 
     private var isCompact: Bool {
         #if os(iOS)
@@ -89,7 +101,9 @@ struct ArtistDetailView: View {
                             HStack(spacing: 16) {
                                 Spacer().frame(width: (isCompact ? 16 : Theme.Layout.contentInset) - 16)
                                 ForEach(similar) { sim in
-                                    NavigationLink(value: Destination.artist(sim.id)) {
+                                    NavigationLink {
+                                        ArtistDetailView(artistID: sim.id, singerMid: sim.singerMid, initialArtist: sim)
+                                    } label: {
                                         VStack(spacing: 8) {
                                             CachedAsyncImage(url: sim.picUrl?.resizedImageURL(256))
                                                 .frame(width: isCompact ? 80 : 100, height: isCompact ? 80 : 100)
@@ -123,7 +137,7 @@ struct ArtistDetailView: View {
         #else
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .task(id: artistID) {
+        .task(id: singerMid ?? String(artistID)) {
             await load()
         }
     }
@@ -131,6 +145,24 @@ struct ArtistDetailView: View {
     private func load() async {
         isLoading = true
         errorMessage = nil
+
+        if isQQ, let mid = singerMid {
+            // QQ音乐歌手：用初始信息，加载歌曲和专辑
+            artist = initialArtist
+            isLoading = false
+
+            async let songsTask = try? QQMusicAPI.artistSongs(singerMid: mid, limit: 50)
+            async let albumsTask = try? QQMusicAPI.artistAlbums(singerMid: mid, limit: 60)
+
+            let (songs, albumList) = await (songsTask, albumsTask)
+            hotSongs = songs ?? []
+            // QQ音乐专辑不区分专辑/EP，全部放专辑区
+            albums = albumList ?? []
+            epsAndSingles = []
+            similar = []
+            return
+        }
+
         do {
             let response = try await NeteaseAPI.artist(id: artistID)
             artist = response.artist
@@ -274,7 +306,9 @@ struct ArtistDetailView: View {
     }
 
     private func albumCard(_ album: AlbumSummary) -> some View {
-        NavigationLink(value: Destination.album(album.id)) {
+        NavigationLink {
+            AlbumDetailView(albumID: album.id, albumMid: album.albumMid, initialAlbum: album)
+        } label: {
             CoverCardBody(
                 coverURL: album.picUrl?.resizedImageURL(384),
                 title: album.name,

@@ -137,9 +137,14 @@ struct AlbumSummary: Decodable, Hashable, Identifiable {
     let size: Int
     let subType: String?
     let alias: [String]
+    /// 来源平台：nil=网易云，"tx"=QQ音乐
+    let sourcePlatform: String?
+    /// QQ音乐专辑 mid（字符串），用于专辑详情页
+    let albumMid: String?
 
     private enum CodingKeys: String, CodingKey {
         case id, name, picUrl, cover, artist, artists, publishTime, size, subType, alia, alias
+        case sourcePlatform, albumMid
     }
 
     private struct ArtistName: Codable {
@@ -164,6 +169,8 @@ struct AlbumSummary: Decodable, Hashable, Identifiable {
         subType = try? c.decode(String.self, forKey: .subType)
         alias = (try? c.decode([String].self, forKey: .alia))
             ?? (try? c.decode([String].self, forKey: .alias)) ?? []
+        sourcePlatform = try? c.decode(String.self, forKey: .sourcePlatform)
+        albumMid = try? c.decode(String.self, forKey: .albumMid)
     }
 
     var publishYear: String {
@@ -216,9 +223,14 @@ struct ArtistSummary: Decodable, Hashable, Identifiable {
     let briefDesc: String?
     let alias: [String]
     let followed: Bool
+    /// 来源平台：nil=网易云，"tx"=QQ音乐
+    let sourcePlatform: String?
+    /// QQ音乐歌手 mid（字符串），用于歌手详情页
+    let singerMid: String?
 
     private enum CodingKeys: String, CodingKey {
         case id, name, picUrl, img1v1Url, cover, avatar, albumSize, musicSize, briefDesc, alias, followed
+        case sourcePlatform, singerMid
     }
 
     init(from decoder: Decoder) throws {
@@ -234,6 +246,8 @@ struct ArtistSummary: Decodable, Hashable, Identifiable {
         briefDesc = try? c.decode(String.self, forKey: .briefDesc)
         alias = (try? c.decode([String].self, forKey: .alias)) ?? []
         followed = (try? c.decode(Bool.self, forKey: .followed)) ?? false
+        sourcePlatform = try? c.decode(String.self, forKey: .sourcePlatform)
+        singerMid = try? c.decode(String.self, forKey: .singerMid)
     }
 }
 
@@ -440,9 +454,13 @@ enum Formatters {
 extension String {
     /// NetEase image CDN resize convention: `<picUrl>?param=<W>y<H>`.
     /// Also upgrades `http:` to `https:`.
+    /// 非网易云 CDN（如 QQ 音乐 y.gtimg.cn）不添加 param 参数，直接返回原 URL。
     func resizedImageURL(_ size: Int) -> URL? {
         var s = replacingOccurrences(of: "http://", with: "https://")
-        s += s.contains("?") ? "&param=\(size)y\(size)" : "?param=\(size)y\(size)"
+        // 只对网易云图片 CDN 添加 param 参数
+        if s.contains("music.126.net") {
+            s += s.contains("?") ? "&param=\(size)y\(size)" : "?param=\(size)y\(size)"
+        }
         return URL(string: s)
     }
 }
