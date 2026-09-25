@@ -544,6 +544,13 @@ final class LXMusicEngine: NSObject {
             "albumId": track.album.id,
             "albumName": track.album.name,
             "pic": pic,
+            // 标准 LX 顶层字段：各平台 ID，聚合音源会按需取用
+            "songmid": id,
+            "songId": id,
+            "strMediaMid": id,
+            "hash": "",
+            "rid": "",
+            "album": track.album.name,
             "meta": [
                 "songId": id,
                 "songmid": id,

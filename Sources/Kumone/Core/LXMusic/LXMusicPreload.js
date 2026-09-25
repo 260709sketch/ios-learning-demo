@@ -447,39 +447,37 @@ globalThis.lx_setup = (key, id, name, description, version, author, homepage, ra
     EVENT_NAMES,
     request(url, { method = 'get', timeout, headers, body, form, formData, binary }, callback) {
       let options = { headers, binary: binary === true }
-      // let data
-      // if (body) {
-      //   data = body
-      // } else if (form) {
-      //   data = form
-      //   // data.content_type = 'application/x-www-form-urlencoded'
-      //   options.json = false
-      // } else if (formData) {
-      //   data = formData
-      //   // data.content_type = 'multipart/form-data'
-      //   options.json = false
-      // }
       if (timeout && typeof timeout == 'number' && timeout > 0) options.timeout = Math.min(timeout, 60_000)
 
-      let request = sendNativeRequest(url, { method, body, form, formData, ...options }, (err, resp) => {
-        if (err) {
-          callback(err, null, null)
-        } else {
-          callback(err, {
-            statusCode: resp.statusCode,
-            statusMessage: resp.statusMessage,
-            headers: resp.headers,
-            // bytes: resp.bytes,
-            // raw: resp.raw,
-            body: resp.body,
-          }, resp.body)
+      const doRequest = (cb) => {
+        let req = sendNativeRequest(url, { method, body, form, formData, ...options }, (err, resp) => {
+          if (err) {
+            cb(err, null, null)
+          } else {
+            cb(err, {
+              statusCode: resp.statusCode,
+              statusMessage: resp.statusMessage,
+              headers: resp.headers,
+              body: resp.body,
+            }, resp.body)
+          }
+        })
+        return () => {
+          if (!req.aborted) req.abort()
+          req = null
         }
-      })
-
-      return () => {
-        if (!request.aborted) request.abort()
-        request = null
       }
+
+      // 官方 LX 同时支持回调风格和 Promise 风格
+      if (typeof callback === 'function') {
+        return doRequest(callback)
+      }
+      return new Promise((resolve, reject) => {
+        doRequest((err, resp) => {
+          if (err) reject(err)
+          else resolve(resp)
+        })
+      })
     },
     send(eventName, data) {
       return new Promise((resolve, reject) => {
@@ -521,7 +519,7 @@ globalThis.lx_setup = (key, id, name, description, version, author, homepage, ra
       rawScript,
     },
     version: '2.0.0',
-    env: 'mobile',
+    env: { platform: 'ios', version: '2.0.0' },
   }
 
   globalThis.setTimeout = _setTimeout
