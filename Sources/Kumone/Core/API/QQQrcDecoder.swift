@@ -342,7 +342,7 @@ enum QQQrcDecoder {
                     inputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
                     inputSize,
                     nil,
-                    algorithm
+                    COMPRESSION_ZLIB
                 )
             }
         }
