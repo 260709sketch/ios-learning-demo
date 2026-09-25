@@ -995,8 +995,9 @@ final class PlayerService: ObservableObject {
 
         var asset = AVURLAsset(url: url)
         var resourceLoader: CachingAudioResourceLoader?
-        if SettingsManager.shared.enableAudioCache, !isTrial {
-            let source: AudioCacheSource = unblockSource.map(AudioCacheSource.unblock) ?? .netease
+        // LX音源返回的URL可能有特殊字符，缓存层处理不了，直接用原始URL播放
+        if SettingsManager.shared.enableAudioCache, !isTrial, unblockSource == nil {
+            let source: AudioCacheSource = .netease
             do {
                 let loader = try CachingAudioResourceLoader(
                     remoteURL: url,

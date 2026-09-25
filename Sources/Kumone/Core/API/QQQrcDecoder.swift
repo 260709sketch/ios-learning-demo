@@ -329,10 +329,10 @@ enum QQQrcDecoder {
     }
 
     // MARK: - zlib 解压
-    private static func decompress(_ data: [UInt8]) -> [UInt8]? {
+    private static func decompress(_ data: [UInt8], algorithm: compression_algorithm) -> [UInt8]? {
         guard !data.isEmpty else { return nil }
         let inputSize = data.count
-        let outputSize = inputSize * 8 + 1024
+        let outputSize = inputSize * 16 + 1024
         var outputBuffer = [UInt8](repeating: 0, count: outputSize)
         let decodedSize = outputBuffer.withUnsafeMutableBytes { outputPtr -> Int in
             data.withUnsafeBytes { inputPtr -> Int in
@@ -342,7 +342,7 @@ enum QQQrcDecoder {
                     inputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
                     inputSize,
                     nil,
-                    COMPRESSION_ZLIB
+                    algorithm
                 )
             }
         }
@@ -357,8 +357,14 @@ enum QQQrcDecoder {
     // MARK: - 公开接口
     /// 解密 QQ 音乐 QRC 逐字歌词（hex 格式）
     static func decrypt(_ hexString: String) -> String? {
-        guard let encryptedBytes = hexToBytes(hexString) else { return nil }
-        guard !encryptedBytes.isEmpty, encryptedBytes.count % 8 == 0 else { return nil }
+        guard let encryptedBytes = hexToBytes(hexString) else {
+            DebugLogger.shared.log("QRC", "hex解码失败", level: .error)
+            return nil
+        }
+        guard !encryptedBytes.isEmpty, encryptedBytes.count % 8 == 0 else {
+            DebugLogger.shared.log("QRC", "数据长度不对=\(encryptedBytes.count)", level: .error)
+            return nil
+        }
         var decryptedData = [UInt8](repeating: 0, count: encryptedBytes.count)
         for i in stride(from: 0, to: encryptedBytes.count, by: 8) {
             let chunk = Array(encryptedBytes[i..<(i + 8)])
@@ -368,7 +374,22 @@ enum QQQrcDecoder {
                 decryptedData[i + j] = outChunk[j]
             }
         }
-        guard let decompressed = decompress(decryptedData) else { return nil }
-        return String(bytes: decompressed, encoding: .utf8)
+        let firstBytes = decryptedData.prefix(4).map { String(format: "%02X", $0) }.joined()
+        DebugLogger.shared.log("QRC", "3DES解密完成 长度=\(decryptedData.count) 前4字节=\(firstBytes)")
+        // 先尝试 zlib 解压，失败则尝试 raw deflate（跳过2字节头和4字节尾）
+        if let decompressed = decompress(decryptedData, algorithm: COMPRESSION_ZLIB) {
+            DebugLogger.shared.log("QRC", "zlib解压成功 长度=\(decompressed.count)")
+            return String(bytes: decompressed, encoding: .utf8)
+        }
+        DebugLogger.shared.log("QRC", "zlib解压失败，尝试raw deflate", level: .warning)
+        if decryptedData.count > 6 {
+            let rawData = Array(decryptedData.dropFirst(2).dropLast(4))
+            if let decompressed = decompress(rawData, algorithm: COMPRESSION_DEFLATE) {
+                DebugLogger.shared.log("QRC", "raw deflate解压成功 长度=\(decompressed.count)")
+                return String(bytes: decompressed, encoding: .utf8)
+            }
+        }
+        DebugLogger.shared.log("QRC", "所有解压方式都失败", level: .error)
+        return nil
     }
 }
