@@ -1389,10 +1389,10 @@ private struct CompactTrackHeader: View {
             .accessibilityIdentifier("immersiveTrackMetadata")
 
             if let track = player.currentTrack {
-                let liked = account.isLiked(track.id)
+                let liked = account.isLiked(track: track)
                 HStack(spacing: 0) {
                     Button {
-                        Task { await account.toggleLike(trackID: track.id) }
+                        Task { await account.toggleLike(trackID: track.id, track: track) }
                     } label: {
                         Image(systemName: liked ? "heart.fill" : "heart")
                             .font(.system(size: 21, weight: .medium))
@@ -2190,9 +2190,9 @@ private struct MinimalTrackInfoRow: View {
     }
 
     private func favoriteButton(for track: Track) -> some View {
-        let liked = account.isLiked(track.id)
+        let liked = account.isLiked(track: track)
         return Button {
-            Task { await account.toggleLike(trackID: track.id) }
+            Task { await account.toggleLike(trackID: track.id, track: track) }
         } label: {
             Image(systemName: liked ? "heart.fill" : "heart")
                 .font(.system(size: 22, weight: .medium))

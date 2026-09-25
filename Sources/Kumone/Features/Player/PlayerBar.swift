@@ -47,7 +47,7 @@ struct PlayerBar: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let track = player.currentTrack {
-                LikeButton(trackID: track.id)
+                LikeButton(track: track)
             }
         }
     }
@@ -248,18 +248,18 @@ struct PlayerIconButton: View {
 // MARK: - Like button
 
 struct LikeButton: View {
-    let trackID: Int
+    let track: Track
     var size: CGFloat = 13
 
     @EnvironmentObject private var account: AccountStore
 
     var body: some View {
-        let liked = account.isLiked(trackID)
+        let liked = account.isLiked(track: track)
         PlayerIconButton(
             icon: liked ? "heart.fill" : "heart", size: size,
             isActive: liked
         ) {
-            Task { await account.toggleLike(trackID: trackID) }
+            Task { await account.toggleLike(trackID: track.id, track: track) }
         }
         .help(liked ? String(localized: "取消喜欢") : String(localized: "喜欢"))
     }

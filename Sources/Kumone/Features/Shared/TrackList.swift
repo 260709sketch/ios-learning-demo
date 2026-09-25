@@ -304,9 +304,9 @@ struct TrackRow: View {
             player.addToPlayNext(track)
         }
         Divider()
-        let liked = account.isLiked(track.id)
+        let liked = account.isLiked(track: track)
         Button(liked ? String(localized: "从「我喜欢」中移除") : String(localized: "添加到「我喜欢」")) {
-            Task { await account.toggleLike(trackID: track.id) }
+            Task { await account.toggleLike(trackID: track.id, track: track) }
         }
         Button("收藏到歌单…") {
             showAddToPlaylist = true

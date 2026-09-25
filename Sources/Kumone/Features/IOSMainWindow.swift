@@ -698,7 +698,7 @@ struct IOSLibraryView: View {
                 Section {
                     NavigationLink(value: Destination.localPlaylist) {
                         HStack(spacing: 10) {
-                            Image(systemName: "square.stack.fill")
+                            Image(systemName: "music.note.list")
                                 .font(.system(size: 16))
                                 .foregroundStyle(Theme.accent)
                                 .frame(width: 32, height: 32)

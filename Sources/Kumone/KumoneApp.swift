@@ -58,9 +58,9 @@ public struct KumoneApp: App {
 
                 Divider()
 
-                Button(player.currentTrack.map { AccountStore.shared.isLiked($0.id) ? String(localized: "取消喜欢") : String(localized: "喜欢") } ?? String(localized: "喜欢")) {
+                Button(player.currentTrack.map { AccountStore.shared.isLiked(track: $0) ? String(localized: "取消喜欢") : String(localized: "喜欢") } ?? String(localized: "喜欢")) {
                     if let track = player.currentTrack {
-                        Task { await account.toggleLike(trackID: track.id) }
+                        Task { await account.toggleLike(trackID: track.id, track: track) }
                     }
                 }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
