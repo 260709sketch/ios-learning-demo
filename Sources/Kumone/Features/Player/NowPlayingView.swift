@@ -103,9 +103,17 @@ struct NowPlayingView: View {
         #endif
         #if os(iOS)
         .onAppear {
-            // AMLL 模式下默认显示歌词
-            showLyricsOnMobile = true
+            showLyricsOnMobile = settings.nowPlayingMode == .immersive
             showQueueOnMobile = false
+        }
+        .onChange(of: settings.nowPlayingMode) { _ in
+            showLyricsOnMobile = settings.nowPlayingMode == .immersive
+            showQueueOnMobile = false
+        }
+        .onChange(of: player.currentTrack?.id) { _ in
+            if settings.nowPlayingMode == .minimal || settings.nowPlayingMode == .vinyl {
+                showLyricsOnMobile = false
+            }
         }
         #endif
         #if os(macOS)
@@ -136,8 +144,7 @@ struct NowPlayingView: View {
 
     private func showsClassicChrome(isCompact: Bool) -> Bool {
         #if os(iOS)
-        // iOS 现在统一使用 AMLL 布局，始终显示经典控制栏（关闭按钮、歌词切换按钮）
-        return true
+        return !isCompact || settings.nowPlayingMode == .classic
         #else
         return true
         #endif
@@ -237,8 +244,20 @@ struct NowPlayingView: View {
     @ViewBuilder
     private func compactLayout(size: CGSize) -> some View {
         #if os(iOS)
-        // 三种背景模式都保留 AMLL 歌词扫光，只切换背景层
-        amllCompactLayout(size: size)
+        if settings.useAMLLImmersive {
+            amllCompactLayout(size: size)
+        } else {
+            switch settings.nowPlayingMode {
+            case .vinyl:
+                vinylCompactLayout(size: size)
+            case .classic:
+                classicCompactLayout(size: size)
+            case .immersive:
+                immersiveCompactLayout(size: size)
+            case .minimal:
+                minimalCompactLayout(size: size)
+            }
+        }
         #else
         switch settings.nowPlayingMode {
         case .vinyl:
@@ -262,8 +281,8 @@ struct NowPlayingView: View {
 
         return ZStack {
             // 底层背景：根据模式切换
-            // - flowing: AMLL流动背景(bg元素显示)
-            // - still: 纯黑静态背景(bg隐藏+渲染暂停)
+            // - flowing: AMLL流动背景(bg元素显示+渲染运行)
+            // - still: 静止渐变背景(bg元素显示+渲染暂停，画面静止可见)
             // - original: 原版专辑封面提取色渐变背景(bg隐藏+渲染暂停)
             if settings.amllBackgroundMode == .original {
                 backdrop

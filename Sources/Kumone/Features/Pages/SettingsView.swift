@@ -53,29 +53,41 @@ struct SettingsView: View {
                     Text(NowPlayingMode.vinyl.displayName).tag(NowPlayingMode.vinyl)
                     Text(NowPlayingMode.classic.displayName).tag(NowPlayingMode.classic)
                 }
+                #else
+                Picker("播放页模式", selection: $settings.nowPlayingMode) {
+                    ForEach(NowPlayingMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
                 #endif
                 Toggle("显示歌词翻译", isOn: $settings.showLyricsTranslation)
                 Toggle("显示 VIP 歌曲标识", isOn: $settings.showVIPBadge)
                 Toggle("逐字歌词（卡拉OK）", isOn: $settings.verbatimLyrics)
-                // 播放页背景模式：流动背景 / 静态背景 / 原版背景
-                Picker("播放页背景", selection: $settings.amllBackgroundMode) {
-                    ForEach(SettingsManager.AMLLBackgroundMode.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
+                Toggle("AMLL 沉浸式歌词（流动背景+扫光）", isOn: $settings.useAMLLImmersive)
+                if settings.useAMLLImmersive {
+                    Text("通过 WKWebView 嵌入开源 AMLL 组件；播放页将切换为 AMLL 流动背景和逐字扫光歌词")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    // 播放页背景模式：流动背景 / 静态背景 / 原版背景
+                    Picker("播放页背景", selection: $settings.amllBackgroundMode) {
+                        ForEach(SettingsManager.AMLLBackgroundMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
                     }
-                }
-                if settings.amllBackgroundMode == .flowing {
-                    Text("AMLL 流动渐变背景 + 逐字扫光歌词")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if settings.amllBackgroundMode == .still {
-                    Text("纯黑静态背景 + AMLL 逐字扫光歌词")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if settings.amllBackgroundMode == .original {
-                    Text("原版专辑封面渐变背景 + AMLL 逐字扫光歌词")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                    if settings.amllBackgroundMode == .flowing {
+                        Text("AMLL 流动渐变背景 + 逐字扫光歌词")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if settings.amllBackgroundMode == .still {
+                        Text("静止渐变背景 + AMLL 逐字扫光歌词")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if settings.amllBackgroundMode == .original {
+                        Text("原版专辑封面渐变背景 + AMLL 逐字扫光歌词")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     // 歌词顶部位置
                     VStack(alignment: .leading, spacing: 4) {
@@ -268,6 +280,7 @@ struct SettingsView: View {
                             set: { settings.playerTrackInfoRightOffset = Int($0) }
                         ), in: -200...200, step: 5)
                     }
+                }
                 Picker("日文歌词读音", selection: $settings.lyricsAnnotation) {
                     ForEach(LyricsAnnotation.allCases) { annotation in
                         Text(annotation.displayName).tag(annotation)
