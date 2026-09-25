@@ -1256,7 +1256,7 @@ final class PlayerService: ObservableObject {
         guard !keyword.isEmpty else { return }
 
         // 调用网易云搜索
-        guard let searchResult = try? await NeteaseAPI.search(keyword, type: .song, limit: 10),
+        guard let searchResult = try? await NeteaseAPI.search(keyword, type: .songs, limit: 10),
               let songs = searchResult.songs, !songs.isEmpty else { return }
 
         // 精准匹配：歌名相同 + 至少一个歌手名相同

@@ -337,6 +337,19 @@ enum QQMusicAPI {
         return text
     }
 
+    // MARK: - musicu.fcg 通用 GET 请求（参考 Well Music，data 放 URL 参数）
+    private static func musicuGET(_ body: [String: Any]) async throws -> [String: Any] {
+        let jsonStr = (try? JSONSerialization.data(withJSONObject: body)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let encoded = jsonStr.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let urlStr = "https://u.y.qq.com/cgi-bin/musicu.fcg?data=\(encoded)"
+        guard let url = URL(string: urlStr) else { return [:] }
+        var request = URLRequest(url: url)
+        request.allHTTPHeaderFields = headers
+        request.timeoutInterval = 15
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+    }
+
     // MARK: - 歌手详情（参考 Well Music xiaoqiu.js getArtistSongs/getArtistAlbums）
     static func artistSongs(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> [Track] {
         let body: [String: Any] = [
@@ -352,18 +365,8 @@ enum QQMusicAPI {
                 "module": "music.web_singer_info_svr"
             ]
         ]
-        guard let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg"),
-              let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return [] }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.allHTTPHeaderFields = headers.merging(["Content-Type": "application/json"]) { _, new in new }
-        request.httpBody = httpBody
-        request.timeoutInterval = 12
-
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let singer = json["singer"] as? [String: Any],
+        let json = try await musicuGET(body)
+        guard let singer = json["singer"] as? [String: Any],
               let singerData = singer["data"] as? [String: Any],
               let songlist = singerData["songlist"] as? [[String: Any]] else {
             return []
@@ -410,18 +413,8 @@ enum QQMusicAPI {
                 "module": "music.web_singer_info_svr"
             ]
         ]
-        guard let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg"),
-              let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return [] }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.allHTTPHeaderFields = headers.merging(["Content-Type": "application/json"]) { _, new in new }
-        request.httpBody = httpBody
-        request.timeoutInterval = 12
-
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let singerAlbum = json["singerAlbum"] as? [String: Any],
+        let json = try await musicuGET(body)
+        guard let singerAlbum = json["singerAlbum"] as? [String: Any],
               let albumData = singerAlbum["data"] as? [String: Any],
               let list = albumData["list"] as? [[String: Any]] else {
             return []
@@ -456,18 +449,8 @@ enum QQMusicAPI {
                 "module": "music.musichallAlbum.AlbumSongList"
             ]
         ]
-        guard let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg"),
-              let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return [] }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.allHTTPHeaderFields = headers.merging(["Content-Type": "application/json"]) { _, new in new }
-        request.httpBody = httpBody
-        request.timeoutInterval = 15
-
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let albumSonglist = json["albumSonglist"] as? [String: Any],
+        let json = try await musicuGET(body)
+        guard let albumSonglist = json["albumSonglist"] as? [String: Any],
               let albumData = albumSonglist["data"] as? [String: Any],
               let songList = albumData["songList"] as? [[String: Any]] else {
             return []
