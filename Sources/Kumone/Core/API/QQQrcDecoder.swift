@@ -334,21 +334,9 @@ enum QQQrcDecoder {
         let inputSize = data.count
         let outputSize = inputSize * 8 + 1024
         var outputBuffer = [UInt8](repeating: 0, count: outputSize)
-        let result = outputBuffer.withUnsafeMutableBytes { outputPtr -> Int in
-            data.withUnsafeBytes { inputPtr -> Int in
-                compression_decode_buffer(
-                    outputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                    outputSize,
-                    inputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                    inputSize,
-                    nil,
-                    COMPRESSION_ZLIB
-                )
-            }
-        }
-        guard result > 0 else {
-            // 尝试 raw deflate
-            let rawResult = outputBuffer.withUnsafeMutableBytes { outputPtr -> Int in
+
+        func decode(_ algorithm: compression_algorithm) -> Int {
+            outputBuffer.withUnsafeMutableBytes { outputPtr -> Int in
                 data.withUnsafeBytes { inputPtr -> Int in
                     compression_decode_buffer(
                         outputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
@@ -356,18 +344,18 @@ enum QQQrcDecoder {
                         inputPtr.baseAddress!.assumingMemoryBound(to: UInt8.self),
                         inputSize,
                         nil,
-                        COMPRESSION_RAW
+                        algorithm
                     )
                 }
             }
-            guard rawResult > 0 else { return nil }
-            var result = Array(outputBuffer.prefix(rawResult))
-            if result.count >= 3 && result[0] == 0xEF && result[1] == 0xBB && result[2] == 0xBF {
-                result = Array(result.dropFirst(3))
-            }
-            return result
         }
-        var result = Array(outputBuffer.prefix(result))
+
+        var decodedSize = decode(COMPRESSION_ZLIB)
+        if decodedSize <= 0 {
+            decodedSize = decode(COMPRESSION_LZRAW)
+        }
+        guard decodedSize > 0 else { return nil }
+        var result = Array(outputBuffer.prefix(decodedSize))
         if result.count >= 3 && result[0] == 0xEF && result[1] == 0xBB && result[2] == 0xBF {
             result = Array(result.dropFirst(3))
         }
