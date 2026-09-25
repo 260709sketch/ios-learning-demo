@@ -130,7 +130,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
     private var layoutFontFamily = ""
     private var layoutShowLyrics = true
     // 当前背景模式（用于 WebView 加载时提前注入，避免流动背景闪烁）
-    private var backgroundMode: SettingsManager.AMLLBackgroundMode = .flowing
+    var backgroundMode: SettingsManager.AMLLBackgroundMode = .flowing
 
     init(player: PlayerService, onSeek: ((TimeInterval) -> Void)?) {
         self.player = player

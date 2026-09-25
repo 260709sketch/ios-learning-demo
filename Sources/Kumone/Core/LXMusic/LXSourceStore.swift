@@ -192,6 +192,8 @@ final class LXSourceStore: ObservableObject {
 
     /// 加载并激活音源。
     func activate(_ source: LXSourceInfo) async {
+        // 防重复调用：正在初始化时直接返回，避免重复 cleanup 中断前一次初始化
+        guard !isInitializing else { return }
         guard let script = script(for: source.id) else {
             lastError = "音源脚本不存在"
             return
