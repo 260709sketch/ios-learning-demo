@@ -163,17 +163,17 @@ struct ArtistDetailView: View {
             async let songsTask = try? QQMusicAPI.artistSongs(singerMid: mid, limit: 50)
             async let albumsTask = try? QQMusicAPI.artistAlbums(singerMid: mid, limit: 60)
 
-            let (songs, albumList) = await (songsTask, albumsTask)
-            hotSongs = songs ?? []
-            let songCount = songs?.count ?? 0
-            let albumCount = albumList?.count ?? 0
-            DebugLogger.shared.log("歌手页", "QQ音乐 songs 返回 \(songCount) 首 albums 返回 \(albumCount) 张", level: songCount == 0 ? .error : .success)
+            let (songsResult, albumsResult) = await (songsTask, albumsTask)
+            hotSongs = songsResult?.tracks ?? []
+            let songCount = songsResult?.total ?? (songsResult?.tracks.count ?? 0)
+            let albumCount = albumsResult?.total ?? (albumsResult?.albums.count ?? 0)
+            DebugLogger.shared.log("歌手页", "QQ音乐 songs 返回 \(hotSongs.count) 首 总数=\(songCount) albums 返回 \(albumsResult?.albums.count ?? 0) 张 总数=\(albumCount)", level: songCount == 0 ? .error : .success)
             // 更新歌手信息中的数量
             if let current = artist {
                 artist = ArtistSummary(id: current.id, name: current.name, picUrl: current.picUrl, albumSize: albumCount, musicSize: songCount, followed: current.followed, alias: current.alias, sourcePlatform: "tx", singerMid: mid)
             }
             // QQ音乐专辑按 subType 分区：专辑在上面，EP与单曲在下面（与网易云一致）
-            let allAlbums = albumList ?? []
+            let allAlbums = albumsResult?.albums ?? []
             albums = allAlbums.filter { $0.subType == "专辑" || $0.subType == nil }
             epsAndSingles = allAlbums.filter { $0.subType == "EP" || $0.subType == "单曲" }
             DebugLogger.shared.log("歌手页", "QQ音乐专辑分区 专辑=\(albums.count) EP/单曲=\(epsAndSingles.count)")

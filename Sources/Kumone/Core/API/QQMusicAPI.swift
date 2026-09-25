@@ -368,7 +368,7 @@ enum QQMusicAPI {
     }
 
     // MARK: - 歌手详情（参考 Well Music xiaoqiu.js getArtistSongs/getArtistAlbums）
-    static func artistSongs(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> [Track] {
+    static func artistSongs(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> (tracks: [Track], total: Int) {
         DebugLogger.shared.log("QQ歌手", "artistSongs 请求 mid=\(singerMid) page=\(page) limit=\(limit)")
         let body: [String: Any] = [
             "comm": ["ct": 24, "cv": 0],
@@ -388,19 +388,23 @@ enum QQMusicAPI {
               let singerData = singer["data"] as? [String: Any],
               let songlist = singerData["songlist"] as? [[String: Any]] else {
             DebugLogger.shared.log("QQ歌手", "artistSongs 响应格式错误 mid=\(singerMid) jsonKeys=\(json.keys)", level: .error)
-            return []
+            return ([], 0)
         }
-        DebugLogger.shared.log("QQ歌手", "artistSongs 返回 \(songlist.count) 首 mid=\(singerMid)", level: .success)
+        // 真实总数：totalNum 或 song_total
+        let total = (singerData["totalNum"] as? Int) ?? (singerData["song_total"] as? Int) ?? songlist.count
+        DebugLogger.shared.log("QQ歌手", "artistSongs 返回 \(songlist.count) 首 总数=\(total) mid=\(singerMid)", level: .success)
 
-        return songlist.compactMap { item -> Track? in
+        let tracks = songlist.compactMap { item -> Track? in
             // get_singer_detail_info 接口返回字段：name/title, mid, id, singer[], album{}
-            guard let songmid = item["mid"] as? String, !songmid.isEmpty else { return nil }
-            let songid = (item["id"] as? Int) ?? abs(songmid.hashValue)
-            let name = (item["name"] as? String) ?? (item["title"] as? String) ?? ""
-            let interval = (item["interval"] as? Int) ?? 0
+            // 某些情况下歌曲信息在 songInfo 子对象中
+            let songInfo = item["songInfo"] as? [String: Any] ?? item
+            guard let songmid = (songInfo["mid"] as? String) ?? (item["mid"] as? String), !songmid.isEmpty else { return nil }
+            let songid = (songInfo["id"] as? Int) ?? (item["id"] as? Int) ?? abs(songmid.hashValue)
+            let name = (songInfo["name"] as? String) ?? (songInfo["title"] as? String) ?? (item["name"] as? String) ?? ""
+            let interval = (songInfo["interval"] as? Int) ?? (item["interval"] as? Int) ?? 0
 
             var artists: [ArtistRef] = []
-            if let singerList = item["singer"] as? [[String: Any]] {
+            if let singerList = (songInfo["singer"] as? [[String: Any]]) ?? (item["singer"] as? [[String: Any]]) {
                 artists = singerList.map { s in
                     let sid = (s["id"] as? Int) ?? 0
                     let sname = (s["name"] as? String) ?? ""
@@ -411,25 +415,26 @@ enum QQMusicAPI {
             }
 
             // 专辑信息在 album 对象中
-            let albumDict = item["album"] as? [String: Any] ?? [:]
+            let albumDict = (songInfo["album"] as? [String: Any]) ?? (item["album"] as? [String: Any]) ?? [:]
             let albumName = (albumDict["name"] as? String) ?? (albumDict["title"] as? String) ?? ""
             let albumMid = (albumDict["mid"] as? String) ?? ""
             let albumID = (albumDict["id"] as? Int) ?? 0
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
-            // QQ音乐 Explicit 脏标：尝试多个可能的字段和bit位
-            let status = (item["status"] as? Int) ?? 0
-            let action = (item["action"] as? Int) ?? 0
-            let payDict = item["pay"] as? [String: Any] ?? [:]
+            // QQ音乐 Explicit 脏标：同时检查 item 层面和 songInfo 层面的多个字段
+            let status = (item["status"] as? Int) ?? (songInfo["status"] as? Int) ?? 0
+            let action = (item["action"] as? Int) ?? (songInfo["action"] as? Int) ?? 0
+            let payDict = (item["pay"] as? [String: Any]) ?? (songInfo["pay"] as? [String: Any]) ?? [:]
             let payPay = (payDict["pay"] as? Int) ?? 0
             let isExplicit = (status & 128) != 0 || (status & 2048) != 0 || (action & 128) != 0 || (action & 2048) != 0 || (payPay & 128) != 0 || (payPay & 2048) != 0
 
             return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid, isExplicit: isExplicit)
         }
+        return (tracks, total)
     }
 
-    static func artistAlbums(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> [AlbumSummary] {
+    static func artistAlbums(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> (albums: [AlbumSummary], total: Int) {
         DebugLogger.shared.log("QQ歌手", "artistAlbums 请求 mid=\(singerMid) page=\(page) limit=\(limit)")
         let body: [String: Any] = [
             "comm": ["ct": 24, "cv": 0],
@@ -450,11 +455,13 @@ enum QQMusicAPI {
               let albumData = singerAlbum["data"] as? [String: Any],
               let list = albumData["list"] as? [[String: Any]] else {
             DebugLogger.shared.log("QQ歌手", "artistAlbums 响应格式错误 mid=\(singerMid) jsonKeys=\(json.keys)", level: .error)
-            return []
+            return ([], 0)
         }
-        DebugLogger.shared.log("QQ歌手", "artistAlbums 返回 \(list.count) 张 mid=\(singerMid)", level: .success)
+        // 真实总数：total 或 totalNum
+        let total = (albumData["total"] as? Int) ?? (albumData["totalNum"] as? Int) ?? list.count
+        DebugLogger.shared.log("QQ歌手", "artistAlbums 返回 \(list.count) 张 总数=\(total) mid=\(singerMid)", level: .success)
 
-        return list.compactMap { item -> AlbumSummary? in
+        let albums = list.compactMap { item -> AlbumSummary? in
             // get_singer_album 接口返回字段：albumid/album_mid/album_name/singer_name/pub_time/albumtype/song_count/ftype
             let albumID = (item["albumid"] as? Int) ?? (item["albumID"] as? Int) ?? (item["id"] as? Int) ?? 0
             let albumName = (item["album_name"] as? String) ?? (item["albumName"] as? String) ?? (item["name"] as? String) ?? ""
@@ -477,6 +484,7 @@ enum QQMusicAPI {
             }
             return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: publishTime, albumMid: albumMID, size: songCount, subType: subType)
         }
+        return (albums, total)
     }
 
     // MARK: - 专辑详情（参考 Well Music xiaoqiu.js getAlbumInfo）
