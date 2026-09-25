@@ -394,6 +394,7 @@ enum QQMusicAPI {
         let total = (reqData["totalNum"] as? Int) ?? songList.count
         DebugLogger.shared.log("QQ歌手", "artistSongs 返回 \(songList.count) 首 总数=\(total) mid=\(singerMid)", level: .success)
 
+        var isFirstSong = true
         let tracks = songList.compactMap { item -> Track? in
             // GetSingerSongList 接口返回字段：songInfo 子对象或直接字段
             let songInfo = item["songInfo"] as? [String: Any] ?? item
@@ -421,12 +422,27 @@ enum QQMusicAPI {
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
-            // QQ音乐 Explicit 脏标：同时检查 item 层面和 songInfo 层面的多个字段
+            // QQ音乐 Explicit 脏标：全面检查 item 和 songInfo 层面的所有可能字段
             let status = (item["status"] as? Int) ?? (songInfo["status"] as? Int) ?? 0
             let action = (item["action"] as? Int) ?? (songInfo["action"] as? Int) ?? 0
             let payDict = (item["pay"] as? [String: Any]) ?? (songInfo["pay"] as? [String: Any]) ?? [:]
             let payPay = (payDict["pay"] as? Int) ?? 0
-            let isExplicit = (status & 128) != 0 || (status & 2048) != 0 || (action & 128) != 0 || (action & 2048) != 0 || (payPay & 128) != 0 || (payPay & 2048) != 0
+            let switchDict = (item["switch"] as? [String: Any]) ?? (songInfo["switch"] as? [String: Any]) ?? [:]
+            let msgDict = (item["msg"] as? [String: Any]) ?? (songInfo["msg"] as? [String: Any]) ?? [:]
+            // 脏标可能在多个bit位：bit7(128)=付费专辑, bit11(2048)=脏标, 还有其他可能
+            let isExplicit = (status & 128) != 0 || (status & 2048) != 0 ||
+                             (action & 128) != 0 || (action & 2048) != 0 ||
+                             (payPay & 128) != 0 || (payPay & 2048) != 0 ||
+                             (switchDict["flag"] as? Int ?? 0) & 2048 != 0 ||
+                             (msgDict["explicit"] as? Int ?? 0) != 0 ||
+                             (songInfo["isExplicit"] as? Int ?? 0) != 0 ||
+                             (item["isExplicit"] as? Int ?? 0) != 0
+
+            // 调试：打印第一首歌的所有字段，帮助定位脏标
+            if isFirstSong {
+                DebugLogger.shared.log("QQ脏标", "歌曲[\(name)] item.keys=\(Array(item.keys)) songInfo.keys=\(Array(songInfo.keys)) status=\(status) action=\(action) payPay=\(payPay) isExplicit=\(isExplicit)")
+                isFirstSong = false
+            }
 
             return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid, isExplicit: isExplicit)
         }
@@ -499,6 +515,7 @@ enum QQMusicAPI {
             return []
         }
 
+        var isFirstAlbumSong = true
         return songList.compactMap { item -> Track? in
             // fcg_v8_album_info_cp 接口返回字段：songname, songmid, songid, singer[], albumname, albummid, interval, status, action
             guard let songmid = item["songmid"] as? String, !songmid.isEmpty else { return nil }
@@ -523,12 +540,25 @@ enum QQMusicAPI {
             let picUrl = "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
-            // QQ音乐 Explicit 脏标
+            // QQ音乐 Explicit 脏标：全面检查所有可能字段
             let status = (item["status"] as? Int) ?? 0
             let action = (item["action"] as? Int) ?? 0
             let payDict = item["pay"] as? [String: Any] ?? [:]
             let payPay = (payDict["pay"] as? Int) ?? 0
-            let isExplicit = (status & 128) != 0 || (status & 2048) != 0 || (action & 128) != 0 || (action & 2048) != 0 || (payPay & 128) != 0 || (payPay & 2048) != 0
+            let switchDict = item["switch"] as? [String: Any] ?? [:]
+            let msgDict = item["msg"] as? [String: Any] ?? [:]
+            let isExplicit = (status & 128) != 0 || (status & 2048) != 0 ||
+                             (action & 128) != 0 || (action & 2048) != 0 ||
+                             (payPay & 128) != 0 || (payPay & 2048) != 0 ||
+                             (switchDict["flag"] as? Int ?? 0) & 2048 != 0 ||
+                             (msgDict["explicit"] as? Int ?? 0) != 0 ||
+                             (item["isExplicit"] as? Int ?? 0) != 0
+
+            // 调试：打印第一首歌的所有字段
+            if isFirstAlbumSong {
+                DebugLogger.shared.log("QQ脏标", "专辑歌曲[\(name)] keys=\(Array(item.keys)) status=\(status) action=\(action) payPay=\(payPay) isExplicit=\(isExplicit)")
+                isFirstAlbumSong = false
+            }
 
             return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid, isExplicit: isExplicit)
         }
