@@ -64,7 +64,8 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
 
     #if os(iOS)
     func makeUIView(context: Context) -> WKWebView {
-        context.coordinator.createWebView()
+        context.coordinator.backgroundMode = backgroundMode
+        return context.coordinator.createWebView()
     }
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.applyLayout(
@@ -75,7 +76,8 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
     }
     #elseif os(macOS)
     func makeNSView(context: Context) -> WKWebView {
-        context.coordinator.createWebView()
+        context.coordinator.backgroundMode = backgroundMode
+        return context.coordinator.createWebView()
     }
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.applyLayout(
@@ -127,6 +129,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
     private var layoutFontWeight = 700
     private var layoutFontFamily = ""
     private var layoutShowLyrics = true
+    // 当前背景模式（用于 WebView 加载时提前注入，避免流动背景闪烁）
+    private var backgroundMode: SettingsManager.AMLLBackgroundMode = .flowing
 
     init(player: PlayerService, onSeek: ((TimeInterval) -> Void)?) {
         self.player = player
@@ -145,6 +149,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         layoutFontWeight = fontWeight
         layoutFontFamily = fontFamily
         layoutShowLyrics = showLyrics
+        self.backgroundMode = backgroundMode
 
         // 通过 JS 直接操作 DOM 设置歌词容器位置和显示状态
         // 关键：用 opacity 而不是 display:none。display:none 会让浏览器暂停
@@ -223,6 +228,30 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 注册 JS → Swift 消息通道
         let userContent = WKUserContentController()
         userContent.add(self, name: "amllEvent")
+
+        // 提前注入背景模式设置，避免 WebView 加载时流动背景闪烁
+        // 用 setInterval 轮询等待 Fu(MeshGradientRenderer) 初始化后立即应用
+        let bgHide = (backgroundMode == .original) ? "true" : "false"
+        let bgPause = (backgroundMode == .flowing) ? "false" : "true"
+        let bgInitScript = """
+        (function() {
+            var tries = 0;
+            var timer = setInterval(function() {
+                tries++;
+                if (typeof Fu !== 'undefined' && Fu) {
+                    clearInterval(timer);
+                    var bg = document.getElementById('bg');
+                    if (bg) bg.style.display = \(bgHide) ? 'none' : 'block';
+                    if (\(bgPause)) { Fu.pause(); } else { Fu.resume(); }
+                } else if (tries > 100) {
+                    clearInterval(timer);
+                }
+            }, 10);
+        })();
+        """
+        let userScript = WKUserScript(source: bgInitScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        userContent.addUserScript(userScript)
+
         config.userContentController = userContent
 
         let webView = WKWebView(frame: .zero, configuration: config)
