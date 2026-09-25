@@ -329,7 +329,7 @@ enum QQQrcDecoder {
     }
 
     // MARK: - zlib 解压
-    private static func decompress(_ data: [UInt8], algorithm: compression_algorithm) -> [UInt8]? {
+    private static func decompress(_ data: [UInt8]) -> [UInt8]? {
         guard !data.isEmpty else { return nil }
         let inputSize = data.count
         let outputSize = inputSize * 16 + 1024
