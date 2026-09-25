@@ -535,41 +535,55 @@ final class LXMusicEngine: NSObject {
         let pic = track.album.picUrl ?? ""
         // LX 音源标准：多歌手用"、"分隔
         let singer = track.artists.map { $0.name }.joined(separator: "、")
-        return [
-            "id": id,
+        // 官方 LX Mobile toOldMusicInfo() 标准格式：interval 为 mm:ss
+        let durationSec = Int(track.duration)
+        let interval = String(format: "%02d:%02d", durationSec / 60, durationSec % 60)
+        // 标准音质列表（官方格式 types / _types）
+        let qualityInfo: [[String: Any]] = [
+            ["type": "128k", "size": ""],
+            ["type": "320k", "size": ""],
+            ["type": "flac", "size": ""]
+        ]
+        let qualityMap: [String: [String: String]] = [
+            "128k": ["size": ""],
+            "320k": ["size": ""],
+            "flac": ["size": ""]
+        ]
+        var info: [String: Any] = [
+            // 官方 LX Mobile 标准字段
             "name": track.name,
             "singer": singer,
             "source": "wy",
-            "interval": String(Int(track.duration)),
-            "albumId": track.album.id,
-            "albumName": track.album.name,
-            "pic": pic,
-            // 标准 LX 顶层字段：各平台 ID，聚合音源会按需取用
             "songmid": id,
+            "interval": interval,
+            "albumName": track.album.name,
+            "img": pic,
+            "typeUrl": [:] as [String: String],
+            "albumId": track.album.id,
+            "types": qualityInfo,
+            "_types": qualityMap,
+            // 兼容字段：部分音源使用这些名称
+            "id": id,
             "songId": id,
             "strMediaMid": id,
+            "pic": pic,
+            "album": track.album.name,
             "hash": "",
             "rid": "",
-            "album": track.album.name,
+            // meta 保留旧格式兼容
             "meta": [
                 "songId": id,
                 "songmid": id,
                 "albumId": track.album.id,
                 "albumName": track.album.name,
                 "picUrl": pic,
+                "img": pic,
                 "fee": track.fee,
-                "qualitys": [
-                    ["type": "128k", "size": NSNull()],
-                    ["type": "320k", "size": NSNull()],
-                    ["type": "flac", "size": NSNull()]
-                ],
-                "_qualitys": [
-                    "128k": ["size": NSNull()],
-                    "320k": ["size": NSNull()],
-                    "flac": ["size": NSNull()]
-                ]
+                "qualitys": qualityInfo,
+                "_qualitys": qualityMap
             ]
         ]
+        return info
     }
 
     // MARK: - 清理
