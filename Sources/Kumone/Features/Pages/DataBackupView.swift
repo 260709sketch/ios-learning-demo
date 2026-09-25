@@ -74,7 +74,7 @@ struct DataBackupView: View {
         }
         .fileImporter(
             isPresented: $showFilePicker,
-            allowedContentTypes: [.json],
+            allowedContentTypes: [.item],
             allowsMultipleSelection: false
         ) { result in
             handleFileImport(result: result)

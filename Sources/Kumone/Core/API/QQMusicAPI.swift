@@ -422,21 +422,22 @@ enum QQMusicAPI {
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
-            // QQ音乐 Explicit 脏标：全面检查 item 和 songInfo 层面的所有可能字段
+            // QQ音乐 Explicit 脏标：全面检查所有可能字段
             let status = (item["status"] as? Int) ?? (songInfo["status"] as? Int) ?? 0
             let action = (item["action"] as? Int) ?? (songInfo["action"] as? Int) ?? 0
             let payDict = (item["pay"] as? [String: Any]) ?? (songInfo["pay"] as? [String: Any]) ?? [:]
             let payPay = (payDict["pay"] as? Int) ?? 0
-            let switchDict = (item["switch"] as? [String: Any]) ?? (songInfo["switch"] as? [String: Any]) ?? [:]
-            let msgDict = (item["msg"] as? [String: Any]) ?? (songInfo["msg"] as? [String: Any]) ?? [:]
-            // 脏标可能在多个bit位：bit7(128)=付费专辑, bit11(2048)=脏标, 还有其他可能
+            let label = (item["label"] as? String) ?? (songInfo["label"] as? String) ?? ""
+            let ktag = (item["ktag"] as? Int) ?? (songInfo["ktag"] as? Int) ?? 0
+            let type = (item["type"] as? Int) ?? (songInfo["type"] as? Int) ?? 0
+            // 脏标可能在多个位置：status/action bit11(2048), label包含explicit, ktag, type等
             let isExplicit = (status & 128) != 0 || (status & 2048) != 0 ||
                              (action & 128) != 0 || (action & 2048) != 0 ||
                              (payPay & 128) != 0 || (payPay & 2048) != 0 ||
-                             (switchDict["flag"] as? Int ?? 0) & 2048 != 0 ||
-                             (msgDict["explicit"] as? Int ?? 0) != 0 ||
-                             (songInfo["isExplicit"] as? Int ?? 0) != 0 ||
-                             (item["isExplicit"] as? Int ?? 0) != 0
+                             (ktag & 2048) != 0 ||
+                             label.lowercased().contains("explicit") ||
+                             label.contains("脏标") ||
+                             type == 11
 
             // 调试：打印第一首歌的完整JSON，帮助定位脏标
             if isFirstSong {
@@ -549,14 +550,16 @@ enum QQMusicAPI {
             let action = (item["action"] as? Int) ?? 0
             let payDict = item["pay"] as? [String: Any] ?? [:]
             let payPay = (payDict["pay"] as? Int) ?? 0
-            let switchDict = item["switch"] as? [String: Any] ?? [:]
-            let msgDict = item["msg"] as? [String: Any] ?? [:]
+            let label = (item["label"] as? String) ?? ""
+            let ktag = (item["ktag"] as? Int) ?? 0
+            let type = (item["type"] as? Int) ?? 0
             let isExplicit = (status & 128) != 0 || (status & 2048) != 0 ||
                              (action & 128) != 0 || (action & 2048) != 0 ||
                              (payPay & 128) != 0 || (payPay & 2048) != 0 ||
-                             (switchDict["flag"] as? Int ?? 0) & 2048 != 0 ||
-                             (msgDict["explicit"] as? Int ?? 0) != 0 ||
-                             (item["isExplicit"] as? Int ?? 0) != 0
+                             (ktag & 2048) != 0 ||
+                             label.lowercased().contains("explicit") ||
+                             label.contains("脏标") ||
+                             type == 11
 
             // 调试：打印第一首歌的所有字段
             if isFirstAlbumSong {
