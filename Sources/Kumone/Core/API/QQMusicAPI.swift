@@ -354,6 +354,7 @@ enum QQMusicAPI {
 
     // MARK: - 歌手详情（参考 Well Music xiaoqiu.js getArtistSongs/getArtistAlbums）
     static func artistSongs(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> [Track] {
+        DebugLogger.shared.log("QQ歌手", "artistSongs 请求 mid=\(singerMid) page=\(page) limit=\(limit)")
         let body: [String: Any] = [
             "comm": ["ct": 24, "cv": 0],
             "singer": [
@@ -371,8 +372,10 @@ enum QQMusicAPI {
         guard let singer = json["singer"] as? [String: Any],
               let singerData = singer["data"] as? [String: Any],
               let songlist = singerData["songlist"] as? [[String: Any]] else {
+            DebugLogger.shared.log("QQ歌手", "artistSongs 响应格式错误 mid=\(singerMid) jsonKeys=\(json.keys)", level: .error)
             return []
         }
+        DebugLogger.shared.log("QQ歌手", "artistSongs 返回 \(songlist.count) 首 mid=\(singerMid)", level: .success)
 
         return songlist.compactMap { item -> Track? in
             // get_singer_detail_info 接口返回字段：name/title, mid, id, singer[], album{}
@@ -405,6 +408,7 @@ enum QQMusicAPI {
     }
 
     static func artistAlbums(singerMid: String, page: Int = 1, limit: Int = 20) async throws -> [AlbumSummary] {
+        DebugLogger.shared.log("QQ歌手", "artistAlbums 请求 mid=\(singerMid) page=\(page) limit=\(limit)")
         let body: [String: Any] = [
             "comm": ["ct": 24, "cv": 0],
             "singerAlbum": [
@@ -423,8 +427,10 @@ enum QQMusicAPI {
         guard let singerAlbum = json["singerAlbum"] as? [String: Any],
               let albumData = singerAlbum["data"] as? [String: Any],
               let list = albumData["list"] as? [[String: Any]] else {
+            DebugLogger.shared.log("QQ歌手", "artistAlbums 响应格式错误 mid=\(singerMid) jsonKeys=\(json.keys)", level: .error)
             return []
         }
+        DebugLogger.shared.log("QQ歌手", "artistAlbums 返回 \(list.count) 张 mid=\(singerMid)", level: .success)
 
         return list.compactMap { item -> AlbumSummary? in
             // get_singer_album 接口返回字段：albumid/album_mid/album_name/singer_name/pub_time

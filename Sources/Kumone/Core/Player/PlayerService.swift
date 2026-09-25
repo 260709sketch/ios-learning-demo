@@ -196,9 +196,11 @@ final class PlayerService: ObservableObject {
     private var hasPreloadedCurrent = false
     /// 当前正在解析「正在播放」请求的数量；>0 时预加载让出单例音源运行时，避免抢占导致切歌卡住
     private var activeCurrentResolveCount = 0
-    /// 预加载 URL 内存缓存（key: 平台+id，value: url string），播放时优先命中实现秒开
+    /// 预加载 URL 内存缓存（key: 平台+id，value: (url, 时间戳, 音源ID)），播放时优先命中实现秒开
     /// key 包含 sourcePlatform 避免不同平台歌曲 id 冲突（QQ音乐id为hashValue，可能与网易云id相同）
-    private var preloadedURLs: [String: String] = [:]
+    /// 加入过期时间（60秒）和音源ID校验，避免使用过期URL或不同音源返回的URL
+    private var preloadedURLs: [String: (url: String, timestamp: Date, sourceID: String)] = [:]
+    private let preloadTTL: TimeInterval = 60 // 预加载URL有效期60秒
     private func preloadCacheKey(for track: Track) -> String {
         "\(track.sourcePlatform ?? "wy")_\(track.id)"
     }
@@ -725,11 +727,14 @@ final class PlayerService: ObservableObject {
         // 音质由设置中的音质选项控制，自动遍历所有音源换源，不 fallback 到网易云官方或内置音源
         if hasLXSource {
             // 优先检查预加载URL缓存，命中则直接用URL播放（秒开，跳过音源请求）
-            // 预加载只在非预加载请求时使用（preloadOnly=true 时本身就是去解析URL的）
+            // 校验：未过期（60秒内）+ 音源ID匹配（当前激活音源）
             if !preloadOnly,
-               let preloadedURLString = preloadedURLs[preloadCacheKey(for: track)],
-               let preloadedURL = URL(string: preloadedURLString) {
+               let cached = preloadedURLs[preloadCacheKey(for: track)],
+               Date().timeIntervalSince(cached.timestamp) < preloadTTL,
+               cached.sourceID == (LXSourceStore.shared.activeSourceID ?? ""),
+               let preloadedURL = URL(string: cached.url) {
                 preloadedURLs[preloadCacheKey(for: track)] = nil // 用掉后清除
+                DebugLogger.shared.log("预加载", "命中缓存 歌曲=\(track.name) 音源=\(cached.sourceID) 剩余有效期=\(String(format: "%.0f", preloadTTL - Date().timeIntervalSince(cached.timestamp)))s", level: .success)
                 _ = await loadResolvedURL(track, url: preloadedURL, durationMS: nil, generation: generation, preloadOnly: false)
                 return
             }
@@ -796,8 +801,9 @@ final class PlayerService: ObservableObject {
     private func preloadNextTrackIfNeeded() {
         guard SettingsManager.shared.preloadNextTrack else { return }
         guard let nextTrack = upcomingTracks.first else { return }
-        // 已经预加载过同一首，跳过
-        if preloadedURLs[preloadCacheKey(for: nextTrack)] != nil { return }
+        // 已经预加载过同一首且未过期，跳过
+        if let cached = preloadedURLs[preloadCacheKey(for: nextTrack)],
+           Date().timeIntervalSince(cached.timestamp) < preloadTTL { return }
         Task {
             await preloadResolveURLOnly(nextTrack)
         }
@@ -821,8 +827,9 @@ final class PlayerService: ObservableObject {
             let result = try await lxEngine.musicURL(for: track, quality: targetQuality)
             guard !result.url.isEmpty else { return }
             guard URL(string: result.url) != nil else { return }
-            // 存入预加载缓存
-            preloadedURLs[preloadCacheKey(for: track)] = result.url
+            // 存入预加载缓存（带时间戳和音源ID）
+            preloadedURLs[preloadCacheKey(for: track)] = (url: result.url, timestamp: Date(), sourceID: currentSource.id)
+            DebugLogger.shared.log("预加载", "成功 歌曲=\(track.name) 音源=\(currentSource.name) URL=\(result.url.prefix(60))...", level: .success)
             // 限制缓存大小，最多存5首，避免内存占用
             if preloadedURLs.count > 5 {
                 if let firstKey = preloadedURLs.keys.first {
@@ -831,6 +838,7 @@ final class PlayerService: ObservableObject {
             }
         } catch {
             // 预加载失败完全静默，不弹提示、不切歌、不影响当前播放
+            DebugLogger.shared.log("预加载", "失败 歌曲=\(track.name) 错误=\(error.localizedDescription)", level: .error)
         }
     }
 

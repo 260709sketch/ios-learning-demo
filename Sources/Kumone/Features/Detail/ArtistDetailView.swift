@@ -145,17 +145,20 @@ struct ArtistDetailView: View {
     private func load() async {
         isLoading = true
         errorMessage = nil
+        DebugLogger.shared.log("歌手页", "开始加载 artistID=\(artistID) singerMid=\(singerMid ?? "nil") isQQ=\(isQQ) initialArtist=\(initialArtist?.name ?? "nil")")
 
         if isQQ, let mid = singerMid {
             // QQ音乐歌手：用初始信息，加载歌曲和专辑
             artist = initialArtist
             isLoading = false
+            DebugLogger.shared.log("歌手页", "QQ音乐模式 开始请求 songs+albums mid=\(mid)")
 
             async let songsTask = try? QQMusicAPI.artistSongs(singerMid: mid, limit: 50)
             async let albumsTask = try? QQMusicAPI.artistAlbums(singerMid: mid, limit: 60)
 
             let (songs, albumList) = await (songsTask, albumsTask)
             hotSongs = songs ?? []
+            DebugLogger.shared.log("歌手页", "QQ音乐 songs 返回 \(songs?.count ?? 0) 首 albums 返回 \(albumList?.count ?? 0) 张", level: (songs?.isEmpty ?? true) ? .error : .success)
             // QQ音乐专辑不区分专辑/EP，全部放专辑区
             albums = albumList ?? []
             epsAndSingles = []
@@ -164,11 +167,13 @@ struct ArtistDetailView: View {
         }
 
         do {
+            DebugLogger.shared.log("歌手页", "网易云模式 开始请求 artist id=\(artistID)")
             let response = try await NeteaseAPI.artist(id: artistID)
             artist = response.artist
             hotSongs = response.hotSongs
             isFollowed = response.artist.followed
             isLoading = false
+            DebugLogger.shared.log("歌手页", "网易云 songs 返回 \(response.hotSongs.count) 首", level: .success)
 
             if let result = try? await NeteaseAPI.artistAlbums(id: artistID, limit: 60) {
                 albums = result.hotAlbums.filter { $0.size > 1 }
@@ -180,6 +185,7 @@ struct ArtistDetailView: View {
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+            DebugLogger.shared.log("歌手页", "网易云请求失败 error=\(error.localizedDescription)", level: .error)
         }
     }
 
