@@ -25,9 +25,11 @@ enum QQMusicAPI {
     ]
 
     // MARK: - 对象构造辅助（这些 struct 有自定义 init(from:)，无成员初始化器，用 JSON 解码构造）
-    private static func makeTrack(id: Int, name: String, artists: [ArtistRef], album: AlbumRef, durationMS: Int, sourcePlatform: String, platformSongId: String) -> Track? {
+    private static func makeTrack(id: Int, name: String, artists: [ArtistRef], album: AlbumRef, durationMS: Int, sourcePlatform: String, platformSongId: String, isExplicit: Bool = false) -> Track? {
+        // QQ音乐脏标歌曲名后加 (Explicit) 后缀
+        let displayName = isExplicit ? "\(name) (Explicit)" : name
         let dict: [String: Any] = [
-            "id": id, "name": name,
+            "id": id, "name": displayName,
             "ar": artists.map { ["id": $0.id, "name": $0.name, "singerMid": $0.singerMid ?? ""] },
             "al": ["id": album.id, "name": album.name, "picUrl": album.picUrl ?? "", "albumMid": album.albumMid ?? ""],
             "dt": durationMS, "alia": [], "tns": [], "fee": 0, "mv": 0, "no": 0,
@@ -98,7 +100,11 @@ enum QQMusicAPI {
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
-            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
+            // QQ音乐 Explicit 脏标：status 字段 bit 11 (2048) 表示脏标
+            let status = (item["status"] as? Int) ?? 0
+            let isExplicit = (status & 2048) != 0
+
+            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid, isExplicit: isExplicit)
         }
     }
 
@@ -404,7 +410,11 @@ enum QQMusicAPI {
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
-            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
+            // QQ音乐 Explicit 脏标：status 字段 bit 11 (2048) 表示脏标
+            let status = (item["status"] as? Int) ?? 0
+            let isExplicit = (status & 2048) != 0
+
+            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid, isExplicit: isExplicit)
         }
     }
 
@@ -508,7 +518,11 @@ enum QQMusicAPI {
             let picUrl = albumMid2.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid2).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid2)
 
-            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid)
+            // QQ音乐 Explicit 脏标：status 字段 bit 11 (2048) 表示脏标
+            let status = (songInfo["status"] as? Int) ?? 0
+            let isExplicit = (status & 2048) != 0
+
+            return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid, isExplicit: isExplicit)
         }
     }
 
