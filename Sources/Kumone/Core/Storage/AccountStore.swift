@@ -64,65 +64,54 @@ final class AccountStore: ObservableObject {
         likedTrackIDs.contains(trackID)
     }
 
-    /// 判断歌曲是否已收藏（QQ音乐歌曲检查本地歌单，网易云歌曲检查likedTrackIDs）
+    /// 判断歌曲是否已收藏（统一检查本地歌单）
     func isLiked(track: Track) -> Bool {
-        if track.sourcePlatform == "tx" {
-            return LocalPlaylistStore.shared.contains(track)
-        }
-        return likedTrackIDs.contains(track.id)
+        LocalPlaylistStore.shared.contains(track)
+    }
+
+    func isLiked(_ trackID: Int) -> Bool {
+        likedTrackIDs.contains(trackID)
     }
 
     func toggleLike(trackID: Int, track: Track? = nil) async {
-        DebugLogger.shared.log("收藏", "=== toggleLike 开始 trackID=\(trackID) track=\(track != nil) name=\(track?.name ?? "nil") sourcePlatform=\(track?.sourcePlatform ?? "nil")")
-        // QQ音乐歌曲：只存本地歌单，不需要登录网易云，不调用网易云API
-        if let track = track, track.sourcePlatform == "tx" {
-            DebugLogger.shared.log("收藏", "识别为QQ音乐歌曲，走本地歌单逻辑", level: .success)
+        // 有 track 对象：所有歌曲先存本地歌单，再判断是否需要同步网易云
+        if let track = track {
             let isInLocal = LocalPlaylistStore.shared.contains(track)
             if isInLocal {
                 LocalPlaylistStore.shared.removeTrack(track)
                 ToastCenter.shared.show("已从本地歌单移除")
-                DebugLogger.shared.log("收藏", "已从本地歌单移除", level: .success)
             } else {
                 LocalPlaylistStore.shared.addTrack(track)
                 ToastCenter.shared.show("已收藏到本地歌单")
-                DebugLogger.shared.log("收藏", "已收藏到本地歌单 数量=\(LocalPlaylistStore.shared.count)", level: .success)
+            }
+
+            // 判断是否是网易云歌曲（sourcePlatform为nil或wy/netease，且没有platformSongId）
+            let isNetease = (track.sourcePlatform == nil || track.sourcePlatform == "wy" || track.sourcePlatform == "netease") && track.platformSongId == nil
+            if isNetease && isLoggedIn {
+                let like = !isInLocal
+                if like { likedTrackIDs.insert(trackID) } else { likedTrackIDs.remove(trackID) }
+                do {
+                    try await NeteaseAPI.likeTrack(id: trackID, like: like)
+                } catch {
+                    if like { likedTrackIDs.remove(trackID) } else { likedTrackIDs.insert(trackID) }
+                    ToastCenter.shared.show(error.localizedDescription)
+                }
             }
             NowPlayingManager.shared.refreshLikeState()
             return
         }
-        DebugLogger.shared.log("收藏", "未识别为QQ音乐，走网易云逻辑")
 
-        // 网易云歌曲：需要登录，同步到网易云，同时存本地歌单
+        // 没有 track 对象：只处理网易云逻辑（兼容旧调用）
         guard isLoggedIn else {
             ToastCenter.shared.show(String(localized: "登录后即可收藏歌曲"))
             return
         }
         let like = !likedTrackIDs.contains(trackID)
-        DebugLogger.shared.log("收藏", "网易云歌曲 trackID=\(trackID) like=\(like) track=\(track != nil) sourcePlatform=\(track?.sourcePlatform ?? "nil")")
-        // Optimistic update
         if like { likedTrackIDs.insert(trackID) } else { likedTrackIDs.remove(trackID) }
-        // 同步到本地歌单（收藏时添加，取消收藏时移除）
-        if let track = track {
-            if like {
-                LocalPlaylistStore.shared.addTrack(track)
-                DebugLogger.shared.log("收藏", "已添加到本地歌单 歌曲=\(track.name) 本地歌单数量=\(LocalPlaylistStore.shared.count)", level: .success)
-            } else {
-                LocalPlaylistStore.shared.removeTrack(track)
-                DebugLogger.shared.log("收藏", "已从本地歌单移除 歌曲=\(track.name)", level: .success)
-            }
-        } else if !like {
-            // 没有 track 对象时，按 id 和平台移除（平台为 nil 时只按 id 匹配网易云）
-            LocalPlaylistStore.shared.removeTrack(trackID: trackID, sourcePlatform: nil)
-            DebugLogger.shared.log("收藏", "无track对象，按id移除本地歌单 trackID=\(trackID)")
-        }
         do {
             try await NeteaseAPI.likeTrack(id: trackID, like: like)
         } catch {
             if like { likedTrackIDs.remove(trackID) } else { likedTrackIDs.insert(trackID) }
-            // 回滚本地歌单
-            if let track = track {
-                if like { LocalPlaylistStore.shared.removeTrack(track) } else { LocalPlaylistStore.shared.addTrack(track) }
-            }
             ToastCenter.shared.show(error.localizedDescription)
         }
         NowPlayingManager.shared.refreshLikeState()

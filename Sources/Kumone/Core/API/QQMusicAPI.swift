@@ -421,7 +421,9 @@ enum QQMusicAPI {
             // QQ音乐 Explicit 脏标：尝试多个可能的字段和bit位
             let status = (item["status"] as? Int) ?? 0
             let action = (item["action"] as? Int) ?? 0
-            let isExplicit = (status & 128) != 0 || (status & 2048) != 0 || (action & 128) != 0
+            let payDict = item["pay"] as? [String: Any] ?? [:]
+            let payPay = (payDict["pay"] as? Int) ?? 0
+            let isExplicit = (status & 128) != 0 || (status & 2048) != 0 || (action & 128) != 0 || (action & 2048) != 0 || (payPay & 128) != 0 || (payPay & 2048) != 0
 
             return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid, isExplicit: isExplicit)
         }
@@ -530,7 +532,9 @@ enum QQMusicAPI {
             // QQ音乐 Explicit 脏标：尝试多个可能的字段和bit位
             let status = (songInfo["status"] as? Int) ?? 0
             let action = (songInfo["action"] as? Int) ?? 0
-            let isExplicit = (status & 128) != 0 || (status & 2048) != 0 || (action & 128) != 0
+            let payDict = songInfo["pay"] as? [String: Any] ?? [:]
+            let payPay = (payDict["pay"] as? Int) ?? 0
+            let isExplicit = (status & 128) != 0 || (status & 2048) != 0 || (action & 128) != 0 || (action & 2048) != 0 || (payPay & 128) != 0 || (payPay & 2048) != 0
 
             return makeTrack(id: songid, name: name, artists: artists, album: album, durationMS: interval * 1000, sourcePlatform: "tx", platformSongId: songmid, isExplicit: isExplicit)
         }
