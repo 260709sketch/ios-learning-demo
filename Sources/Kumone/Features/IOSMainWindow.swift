@@ -713,6 +713,8 @@ struct IOSLibraryView: View {
                             }
                         }
                     }
+                } header: {
+                    Text("外部歌单")
                 }
 
                 if !account.createdPlaylists.isEmpty {
