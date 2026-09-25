@@ -86,13 +86,11 @@ struct RecentsView: View {
     }
 }
 
-// MARK: - 最近播放（按时间顺序）
+// MARK: - 最近播放（按时间顺序，本地记录）
 
 struct RecentPlaysView: View {
-    @State private var tracks: [Track] = []
-    @State private var isLoading = true
-
     @EnvironmentObject private var player: PlayerService
+    @StateObject private var store = RecentPlaysStore.shared
 
     var body: some View {
         ScrollView {
@@ -100,7 +98,7 @@ struct RecentPlaysView: View {
                 HStack {
                     Spacer()
                     Button {
-                        player.play(tracks: tracks, source: .none, context: .recents)
+                        player.play(tracks: store.recentTracks, source: .none, context: .recents)
                     } label: {
                         Label("播放全部", systemImage: "play.fill")
                             .font(.system(size: 12.5, weight: .semibold))
@@ -110,33 +108,22 @@ struct RecentPlaysView: View {
                             .background(Theme.accentGradient, in: Capsule())
                     }
                     .buttonStyle(.pressable)
-                    .disabled(tracks.isEmpty)
+                    .disabled(store.recentTracks.isEmpty)
                 }
                 .padding(.horizontal, Theme.Layout.contentInset)
                 .padding(.top, 12)
 
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 300)
-                } else if tracks.isEmpty {
+                if store.recentTracks.isEmpty {
                     EmptyStateView(icon: "clock", title: "暂无最近播放")
                         .frame(minHeight: 300)
                 } else {
-                    TrackListView(tracks: tracks)
+                    TrackListView(tracks: store.recentTracks)
                         .padding(.horizontal, Theme.Layout.contentInset - 10)
                 }
                 PlayerClearanceSpacer()
             }
         }
         .navigationTitle("最近播放")
-        .task {
-            await load()
-        }
-    }
-
-    private func load() async {
-        tracks = (try? await NeteaseAPI.recentSongs(limit: 100)) ?? []
-        isLoading = false
     }
 }
 

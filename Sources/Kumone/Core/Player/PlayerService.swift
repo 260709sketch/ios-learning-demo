@@ -599,6 +599,8 @@ final class PlayerService: ObservableObject {
         pendingAudioResourceLoader = nil
         scrobbleIfNeeded(completed: false)
         currentTrack = track
+        // 记录到本地最近播放
+        RecentPlaysStore.shared.record(track: track)
         progress = 0
         duration = track.duration
         servedQuality = nil
