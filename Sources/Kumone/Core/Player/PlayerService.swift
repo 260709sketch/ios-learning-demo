@@ -196,8 +196,12 @@ final class PlayerService: ObservableObject {
     private var hasPreloadedCurrent = false
     /// 当前正在解析「正在播放」请求的数量；>0 时预加载让出单例音源运行时，避免抢占导致切歌卡住
     private var activeCurrentResolveCount = 0
-    /// 预加载 URL 内存缓存（key: track.id，value: url string），播放时优先命中实现秒开
-    private var preloadedURLs: [Int: String] = [:]
+    /// 预加载 URL 内存缓存（key: 平台+id，value: url string），播放时优先命中实现秒开
+    /// key 包含 sourcePlatform 避免不同平台歌曲 id 冲突（QQ音乐id为hashValue，可能与网易云id相同）
+    private var preloadedURLs: [String: String] = [:]
+    private func preloadCacheKey(for track: Track) -> String {
+        "\(track.sourcePlatform ?? "wy")_\(track.id)"
+    }
 
     private enum ResolvedURLLoadResult {
         case loaded
@@ -682,7 +686,10 @@ final class PlayerService: ObservableObject {
         let hasLXSource = LXSourceStore.shared.activeSourceID != nil
         let useAnySource = allowsUnblock || hasLXSource
 
-        if cacheEnabled {
+        // LX音源激活时跳过AudioCache持久化缓存：
+        // 1. LX音源URL有时效性，缓存会导致播放过期链接
+        // 2. AudioCache只用track.id做key，QQ音乐(hashValue)与网易云id可能冲突，命中错误缓存
+        if cacheEnabled && !hasLXSource {
             do {
                 if let cached = try await AudioCache.shared.entry(
                     for: track.id,
@@ -720,9 +727,9 @@ final class PlayerService: ObservableObject {
             // 优先检查预加载URL缓存，命中则直接用URL播放（秒开，跳过音源请求）
             // 预加载只在非预加载请求时使用（preloadOnly=true 时本身就是去解析URL的）
             if !preloadOnly,
-               let preloadedURLString = preloadedURLs[track.id],
+               let preloadedURLString = preloadedURLs[preloadCacheKey(for: track)],
                let preloadedURL = URL(string: preloadedURLString) {
-                preloadedURLs[track.id] = nil // 用掉后清除
+                preloadedURLs[preloadCacheKey(for: track)] = nil // 用掉后清除
                 _ = await loadResolvedURL(track, url: preloadedURL, durationMS: nil, generation: generation, preloadOnly: false)
                 return
             }
@@ -790,7 +797,7 @@ final class PlayerService: ObservableObject {
         guard SettingsManager.shared.preloadNextTrack else { return }
         guard let nextTrack = upcomingTracks.first else { return }
         // 已经预加载过同一首，跳过
-        if preloadedURLs[nextTrack.id] != nil { return }
+        if preloadedURLs[preloadCacheKey(for: nextTrack)] != nil { return }
         Task {
             await preloadResolveURLOnly(nextTrack)
         }
@@ -815,7 +822,7 @@ final class PlayerService: ObservableObject {
             guard !result.url.isEmpty else { return }
             guard URL(string: result.url) != nil else { return }
             // 存入预加载缓存
-            preloadedURLs[track.id] = result.url
+            preloadedURLs[preloadCacheKey(for: track)] = result.url
             // 限制缓存大小，最多存5首，避免内存占用
             if preloadedURLs.count > 5 {
                 if let firstKey = preloadedURLs.keys.first {
