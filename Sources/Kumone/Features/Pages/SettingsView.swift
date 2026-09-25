@@ -393,9 +393,6 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
-            }
-
-            Section {
                 NavigationLink {
                     DataBackupView()
                 } label: {
