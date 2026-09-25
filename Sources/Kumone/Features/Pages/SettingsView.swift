@@ -60,6 +60,11 @@ struct SettingsView: View {
                     }
                 }
                 #endif
+                if settings.useAMLLImmersive {
+                    Text("AMLL 沉浸式歌词开启时，播放页模式固定为沉浸模式；如需使用黑胶/经典/简洁模式，请先关闭 AMLL 沉浸式歌词")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Toggle("显示歌词翻译", isOn: $settings.showLyricsTranslation)
                 Toggle("显示 VIP 歌曲标识", isOn: $settings.showVIPBadge)
                 Toggle("逐字歌词（卡拉OK）", isOn: $settings.verbatimLyrics)
