@@ -200,7 +200,7 @@ final class PlayerService: ObservableObject {
     /// key 包含 sourcePlatform 避免不同平台歌曲 id 冲突（QQ音乐id为hashValue，可能与网易云id相同）
     /// 加入过期时间（60秒）和音源ID校验，避免使用过期URL或不同音源返回的URL
     private var preloadedURLs: [String: (url: String, timestamp: Date, sourceID: String)] = [:]
-    private let preloadTTL: TimeInterval = 60 // 预加载URL有效期60秒
+    private let preloadTTL: TimeInterval = 300 // 预加载URL有效期5分钟，正常听歌切歌时仍有效
     private func preloadCacheKey(for track: Track) -> String {
         "\(track.sourcePlatform ?? "wy")_\(track.id)"
     }
