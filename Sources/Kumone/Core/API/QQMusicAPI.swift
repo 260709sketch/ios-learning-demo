@@ -373,9 +373,10 @@ enum QQMusicAPI {
         }
 
         return songlist.compactMap { item -> Track? in
-            guard let songmid = item["songmid"] as? String, !songmid.isEmpty else { return nil }
-            let songid = (item["songid"] as? Int) ?? abs(songmid.hashValue)
-            let name = (item["songname"] as? String) ?? (item["title"] as? String) ?? ""
+            // get_singer_detail_info 接口返回字段：name/title, mid, id, singer[], album{}
+            guard let songmid = item["mid"] as? String, !songmid.isEmpty else { return nil }
+            let songid = (item["id"] as? Int) ?? abs(songmid.hashValue)
+            let name = (item["name"] as? String) ?? (item["title"] as? String) ?? ""
             let interval = (item["interval"] as? Int) ?? 0
 
             var artists: [ArtistRef] = []
@@ -388,9 +389,11 @@ enum QQMusicAPI {
                 }
             }
 
-            let albumName = (item["albumname"] as? String) ?? ""
-            let albumMid = (item["albummid"] as? String) ?? ""
-            let albumID = (item["albumid"] as? Int) ?? 0
+            // 专辑信息在 album 对象中
+            let albumDict = item["album"] as? [String: Any] ?? [:]
+            let albumName = (albumDict["name"] as? String) ?? (albumDict["title"] as? String) ?? ""
+            let albumMid = (albumDict["mid"] as? String) ?? ""
+            let albumID = (albumDict["id"] as? Int) ?? 0
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl)
 
@@ -458,9 +461,10 @@ enum QQMusicAPI {
 
         return songList.compactMap { item -> Track? in
             guard let songInfo = item["songInfo"] as? [String: Any] else { return nil }
-            guard let songmid = songInfo["songmid"] as? String, !songmid.isEmpty else { return nil }
-            let songid = (songInfo["songid"] as? Int) ?? abs(songmid.hashValue)
-            let name = (songInfo["songname"] as? String) ?? (songInfo["title"] as? String) ?? ""
+            // GetAlbumSongList 接口返回字段：name/title, mid, id, singer[], album{}
+            guard let songmid = songInfo["mid"] as? String, !songmid.isEmpty else { return nil }
+            let songid = (songInfo["id"] as? Int) ?? abs(songmid.hashValue)
+            let name = (songInfo["name"] as? String) ?? (songInfo["title"] as? String) ?? ""
             let interval = (songInfo["interval"] as? Int) ?? 0
 
             var artists: [ArtistRef] = []
@@ -473,9 +477,11 @@ enum QQMusicAPI {
                 }
             }
 
-            let albumName = (songInfo["albumname"] as? String) ?? ""
-            let albumMid2 = (songInfo["albummid"] as? String) ?? ""
-            let albumID = (songInfo["albumid"] as? Int) ?? 0
+            // 专辑信息在 album 对象中
+            let albumDict = songInfo["album"] as? [String: Any] ?? [:]
+            let albumName = (albumDict["name"] as? String) ?? (albumDict["title"] as? String) ?? ""
+            let albumMid2 = (albumDict["mid"] as? String) ?? ""
+            let albumID = (albumDict["id"] as? Int) ?? 0
             let picUrl = albumMid2.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid2).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl)
 

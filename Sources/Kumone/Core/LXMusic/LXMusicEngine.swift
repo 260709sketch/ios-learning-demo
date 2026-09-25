@@ -332,10 +332,11 @@ final class LXMusicEngine: NSObject {
     ///   - quality: LX 音质标识（128k/320k/flac/flac24bit）
     func musicURL(for track: Track, quality: String) async throws -> (url: String, quality: String) {
         let musicInfo = lxMusicInfo(from: track)
+        let source = track.sourcePlatform ?? "wy"
         let payload: [String: Any] = [
             "requestKey": "",
             "data": [
-                "source": "wy",
+                "source": source,
                 "action": "musicUrl",
                 "info": ["type": quality, "musicInfo": musicInfo]
             ]
