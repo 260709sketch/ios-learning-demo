@@ -125,7 +125,7 @@ struct LocalPlaylistView: View {
                                         .foregroundStyle(.red)
 
                                     // 时长
-                                    Text(track.duration.formattedDuration)
+                                    Text(Formatters.duration(track.duration))
                                         .font(.system(size: 13))
                                         .foregroundStyle(.secondary)
                                 }
