@@ -649,9 +649,18 @@ enum Crypto {
             secKey = k
         }
         guard let key = secKey else { return nil }
+
+        // RSA/ECB/NoPadding 要求输入长度等于密钥块大小，不足时在前面补零（与官方 lx-music 一致）
+        let blockSize = SecKeyGetBlockSize(key)
+        guard data.count <= blockSize else { return nil }
+        var padded = Data(count: blockSize)
+        if data.count > 0 {
+            padded.replaceSubrange((blockSize - data.count)..<blockSize, with: data)
+        }
+
         var error: Unmanaged<CFError>?
         guard let encrypted = SecKeyCreateEncryptedData(
-            key, SecKeyAlgorithm.rsaEncryptionRaw, data as CFData, &error
+            key, SecKeyAlgorithm.rsaEncryptionRaw, padded as CFData, &error
         ) else { return nil }
         return encrypted as Data
     }

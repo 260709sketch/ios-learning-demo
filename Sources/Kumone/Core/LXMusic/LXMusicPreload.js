@@ -222,7 +222,7 @@ globalThis.lx_setup = (key, id, name, description, version, author, homepage, ra
         let result
         switch (data.action) {
           case 'musicUrl':
-            if (typeof response != 'string' || response.length > 2048 || !/^https?:/.test(response)) throw new Error('failed')
+            if (typeof response != 'string' || !/^https?:/.test(response)) throw new Error('failed')
             result = {
               source: data.source,
               action: data.action,
@@ -240,7 +240,7 @@ globalThis.lx_setup = (key, id, name, description, version, author, homepage, ra
             }
             break
           case 'pic':
-            if (typeof response != 'string' || response.length > 2048 || !/^https?:/.test(response)) throw new Error('failed')
+            if (typeof response != 'string' || !/^https?:/.test(response)) throw new Error('failed')
             result = {
               source: data.source,
               action: data.action,
