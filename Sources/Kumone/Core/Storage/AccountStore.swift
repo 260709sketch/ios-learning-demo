@@ -73,19 +73,24 @@ final class AccountStore: ObservableObject {
     }
 
     func toggleLike(trackID: Int, track: Track? = nil) async {
+        DebugLogger.shared.log("收藏", "=== toggleLike 开始 trackID=\(trackID) track=\(track != nil) name=\(track?.name ?? "nil") sourcePlatform=\(track?.sourcePlatform ?? "nil")")
         // QQ音乐歌曲：只存本地歌单，不需要登录网易云，不调用网易云API
         if let track = track, track.sourcePlatform == "tx" {
+            DebugLogger.shared.log("收藏", "识别为QQ音乐歌曲，走本地歌单逻辑", level: .success)
             let isInLocal = LocalPlaylistStore.shared.contains(track)
             if isInLocal {
                 LocalPlaylistStore.shared.removeTrack(track)
                 ToastCenter.shared.show("已从本地歌单移除")
+                DebugLogger.shared.log("收藏", "已从本地歌单移除", level: .success)
             } else {
                 LocalPlaylistStore.shared.addTrack(track)
                 ToastCenter.shared.show("已收藏到本地歌单")
+                DebugLogger.shared.log("收藏", "已收藏到本地歌单 数量=\(LocalPlaylistStore.shared.count)", level: .success)
             }
             NowPlayingManager.shared.refreshLikeState()
             return
         }
+        DebugLogger.shared.log("收藏", "未识别为QQ音乐，走网易云逻辑")
 
         // 网易云歌曲：需要登录，同步到网易云，同时存本地歌单
         guard isLoggedIn else {

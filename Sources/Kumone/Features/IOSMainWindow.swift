@@ -698,11 +698,10 @@ struct IOSLibraryView: View {
                 Section {
                     NavigationLink(value: Destination.localPlaylist) {
                         HStack(spacing: 10) {
-                            Image(systemName: "music.note.list")
-                                .font(.system(size: 16))
+                            Image(systemName: "tray.full.fill")
+                                .font(.system(size: 18))
                                 .foregroundStyle(Theme.accent)
                                 .frame(width: 32, height: 32)
-                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Theme.accent.opacity(0.15)))
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("本地歌单")
                                     .font(.system(size: 14))
