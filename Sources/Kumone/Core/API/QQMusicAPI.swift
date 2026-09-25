@@ -45,10 +45,11 @@ enum QQMusicAPI {
         return try? JSONDecoder().decode(ArtistSummary.self, from: data)
     }
 
-    private static func makeAlbum(id: Int, name: String, picUrl: String?, artistName: String, publishTime: Int, albumMid: String = "") -> AlbumSummary? {
-        var dict: [String: Any] = ["id": id, "name": name, "artist": ["name": artistName], "publishTime": publishTime, "size": 0, "alias": [], "sourcePlatform": "tx"]
+    private static func makeAlbum(id: Int, name: String, picUrl: String?, artistName: String, publishTime: Int, albumMid: String = "", size: Int = 0, subType: String? = nil) -> AlbumSummary? {
+        var dict: [String: Any] = ["id": id, "name": name, "artist": ["name": artistName], "publishTime": publishTime, "size": size, "alias": [], "sourcePlatform": "tx"]
         if !albumMid.isEmpty { dict["albumMid"] = albumMid }
         if let picUrl, !picUrl.isEmpty { dict["picUrl"] = picUrl }
+        if let subType, !subType.isEmpty { dict["subType"] = subType }
         guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
         return try? JSONDecoder().decode(AlbumSummary.self, from: data)
     }
@@ -433,7 +434,7 @@ enum QQMusicAPI {
         DebugLogger.shared.log("QQ歌手", "artistAlbums 返回 \(list.count) 张 mid=\(singerMid)", level: .success)
 
         return list.compactMap { item -> AlbumSummary? in
-            // get_singer_album 接口返回字段：albumid/album_mid/album_name/singer_name/pub_time
+            // get_singer_album 接口返回字段：albumid/album_mid/album_name/singer_name/pub_time/albumtype/song_count/ftype
             let albumID = (item["albumid"] as? Int) ?? (item["albumID"] as? Int) ?? (item["id"] as? Int) ?? 0
             let albumName = (item["album_name"] as? String) ?? (item["albumName"] as? String) ?? (item["name"] as? String) ?? ""
             guard !albumName.isEmpty else { return nil }
@@ -441,7 +442,19 @@ enum QQMusicAPI {
             let picUrl = albumMID.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMID).jpg"
             let singerName = (item["singer_name"] as? String) ?? (item["singerName"] as? String) ?? ""
             let publishTime = (item["pub_time"] as? Int) ?? (item["publishTime"] as? Int) ?? 0
-            return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: publishTime, albumMid: albumMID)
+            // 参考 Well Music 逻辑：根据 albumType 和歌曲数量区分专辑/EP/单曲
+            let albumType = (item["albumtype"] as? String) ?? (item["album_type"] as? String) ?? (item["albumType"] as? String) ?? ""
+            let songCount = (item["song_count"] as? Int) ?? (item["songCount"] as? Int) ?? (item["songcount"] as? Int) ?? (item["total"] as? Int) ?? (item["count"] as? Int) ?? (item["size"] as? Int) ?? 0
+            let ftype = (item["ftype"] as? Int) ?? 0
+            var subType = "专辑"
+            if albumType.contains("EP") || albumType.contains("单曲") || ftype == 10 {
+                subType = songCount <= 1 ? "单曲" : "EP"
+            } else if songCount == 1 {
+                subType = "单曲"
+            } else if songCount > 1 && songCount <= 5 {
+                subType = "EP"
+            }
+            return makeAlbum(id: albumID, name: albumName, picUrl: picUrl, artistName: singerName, publishTime: publishTime, albumMid: albumMID, size: songCount, subType: subType)
         }
     }
 

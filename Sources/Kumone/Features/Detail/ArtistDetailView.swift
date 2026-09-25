@@ -149,19 +149,34 @@ struct ArtistDetailView: View {
 
         if isQQ, let mid = singerMid {
             // QQ音乐歌手：用初始信息，加载歌曲和专辑
-            artist = initialArtist
+            // 用 singerMid 构造头像 URL（QQ音乐歌手头像格式：T001R300x300M000{mid}.jpg）
+            let avatarUrl = "https://y.gtimg.cn/music/photo_new/T001R300x300M000\(mid).jpg"
+            if var base = initialArtist {
+                // 更新头像（如果初始没有的话）
+                artist = ArtistSummary(id: base.id, name: base.name, picUrl: base.picUrl ?? avatarUrl, albumSize: base.albumSize, musicSize: base.musicSize, followed: base.followed, alias: base.alias, sourcePlatform: "tx", singerMid: mid)
+            } else {
+                artist = ArtistSummary(id: artistID, name: "歌手", picUrl: avatarUrl, albumSize: 0, musicSize: 0, followed: false, alias: [], sourcePlatform: "tx", singerMid: mid)
+            }
             isLoading = false
-            DebugLogger.shared.log("歌手页", "QQ音乐模式 开始请求 songs+albums mid=\(mid)")
+            DebugLogger.shared.log("歌手页", "QQ音乐模式 开始请求 songs+albums mid=\(mid) avatar=\(avatarUrl)")
 
             async let songsTask = try? QQMusicAPI.artistSongs(singerMid: mid, limit: 50)
             async let albumsTask = try? QQMusicAPI.artistAlbums(singerMid: mid, limit: 60)
 
             let (songs, albumList) = await (songsTask, albumsTask)
             hotSongs = songs ?? []
-            DebugLogger.shared.log("歌手页", "QQ音乐 songs 返回 \(songs?.count ?? 0) 首 albums 返回 \(albumList?.count ?? 0) 张", level: (songs?.isEmpty ?? true) ? .error : .success)
-            // QQ音乐专辑不区分专辑/EP，全部放专辑区
-            albums = albumList ?? []
-            epsAndSingles = []
+            let songCount = songs?.count ?? 0
+            let albumCount = albumList?.count ?? 0
+            DebugLogger.shared.log("歌手页", "QQ音乐 songs 返回 \(songCount) 首 albums 返回 \(albumCount) 张", level: songCount == 0 ? .error : .success)
+            // 更新歌手信息中的数量
+            if let current = artist {
+                artist = ArtistSummary(id: current.id, name: current.name, picUrl: current.picUrl, albumSize: albumCount, musicSize: songCount, followed: current.followed, alias: current.alias, sourcePlatform: "tx", singerMid: mid)
+            }
+            // QQ音乐专辑按 subType 分区：专辑在上面，EP与单曲在下面（与网易云一致）
+            let allAlbums = albumList ?? []
+            albums = allAlbums.filter { $0.subType == "专辑" || $0.subType == nil }
+            epsAndSingles = allAlbums.filter { $0.subType == "EP" || $0.subType == "单曲" }
+            DebugLogger.shared.log("歌手页", "QQ音乐专辑分区 专辑=\(albums.count) EP/单曲=\(epsAndSingles.count)")
             similar = []
             return
         }

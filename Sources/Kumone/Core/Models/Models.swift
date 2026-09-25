@@ -275,6 +275,19 @@ struct ArtistSummary: Decodable, Hashable, Identifiable {
         self.sourcePlatform = sourcePlatform
         self.singerMid = singerMid
     }
+
+    init(id: Int, name: String, picUrl: String?, albumSize: Int, musicSize: Int, followed: Bool, alias: [String], sourcePlatform: String?, singerMid: String?) {
+        self.id = id
+        self.name = name
+        self.picUrl = picUrl
+        self.albumSize = albumSize
+        self.musicSize = musicSize
+        self.briefDesc = nil
+        self.alias = alias
+        self.followed = followed
+        self.sourcePlatform = sourcePlatform
+        self.singerMid = singerMid
+    }
 }
 
 // MARK: - Toplist
