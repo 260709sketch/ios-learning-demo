@@ -117,7 +117,7 @@ public final class CarPlayConnector: NSObject {
             .removeDuplicates(by: { $0?.id == $1?.id })
             .sink { [weak self] track in
                 guard let self else { return }
-                let liked = track.map { AccountStore.shared.isLiked($0.id) } ?? false
+                let liked = track.map { AccountStore.shared.isLiked(track: $0) } ?? false
                 self.likeButton?.isSelected = liked
             }
             .store(in: &cancellables)
@@ -127,7 +127,7 @@ public final class CarPlayConnector: NSObject {
             .sink { [weak self] _ in
                 guard let self,
                       let track = PlayerService.shared.currentTrack else { return }
-                self.likeButton?.isSelected = AccountStore.shared.isLiked(track.id)
+                self.likeButton?.isSelected = AccountStore.shared.isLiked(track: track)
             }
             .store(in: &cancellables)
 
@@ -207,12 +207,12 @@ public final class CarPlayConnector: NSObject {
 
         // "Like" button — uses the system's "add to library" styled button.
         let like = CPNowPlayingAddToLibraryButton(handler: { _ in
-            guard let trackID = PlayerService.shared.currentTrack?.id else { return }
-            Task { await AccountStore.shared.toggleLike(trackID: trackID) }
+            guard let track = PlayerService.shared.currentTrack else { return }
+            Task { await AccountStore.shared.toggleLike(trackID: track.id, track: track) }
         })
         like.isEnabled = true
         like.isSelected = PlayerService.shared.currentTrack
-            .map { AccountStore.shared.isLiked($0.id) } ?? false
+            .map { AccountStore.shared.isLiked(track: $0) } ?? false
         self.likeButton = like
 
         // "Dislike" button — custom SF Symbol icon, only shown and enabled while FM mode is on.

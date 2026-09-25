@@ -889,12 +889,12 @@ struct NowPlayingView: View {
         // the row scale to any width instead.
         HStack(spacing: 0) {
             if let track = player.currentTrack {
-                let liked = account.isLiked(track.id)
+                let liked = account.isLiked(track: track)
                 circleButton(
                     icon: liked ? "heart.fill" : "heart",
                     size: 15, tint: liked ? Theme.accent : nil
                 ) {
-                    Task { await account.toggleLike(trackID: track.id) }
+                    Task { await account.toggleLike(trackID: track.id, track: track) }
                 }
                 .frame(maxWidth: .infinity)
             }

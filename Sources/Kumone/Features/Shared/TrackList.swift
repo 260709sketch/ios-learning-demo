@@ -279,9 +279,9 @@ struct TrackRow: View {
 
     private var likeAndDuration: some View {
         HStack(spacing: 8) {
-            let liked = account.isLiked(track.id)
+            let liked = account.isLiked(track: track)
             Button {
-                Task { await account.toggleLike(trackID: track.id) }
+                Task { await account.toggleLike(trackID: track.id, track: track) }
             } label: {
                 Image(systemName: liked ? "heart.fill" : "heart")
                     .font(.system(size: 12))
@@ -325,7 +325,7 @@ struct TrackRow: View {
             }
         }
         #if os(macOS)
-        if !account.isLiked(track.id), let onRecommendationReduced {
+        if !account.isLiked(track: track), let onRecommendationReduced {
             Button(String(localized: "减少推荐"), role: .destructive) {
                 guard !isReducingRecommendation else { return }
                 isReducingRecommendation = true

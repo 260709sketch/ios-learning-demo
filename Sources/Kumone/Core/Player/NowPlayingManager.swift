@@ -116,7 +116,7 @@ final class NowPlayingManager {
             return
         }
         MPRemoteCommandCenter.shared().likeCommand.isActive =
-            AccountStore.shared.isLiked(track.id)
+            AccountStore.shared.isLiked(track: track)
     }
 
     func updateMetadata(for track: Track, duration: TimeInterval) {
