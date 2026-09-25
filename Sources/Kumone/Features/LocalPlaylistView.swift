@@ -1,16 +1,15 @@
 import SwiftUI
 
-/// 本地歌单详情页：照抄我喜欢的音乐页面布局
+/// 收藏歌单详情页：完全照抄我喜欢的音乐页面布局
 struct LocalPlaylistView: View {
     @StateObject private var localStore = LocalPlaylistStore.shared
     @EnvironmentObject private var player: PlayerService
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                // 顶部：封面 + 标题信息（照抄我喜欢的音乐布局）
+            VStack(alignment: .leading, spacing: 16) {
+                // 顶部：封面 + 标题信息（照抄我喜欢的音乐 compactHeader）
                 HStack(alignment: .top, spacing: 14) {
                     // 封面：有歌曲时显示第一首歌封面，没歌曲时显示默认渐变封面
                     ZStack {
@@ -47,10 +46,9 @@ struct LocalPlaylistView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 20)
+                .padding(.top, 12)
 
-                // 播放全部按钮
+                // 播放全部按钮（照抄我喜欢的音乐）
                 if !localStore.tracks.isEmpty {
                     Button {
                         player.play(tracks: localStore.tracks, source: .none)
@@ -76,10 +74,9 @@ struct LocalPlaylistView: View {
                     }
                     .buttonStyle(.pressable)
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
                 }
 
-                // 歌曲列表
+                // 歌曲列表：直接用 TrackListView，和我喜欢的音乐完全一致
                 if localStore.tracks.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "music.note.list")
@@ -89,63 +86,23 @@ struct LocalPlaylistView: View {
                             .font(.headline)
                             .foregroundStyle(.secondary)
                         Text("收藏歌曲时会自动保存一份到收藏歌单")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 80)
                 } else {
-                    LazyVStack(spacing: 0) {
-                        ForEach(localStore.tracks) { track in
-                            Button {
-                                player.play(tracks: localStore.tracks, source: .none, startAt: track)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    // 封面
-                                    CachedAsyncImage(url: track.album.picUrl?.resizedImageURL(120), animated: false)
-                                        .frame(width: 48, height: 48)
-                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-
-                                    // 歌名和歌手
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(track.name)
-                                            .font(.system(size: 16))
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                        Text(track.artistNames)
-                                            .font(.system(size: 13))
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-
-                                    Spacer()
-
-                                    // 收藏状态和时长（照抄我喜欢的音乐布局）
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "heart.fill")
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(Theme.accent)
-
-                                        Text(Formatters.duration(track.duration))
-                                            .font(.system(size: 11.5).monospacedDigit())
-                                            .foregroundStyle(.tertiary)
-                                            .frame(width: 36, alignment: .trailing)
-                                    }
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    LocalPlaylistStore.shared.removeTrack(track)
-                                } label: {
-                                    Label("移除", systemImage: "trash")
-                                }
-                            }
+                    TrackListView(
+                        tracks: localStore.tracks,
+                        source: .none,
+                        onRemoved: { track in
+                            LocalPlaylistStore.shared.removeTrack(track)
                         }
-                    }
-                    .padding(.bottom, 20)
+                    )
+                    .padding(.horizontal, 16)
                 }
+
+                PlayerClearanceSpacer()
             }
         }
         .background(colorScheme == .dark ? Color.black : Color(uiColor: .systemGroupedBackground))
