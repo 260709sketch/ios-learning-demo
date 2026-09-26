@@ -231,13 +231,28 @@ struct DataBackupView: View {
             DebugLogger.shared.log("数据备份", "备份中设置条数: \(settings.count)")
             let defaults = UserDefaults.standard
             for (key, value) in settings {
-                // 跳过 localPlaylist.tracks，因为歌单已经通过 replaceAll 单独恢复
-                // 且备份时 Data 被转成了 base64 字符串，直接设置会导致类型不匹配
+                // 跳过系统语言设置
+                if key == "AppleLanguages" {
+                    DebugLogger.shared.log("数据备份", "跳过系统 key: \(key)")
+                    continue
+                }
+                // 跳过 localPlaylist.tracks，歌单已通过 replaceAll 单独恢复
                 if key == "localPlaylist.tracks" {
                     DebugLogger.shared.log("数据备份", "跳过 key: \(key)（歌单已单独恢复）")
                     continue
                 }
-                defaults.set(value, forKey: key)
+                // 处理 base64 编码的 Data 类型（备份时 Data 被转成了 base64 字符串）
+                // 如 recentPlaysTracks 等，需要解码回 Data 才能正确读取
+                if let strValue = value as? String,
+                   let decodedData = Data(base64Encoded: strValue),
+                   decodedData.count > 0,
+                   let firstByte = decodedData.first,
+                   firstByte == 91 || firstByte == 123 { // '[' 或 '{'，说明是 JSON 数据
+                    defaults.set(decodedData, forKey: key)
+                    DebugLogger.shared.log("数据备份", "恢复 Data 类型 key: \(key) (\(decodedData.count) bytes)")
+                } else {
+                    defaults.set(value, forKey: key)
+                }
                 restoredSettings += 1
             }
             DebugLogger.shared.log("数据备份", "逐个key恢复设置: \(restoredSettings) 项", level: .success)
