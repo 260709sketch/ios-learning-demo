@@ -65,14 +65,15 @@ final class NeteaseClient: @unchecked Sendable {
         persist(snapshot)
     }
 
-    /// Ingests a `;;`-joined raw cookie string as returned by the QR login check.
+    /// Ingests a raw cookie string. Supports both `;;` (QR login response)
+    /// and `;` (browser cookie) separators, with optional spaces around `=`.
     func ingestCookieString(_ raw: String) {
         var parsed: [String: String] = [:]
-        for cookie in raw.components(separatedBy: ";;") {
-            guard let pair = cookie.components(separatedBy: ";").first,
-                  let eq = pair.firstIndex(of: "=") else { continue }
-            let name = pair[..<eq].trimmingCharacters(in: .whitespaces)
-            let value = String(pair[pair.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
+        // 按单个 ; 分割（同时兼容 ;; 分隔，会产生空字符串被过滤掉）
+        for cookie in raw.components(separatedBy: ";") {
+            guard let eq = cookie.firstIndex(of: "=") else { continue }
+            let name = cookie[..<eq].trimmingCharacters(in: .whitespaces)
+            let value = String(cookie[cookie.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
             guard !name.isEmpty, !value.isEmpty else { continue }
             parsed[name] = value
         }

@@ -3,9 +3,9 @@ import SwiftUI
 
 struct LoginSheet: View {
     private enum Mode: String, CaseIterable, Identifiable {
-        case qr = "扫码登录"
-        case sms = "手机验证码"
-        case cookie = "Cookie登录"
+        case qr = "扫码"
+        case sms = "短信"
+        case cookie = "Cookie"
 
         var id: String { rawValue }
     }
@@ -55,7 +55,7 @@ struct LoginSheet: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 220)
+                .frame(width: 260)
                 .padding(.top, 6)
             }
             .padding(.top, 28)
