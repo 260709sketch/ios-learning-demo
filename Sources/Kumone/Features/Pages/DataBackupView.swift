@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 /// 数据备份与恢复页面
 struct DataBackupView: View {
@@ -72,13 +73,19 @@ struct DataBackupView: View {
                 ActivityViewController(activityItems: [url])
             }
         }
-        .fileImporter(
-            isPresented: $showFilePicker,
-            allowedContentTypes: [.item],
-            allowsMultipleSelection: false
-        ) { result in
-            DebugLogger.shared.log("数据备份", "fileImporter 回调触发 result=\(result)")
-            handleFileImport(result: result)
+        // 用 UIDocumentPickerViewController + asCopy:true，与音源导入一致
+        // asCopy:true 时系统自动复制到临时目录，可直接读取，无需 security-scoped
+        .fullScreenCover(isPresented: $showFilePicker) {
+            BackupDocumentPicker(
+                onPick: { url in
+                    showFilePicker = false
+                    handlePickedFile(url)
+                },
+                onCancel: {
+                    showFilePicker = false
+                }
+            )
+            .ignoresSafeArea()
         }
         .alert(alertTitle, isPresented: $showAlert) {
             Button("确定", role: .cancel) { }
@@ -143,38 +150,16 @@ struct DataBackupView: View {
 
     // MARK: - 恢复
 
-    private func handleFileImport(result: Result<[URL], Error>) {
-        DebugLogger.shared.log("数据备份", "fileImporter 回调 result=\(result)")
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else {
-                DebugLogger.shared.log("数据备份", "未选择任何文件", level: .warning)
-                statusMessage = "未选择文件"
-                return
-            }
-            statusMessage = "正在恢复：\(url.lastPathComponent)..."
-            restoreBackup(from: url)
-        case .failure(let error):
-            DebugLogger.shared.log("数据备份", "文件选择失败: \(error.localizedDescription)", level: .error)
-            alertTitle = "导入失败"
-            alertMessage = error.localizedDescription
-            showAlert = true
-        }
+    private func handlePickedFile(_ url: URL) {
+        DebugLogger.shared.log("数据备份", "选择文件: \(url.lastPathComponent)")
+        statusMessage = "正在恢复：\(url.lastPathComponent)..."
+        restoreBackup(from: url)
     }
 
     private func restoreBackup(from url: URL) {
         DebugLogger.shared.log("数据备份", "开始恢复文件: \(url.lastPathComponent)")
 
-        // fileImporter返回的URL需要安全范围访问
-        let didStartAccessing = url.startAccessingSecurityScopedResource()
-        DebugLogger.shared.log("数据备份", "startAccessingSecurityScopedResource: \(didStartAccessing)")
-        defer {
-            if didStartAccessing {
-                url.stopAccessingSecurityScopedResource()
-                DebugLogger.shared.log("数据备份", "stopAccessingSecurityScopedResource")
-            }
-        }
-
+        // asCopy:true 时系统已复制到临时目录，可直接读取，无需 security-scoped
         do {
             // 读取文件
             let data = try Data(contentsOf: url)
@@ -219,6 +204,45 @@ struct DataBackupView: View {
             alertTitle = "恢复失败"
             alertMessage = "\(error.localizedDescription)\n\n请确认选择的是 Kumone_backup_ 开头的 JSON 备份文件"
             showAlert = true
+            statusMessage = ""
+        }
+    }
+}
+
+// MARK: - 文件选择器（UIDocumentPickerViewController + asCopy:true）
+
+/// 用 UIKit 的 UIDocumentPickerViewController 以复制模式打开文件。
+/// asCopy:true 时系统自动把文件复制到临时目录，返回的 URL 可直接读取，
+/// 不需要 startAccessingSecurityScopedResource()，与音源导入保持一致。
+private struct BackupDocumentPicker: UIViewControllerRepresentable {
+    let onPick: (URL) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [.json, .plainText, .item],
+            asCopy: true
+        )
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: BackupDocumentPicker
+        init(_ parent: BackupDocumentPicker) { self.parent = parent }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { return }
+            parent.onPick(url)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.onCancel()
         }
     }
 }
