@@ -762,6 +762,15 @@ final class PlayerService: ObservableObject {
         }
         guard generation == resolveGeneration else { return }
 
+        // 第三方平台歌曲（如QQ音乐）没有LX音源时，网易云API返回的是错误歌曲，直接提示不可播放
+        if track.sourcePlatform != nil && track.sourcePlatform != "wy" && !hasLXSource {
+            DebugLogger.shared.log("播放", "第三方平台歌曲(\(track.sourcePlatform ?? ""))无LX音源，跳过网易云通道", level: .warning)
+            await MainActor.run {
+                ToastCenter.shared.show("该歌曲为\(track.sourcePlatform == "tx" ? "QQ音乐" : "第三方")歌曲，需要激活自定义音源才能播放")
+            }
+            return
+        }
+
         var resolvedURL: URL?
         if let urlString = data?.url {
             resolvedURL = URL(string: urlString.replacingOccurrences(of: "http://", with: "https://"))
