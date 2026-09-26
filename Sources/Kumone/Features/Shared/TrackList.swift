@@ -597,9 +597,9 @@ struct TrackListView: View {
     private func playability(of track: Track) -> TrackPlayability {
         // 有激活的 LX 自定义音源时，所有歌曲都可播放（通过音源获取地址）
         if LXSourceStore.shared.activeSourceID != nil { return .playable }
-        // 没有 LX 音源时，QQ音乐等第三方平台歌曲无法通过网易云API播放，标记为无版权
+        // 没有 LX 音源时，QQ音乐等第三方平台歌曲无法通过网易云API播放，标记为需要导入音源
         if track.sourcePlatform != nil && track.sourcePlatform != "wy" {
-            return .noCopyright
+            return .needsLXSource
         }
         return track.playability(
             privilege: privileges[track.id],

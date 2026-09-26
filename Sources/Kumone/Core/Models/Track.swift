@@ -153,6 +153,7 @@ enum TrackPlayability: Hashable {
     case paidAlbum
     case noCopyright
     case delisted
+    case needsLXSource
 
     var reason: String? {
         switch self {
@@ -161,6 +162,7 @@ enum TrackPlayability: Hashable {
         case .paidAlbum: return String(localized: "付费专辑")
         case .noCopyright: return String(localized: "无版权")
         case .delisted: return String(localized: "已下架")
+        case .needsLXSource: return String(localized: "无法解析该歌曲，需要导入音源")
         }
     }
 }

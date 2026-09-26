@@ -766,7 +766,7 @@ final class PlayerService: ObservableObject {
         if track.sourcePlatform != nil && track.sourcePlatform != "wy" && !hasLXSource {
             DebugLogger.shared.log("播放", "第三方平台歌曲(\(track.sourcePlatform ?? ""))无LX音源，跳过网易云通道", level: .warning)
             await MainActor.run {
-                ToastCenter.shared.show("该歌曲为\(track.sourcePlatform == "tx" ? "QQ音乐" : "第三方")歌曲，需要激活自定义音源才能播放")
+                ToastCenter.shared.show("无法解析该歌曲，需要导入音源")
             }
             return
         }
