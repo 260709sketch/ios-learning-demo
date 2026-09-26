@@ -19,9 +19,6 @@ struct SettingsView: View {
                 Text("播放5秒后自动预加载下一首歌，切换时秒开不卡顿")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-
-            Section("LX") {
                 NavigationLink {
                     LXSourceManageView()
                 } label: {
