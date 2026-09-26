@@ -12,6 +12,10 @@ struct DataBackupView: View {
     @State private var showAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
+    // 恢复确认
+    @State private var pendingBackup: [String: Any]?
+    @State private var pendingFileName = ""
+    @State private var showConfirmAlert = false
 
     var body: some View {
         Form {
@@ -74,7 +78,6 @@ struct DataBackupView: View {
             }
         }
         // 用 UIDocumentPickerViewController + asCopy:true，与音源导入一致
-        // asCopy:true 时系统自动复制到临时目录，可直接读取，无需 security-scoped
         .fullScreenCover(isPresented: $showFilePicker) {
             BackupDocumentPicker(
                 onPick: { url in
@@ -87,6 +90,28 @@ struct DataBackupView: View {
             )
             .ignoresSafeArea()
         }
+        // 恢复确认对话框
+        .alert("确认恢复备份", isPresented: $showConfirmAlert) {
+            Button("取消", role: .cancel) {
+                pendingBackup = nil
+            }
+            Button("恢复", role: .destructive) {
+                if let backup = pendingBackup {
+                    performRestore(backup: backup, fileName: pendingFileName)
+                }
+                pendingBackup = nil
+            }
+        } message: {
+            if let backup = pendingBackup {
+                let settingsCount = (backup["settings"] as? [String: Any])?.count ?? 0
+                let playlistCount = ((backup["favoritePlaylist"] as? [[String: Any]]) ?? (backup["localPlaylist"] as? [[String: Any]]))?.count ?? 0
+                let timestamp = backup["timestamp"] as? TimeInterval ?? 0
+                let dateStr = timestamp > 0 ? DateFormatter.localizedString(from: Date(timeIntervalSince1970: timestamp), dateStyle: .medium, timeStyle: .short) : "未知"
+                Text("文件：\(pendingFileName)\n备份时间：\(dateStr)\n设置项：\(settingsCount) 项\n收藏歌曲：\(playlistCount) 首\n\n恢复后将覆盖当前数据，确定继续吗？")
+            } else {
+                Text("")
+            }
+        }
         .alert(alertTitle, isPresented: $showAlert) {
             Button("确定", role: .cancel) { }
         } message: {
@@ -98,20 +123,17 @@ struct DataBackupView: View {
 
     private func createBackup() {
         do {
-            // 1. 导出所有 UserDefaults 设置（过滤掉NSData等无法JSON序列化的类型）
+            // 1. 导出所有 UserDefaults 设置（过滤掉无法JSON序列化的类型）
             var settingsDict: [String: Any] = [:]
             if let bundleID = Bundle.main.bundleIdentifier {
                 let defaults = UserDefaults.standard
                 if let dict = defaults.persistentDomain(forName: bundleID) {
                     for (key, value) in dict {
-                        // 只保留可以JSON序列化的类型
                         if value is String || value is Int || value is Double || value is Bool || value is [String: Any] || value is [Any] {
                             settingsDict[key] = value
                         } else if let data = value as? Data {
-                            // NSData转为base64字符串
                             settingsDict[key] = data.base64EncodedString()
                         }
-                        // 其他类型（如Date、URL等）跳过
                     }
                 }
             }
@@ -148,27 +170,13 @@ struct DataBackupView: View {
         }
     }
 
-    // MARK: - 恢复
+    // MARK: - 恢复（两步：先解析确认，再执行恢复）
 
     private func handlePickedFile(_ url: URL) {
         DebugLogger.shared.log("数据备份", "选择文件: \(url.lastPathComponent)")
-        statusMessage = "正在恢复：\(url.lastPathComponent)..."
-        // 确保在主线程执行恢复操作（LocalPlaylistStore 是 @MainActor）
-        DispatchQueue.main.async {
-            self.restoreBackup(from: url)
-        }
-    }
 
-    private func restoreBackup(from url: URL) {
-        DebugLogger.shared.log("数据备份", "开始恢复文件: \(url.lastPathComponent)")
-        DebugLogger.shared.log("数据备份", "恢复前歌单数量: \(localStore.count)")
-        if let bundleID = Bundle.main.bundleIdentifier {
-            DebugLogger.shared.log("数据备份", "bundleID: \(bundleID)")
-        }
-
-        // asCopy:true 时系统已复制到临时目录，可直接读取，无需 security-scoped
         do {
-            // 读取文件
+            // 第一步：读取并解析备份文件
             let data = try Data(contentsOf: url)
             DebugLogger.shared.log("数据备份", "文件大小: \(data.count) 字节")
             guard let backup = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -176,48 +184,69 @@ struct DataBackupView: View {
             }
             DebugLogger.shared.log("数据备份", "备份文件键: \(Array(backup.keys))")
 
-            var restoredSettings = 0
-            var restoredTracks = 0
+            // 验证备份文件有效性
+            guard backup["version"] != nil || backup["settings"] != nil || backup["favoritePlaylist"] != nil else {
+                throw NSError(domain: "Backup", code: -2, userInfo: [NSLocalizedDescriptionKey: "这不是 Kumone 的备份文件"])
+            }
 
-            // 1. 先恢复收藏歌单（避免 setPersistentDomain 覆盖后丢失引用）
-            let playlistArray = (backup["favoritePlaylist"] as? [[String: Any]]) ?? (backup["localPlaylist"] as? [[String: Any]])
-            if let playlistArray = playlistArray {
-                DebugLogger.shared.log("数据备份", "备份中歌单数据条数: \(playlistArray.count)")
+            // 显示确认对话框
+            pendingBackup = backup
+            pendingFileName = url.lastPathComponent
+            showConfirmAlert = true
+            DebugLogger.shared.log("数据备份", "解析成功，等待用户确认恢复")
+        } catch {
+            DebugLogger.shared.log("数据备份", "解析备份文件失败: \(error.localizedDescription)", level: .error)
+            alertTitle = "导入失败"
+            alertMessage = "\(error.localizedDescription)\n\n请确认选择的是 Kumone_backup_ 开头的 JSON 备份文件"
+            showAlert = true
+        }
+    }
+
+    private func performRestore(backup: [String: Any], fileName: String) {
+        DebugLogger.shared.log("数据备份", "用户确认恢复，开始执行恢复")
+        DebugLogger.shared.log("数据备份", "恢复前歌单数量: \(localStore.count)")
+
+        var restoredSettings = 0
+        var restoredTracks = 0
+
+        // 1. 恢复收藏歌单（兼容旧键名localPlaylist）
+        let playlistArray = (backup["favoritePlaylist"] as? [[String: Any]]) ?? (backup["localPlaylist"] as? [[String: Any]])
+        if let playlistArray = playlistArray {
+            DebugLogger.shared.log("数据备份", "备份中歌单数据条数: \(playlistArray.count)")
+            do {
                 let playlistData = try JSONSerialization.data(withJSONObject: playlistArray)
                 let tracks = try JSONDecoder().decode([Track].self, from: playlistData)
                 localStore.replaceAll(tracks)
                 restoredTracks = tracks.count
                 DebugLogger.shared.log("数据备份", "恢复收藏歌单: \(restoredTracks) 首，恢复后数量: \(localStore.count)", level: .success)
-            } else {
-                DebugLogger.shared.log("数据备份", "备份中无收藏歌单数据（favoritePlaylist/localPlaylist 均不存在）", level: .warning)
+            } catch {
+                DebugLogger.shared.log("数据备份", "恢复收藏歌单失败: \(error.localizedDescription)", level: .error)
             }
-
-            // 2. 再恢复设置
-            if let settings = backup["settings"] as? [String: Any],
-               let bundleID = Bundle.main.bundleIdentifier {
-                DebugLogger.shared.log("数据备份", "备份中设置条数: \(settings.count)")
-                UserDefaults.standard.setPersistentDomain(settings, forName: bundleID)
-                restoredSettings = settings.count
-                DebugLogger.shared.log("数据备份", "恢复设置: \(restoredSettings) 项", level: .success)
-                // setPersistentDomain 会覆盖 UserDefaults，重新保存歌单确保不丢失
-                localStore.save()
-                DebugLogger.shared.log("数据备份", "setPersistentDomain 后重新保存歌单，数量: \(localStore.count)")
-            } else {
-                DebugLogger.shared.log("数据备份", "备份中无设置数据或 bundleID 为空", level: .warning)
-            }
-
-            alertTitle = "恢复成功"
-            alertMessage = "已恢复 \(restoredSettings) 项设置和 \(restoredTracks) 首收藏歌曲。\n\n设置需重启应用后生效，收藏歌单已立即更新。"
-            showAlert = true
-            statusMessage = "已从 \(url.lastPathComponent) 恢复：\(restoredSettings) 项设置，\(restoredTracks) 首歌曲"
-            DebugLogger.shared.log("数据备份", "恢复完成: 设置=\(restoredSettings) 歌曲=\(restoredTracks) 最终歌单=\(localStore.count)", level: .success)
-        } catch {
-            DebugLogger.shared.log("数据备份", "恢复失败: \(error.localizedDescription)", level: .error)
-            alertTitle = "恢复失败"
-            alertMessage = "\(error.localizedDescription)\n\n请确认选择的是 Kumone_backup_ 开头的 JSON 备份文件"
-            showAlert = true
-            statusMessage = ""
+        } else {
+            DebugLogger.shared.log("数据备份", "备份中无收藏歌单数据", level: .warning)
         }
+
+        // 2. 逐个 key 恢复设置（参考 WellMusic，不用 setPersistentDomain 整体覆盖）
+        if let settings = backup["settings"] as? [String: Any] {
+            DebugLogger.shared.log("数据备份", "备份中设置条数: \(settings.count)")
+            let defaults = UserDefaults.standard
+            for (key, value) in settings {
+                defaults.set(value, forKey: key)
+                restoredSettings += 1
+            }
+            DebugLogger.shared.log("数据备份", "逐个key恢复设置: \(restoredSettings) 项", level: .success)
+            // 恢复设置后重新保存歌单（因为设置中可能包含 localPlaylist.tracks，会被覆盖）
+            localStore.save()
+            DebugLogger.shared.log("数据备份", "恢复设置后重新保存歌单，数量: \(localStore.count)")
+        } else {
+            DebugLogger.shared.log("数据备份", "备份中无设置数据", level: .warning)
+        }
+
+        alertTitle = "恢复成功"
+        alertMessage = "已恢复 \(restoredSettings) 项设置和 \(restoredTracks) 首收藏歌曲。\n\n设置需重启应用后生效，收藏歌单已立即更新。"
+        showAlert = true
+        statusMessage = "已从 \(fileName) 恢复：\(restoredSettings) 项设置，\(restoredTracks) 首歌曲"
+        DebugLogger.shared.log("数据备份", "恢复完成: 设置=\(restoredSettings) 歌曲=\(restoredTracks) 最终歌单=\(localStore.count)", level: .success)
     }
 }
 
