@@ -110,6 +110,38 @@ final class LXSourceStore: ObservableObject {
         try? String(contentsOf: scriptURL(id), encoding: .utf8)
     }
 
+    // MARK: 备份/恢复
+
+    /// 导出所有音源（列表+脚本）用于备份
+    func exportForBackup() -> (sources: [[String: Any]], scripts: [String: String]) {
+        var sourceDicts: [[String: Any]] = []
+        var scriptDict: [String: String] = [:]
+        for source in sources {
+            if let data = try? JSONEncoder().encode(source),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                sourceDicts.append(dict)
+            }
+            if let script = script(for: source.id) {
+                scriptDict[source.id] = script
+            }
+        }
+        return (sourceDicts, scriptDict)
+    }
+
+    /// 从备份恢复音源（列表+脚本），恢复后重新加载
+    func importFromBackup(sources: [[String: Any]], scripts: [String: String]) {
+        // 写入脚本文件
+        for (id, script) in scripts {
+            try? script.write(to: scriptURL(id), atomically: true, encoding: .utf8)
+        }
+        // 写入音源列表
+        if let data = try? JSONSerialization.data(withJSONObject: sources) {
+            try? data.write(to: listURL)
+        }
+        // 重新加载
+        loadPersistedList()
+    }
+
     // MARK: 导入
 
     /// 从脚本文本导入音源。导入后如果当前没有激活的音源，自动激活。
@@ -288,8 +320,6 @@ final class LXSourceStore: ObservableObject {
     fileprivate struct Meta {
         var name = "", description = "", version = "", author = "", homepage = ""
     }
-
-    /// 解析音源脚本头部注释（@name/@description/@version/@author/@homepage）。
     fileprivate func parseMeta(_ script: String) -> Meta {
         var meta = Meta()
         // 找到第一个块注释 /* ... */

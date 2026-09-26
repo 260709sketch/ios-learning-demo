@@ -105,9 +105,10 @@ struct DataBackupView: View {
             if let backup = pendingBackup {
                 let settingsCount = (backup["settings"] as? [String: Any])?.count ?? 0
                 let playlistCount = ((backup["favoritePlaylist"] as? [[String: Any]]) ?? (backup["localPlaylist"] as? [[String: Any]]))?.count ?? 0
+                let lxSourceCount = (backup["lxSources"] as? [[String: Any]])?.count ?? 0
                 let timestamp = backup["timestamp"] as? TimeInterval ?? 0
                 let dateStr = timestamp > 0 ? DateFormatter.localizedString(from: Date(timeIntervalSince1970: timestamp), dateStyle: .medium, timeStyle: .short) : "未知"
-                Text("文件：\(pendingFileName)\n备份时间：\(dateStr)\n设置项：\(settingsCount) 项\n收藏歌曲：\(playlistCount) 首\n\n恢复后将覆盖当前数据，确定继续吗？")
+                Text("文件：\(pendingFileName)\n备份时间：\(dateStr)\n设置项：\(settingsCount) 项\n收藏歌曲：\(playlistCount) 首\n自定义音源：\(lxSourceCount) 个\n\n恢复后将覆盖当前数据，确定继续吗？")
             } else {
                 Text("")
             }
@@ -142,18 +143,25 @@ struct DataBackupView: View {
             let playlistData = try JSONEncoder().encode(localStore.tracks)
             let playlistArray = try JSONSerialization.jsonObject(with: playlistData) as? [[String: Any]] ?? []
 
-            // 3. 组装备份数据
+            // 3. 导出自定义音源（列表+脚本）
+            let lxExport = LXSourceStore.shared.exportForBackup()
+            let lxSources = lxExport.sources
+            let lxScripts = lxExport.scripts
+
+            // 4. 组装备份数据
             let backup: [String: Any] = [
                 "version": 1,
                 "timestamp": Date().timeIntervalSince1970,
                 "settings": settingsDict,
-                "favoritePlaylist": playlistArray
+                "favoritePlaylist": playlistArray,
+                "lxSources": lxSources,
+                "lxScripts": lxScripts
             ]
 
-            // 4. 序列化为 JSON
+            // 5. 序列化为 JSON
             let jsonData = try JSONSerialization.data(withJSONObject: backup, options: [.prettyPrinted])
 
-            // 5. 保存到临时文件
+            // 6. 保存到临时文件
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
             let filename = "Kumone_backup_\(dateFormatter.string(from: Date())).json"
@@ -161,7 +169,7 @@ struct DataBackupView: View {
             try jsonData.write(to: tempURL)
 
             backupFileURL = tempURL
-            statusMessage = "备份已生成：\(filename)（\(localStore.count) 首歌曲）"
+            statusMessage = "备份已生成：\(filename)（\(localStore.count) 首歌曲，\(lxSources.count) 个音源）"
             showShareSheet = true
         } catch {
             alertTitle = "备份失败"
@@ -208,6 +216,7 @@ struct DataBackupView: View {
 
         var restoredSettings = 0
         var restoredTracks = 0
+        var restoredSources = 0
 
         // 1. 恢复收藏歌单（兼容旧键名localPlaylist）
         let playlistArray = (backup["favoritePlaylist"] as? [[String: Any]]) ?? (backup["localPlaylist"] as? [[String: Any]])
@@ -226,7 +235,18 @@ struct DataBackupView: View {
             DebugLogger.shared.log("数据备份", "备份中无收藏歌单数据", level: .warning)
         }
 
-        // 2. 逐个 key 恢复设置（参考 WellMusic，不用 setPersistentDomain 整体覆盖）
+        // 2. 恢复自定义音源（列表+脚本）
+        if let lxSources = backup["lxSources"] as? [[String: Any]],
+           let lxScripts = backup["lxScripts"] as? [String: String] {
+            DebugLogger.shared.log("数据备份", "备份中音源数量: \(lxSources.count)，脚本数量: \(lxScripts.count)")
+            LXSourceStore.shared.importFromBackup(sources: lxSources, scripts: lxScripts)
+            restoredSources = lxSources.count
+            DebugLogger.shared.log("数据备份", "恢复自定义音源: \(restoredSources) 个", level: .success)
+        } else {
+            DebugLogger.shared.log("数据备份", "备份中无自定义音源数据（旧版备份文件）", level: .warning)
+        }
+
+        // 3. 逐个 key 恢复设置（参考 WellMusic，不用 setPersistentDomain 整体覆盖）
         if let settings = backup["settings"] as? [String: Any] {
             DebugLogger.shared.log("数据备份", "备份中设置条数: \(settings.count)")
             let defaults = UserDefaults.standard
@@ -261,10 +281,10 @@ struct DataBackupView: View {
         }
 
         alertTitle = "恢复成功"
-        alertMessage = "已恢复 \(restoredSettings) 项设置和 \(restoredTracks) 首收藏歌曲。\n\n设置需重启应用后生效，收藏歌单已立即更新。"
+        alertMessage = "已恢复 \(restoredSettings) 项设置、\(restoredTracks) 首收藏歌曲、\(restoredSources) 个自定义音源。\n\n设置需重启应用后生效，收藏歌单和音源已立即更新。"
         showAlert = true
-        statusMessage = "已从 \(fileName) 恢复：\(restoredSettings) 项设置，\(restoredTracks) 首歌曲"
-        DebugLogger.shared.log("数据备份", "恢复完成: 设置=\(restoredSettings) 歌曲=\(restoredTracks) 最终歌单=\(localStore.count)", level: .success)
+        statusMessage = "已从 \(fileName) 恢复：\(restoredSettings) 项设置，\(restoredTracks) 首歌曲，\(restoredSources) 个音源"
+        DebugLogger.shared.log("数据备份", "恢复完成: 设置=\(restoredSettings) 歌曲=\(restoredTracks) 音源=\(restoredSources) 最终歌单=\(localStore.count)", level: .success)
     }
 }
 

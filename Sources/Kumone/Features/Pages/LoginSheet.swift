@@ -5,6 +5,7 @@ struct LoginSheet: View {
     private enum Mode: String, CaseIterable, Identifiable {
         case qr = "扫码登录"
         case sms = "手机验证码"
+        case cookie = "Cookie登录"
 
         var id: String { rawValue }
     }
@@ -33,6 +34,11 @@ struct LoginSheet: View {
     @State private var smsMessage: String?
     @State private var cooldownTask: Task<Void, Never>?
 
+    // Cookie login
+    @State private var cookieInput = ""
+    @State private var cookieLoggingIn = false
+    @State private var cookieMessage: String?
+
     @EnvironmentObject private var account: AccountStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -59,6 +65,8 @@ struct LoginSheet: View {
                 qrSection
             case .sms:
                 smsSection
+            case .cookie:
+                cookieSection
             }
 
             Button("取消") {
@@ -333,6 +341,96 @@ struct LoginSheet: View {
 
     private var canSendCode: Bool { !smsSending && smsCooldown == 0 && phone.count >= 11 }
     private var canLogin: Bool { !smsLoggingIn && phone.count >= 11 && code.count >= 4 }
+
+    // MARK: - Cookie
+
+    private var cookieSection: some View {
+        VStack(spacing: 16) {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 11))
+                Text("从浏览器复制网易云音乐 Cookie 粘贴到此处，包含 MUSIC_U 字段即可登录")
+                    .font(.system(size: 11.5))
+                    .multilineTextAlignment(.leading)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(.horizontal, 28)
+
+            VStack(spacing: 12) {
+                TextEditor(text: $cookieInput)
+                    .font(.system(size: 13))
+                    .frame(minHeight: 80)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(.quaternary.opacity(0.4))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 28)
+            }
+
+            if let cookieMessage {
+                Text(cookieMessage)
+                    .font(.system(size: 12)).foregroundStyle(Theme.accent)
+                    .multilineTextAlignment(.center).padding(.horizontal, 24)
+            }
+
+            Button {
+                loginWithCookie()
+            } label: {
+                Group {
+                    if cookieLoggingIn {
+                        ProgressView().controlSize(.small).tint(.white)
+                    } else {
+                        Text("登录")
+                    }
+                }
+                .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                .frame(maxWidth: .infinity).padding(.vertical, 13)
+                .background(
+                    Capsule().fill(!cookieInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !cookieLoggingIn
+                                    ? AnyShapeStyle(Theme.accentGradient)
+                                    : AnyShapeStyle(Color.secondary.opacity(0.25)))
+                )
+            }
+            .buttonStyle(.pressable)
+            .disabled(cookieInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || cookieLoggingIn)
+            .padding(.horizontal, 28).padding(.top, 2)
+        }
+        .frame(minHeight: 300)
+    }
+
+    private func loginWithCookie() {
+        let cookie = cookieInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cookie.isEmpty else {
+            cookieMessage = "请输入 Cookie"
+            return
+        }
+        cookieLoggingIn = true
+        cookieMessage = nil
+        Task {
+            defer { cookieLoggingIn = false }
+            // 保存 cookie（支持 ;; 和 ; 分隔）
+            NeteaseClient.shared.ingestCookieString(cookie)
+            // 验证 cookie 是否有效
+            await account.bootstrap()
+            if account.isLoggedIn, account.profile != nil {
+                pollTask?.cancel()
+                ToastCenter.shared.show("欢迎回来，\(account.profile?.nickname ?? "")")
+                dismiss()
+            } else {
+                cookieMessage = "Cookie 无效或已过期，请检查是否包含 MUSIC_U 字段"
+                NeteaseClient.shared.clearAuthCookies()
+            }
+        }
+    }
 
 
     private func sendCode() {
