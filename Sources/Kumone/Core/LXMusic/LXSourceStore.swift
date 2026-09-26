@@ -116,30 +116,67 @@ final class LXSourceStore: ObservableObject {
     func exportForBackup() -> (sources: [[String: Any]], scripts: [String: String]) {
         var sourceDicts: [[String: Any]] = []
         var scriptDict: [String: String] = [:]
+        DebugLogger.shared.log("音源", "开始导出备份，当前音源\(sources.count)个")
         for source in sources {
             if let data = try? JSONEncoder().encode(source),
                let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 sourceDicts.append(dict)
+            } else {
+                DebugLogger.shared.log("音源", "音源编码失败: \(source.name)", level: .error)
             }
             if let script = script(for: source.id) {
                 scriptDict[source.id] = script
+            } else {
+                DebugLogger.shared.log("音源", "音源脚本不存在: \(source.name) id=\(source.id)", level: .warning)
             }
         }
+        DebugLogger.shared.log("音源", "导出完成: 列表\(sourceDicts.count)个，脚本\(scriptDict.count)个")
         return (sourceDicts, scriptDict)
     }
 
-    /// 从备份恢复音源（列表+脚本），恢复后重新加载
+    /// 从备份恢复音源（列表+脚本），直接更新内存并持久化
     func importFromBackup(sources: [[String: Any]], scripts: [String: String]) {
-        // 写入脚本文件
+        DebugLogger.shared.log("音源", "开始从备份恢复，列表\(sources.count)个，脚本\(scripts.count)个")
+
+        // 1. 解码音源列表
+        guard let data = try? JSONSerialization.data(withJSONObject: sources),
+              let list = try? JSONDecoder().decode([LXSourceInfo].self, from: data) else {
+            DebugLogger.shared.log("音源", "音源列表解码失败", level: .error)
+            return
+        }
+        DebugLogger.shared.log("音源", "解码成功，\(list.count)个音源: \(list.map { $0.name })")
+
+        // 2. 写入脚本文件
+        var scriptCount = 0
         for (id, script) in scripts {
-            try? script.write(to: scriptURL(id), atomically: true, encoding: .utf8)
+            do {
+                try script.write(to: scriptURL(id), atomically: true, encoding: .utf8)
+                scriptCount += 1
+            } catch {
+                DebugLogger.shared.log("音源", "写入脚本失败 \(id): \(error.localizedDescription)", level: .error)
+            }
         }
-        // 写入音源列表
-        if let data = try? JSONSerialization.data(withJSONObject: sources) {
-            try? data.write(to: listURL)
+        DebugLogger.shared.log("音源", "写入脚本\(scriptCount)个")
+
+        // 3. 直接更新内存中的音源列表（UI立即刷新）
+        self.sources = list
+        DebugLogger.shared.log("音源", "内存音源列表已更新，当前\(self.sources.count)个")
+
+        // 4. 持久化音源列表
+        persistList()
+        DebugLogger.shared.log("音源", "持久化完成")
+
+        // 5. 恢复激活的音源
+        let savedID = UserDefaults.standard.string(forKey: activeSourceKey)
+        if let savedID, let source = list.first(where: { $0.id == savedID }) {
+            activeSourceID = savedID
+            Task { await activate(source) }
+            DebugLogger.shared.log("音源", "恢复激活音源: \(source.name)")
+        } else if let firstSource = list.first {
+            activeSourceID = firstSource.id
+            Task { await activate(firstSource) }
+            DebugLogger.shared.log("音源", "激活第一个音源: \(firstSource.name)")
         }
-        // 重新加载
-        loadPersistedList()
     }
 
     // MARK: 导入
