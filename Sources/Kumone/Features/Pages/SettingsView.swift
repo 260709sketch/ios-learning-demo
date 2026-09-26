@@ -21,7 +21,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section {
+            Section("LX") {
                 NavigationLink {
                     LXSourceManageView()
                 } label: {
