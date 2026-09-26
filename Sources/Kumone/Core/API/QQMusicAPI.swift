@@ -400,7 +400,9 @@ enum QQMusicAPI {
             let songInfo = item["songInfo"] as? [String: Any] ?? item
             guard let songmid = (songInfo["mid"] as? String) ?? (item["mid"] as? String), !songmid.isEmpty else { return nil }
             let songid = (songInfo["id"] as? Int) ?? (item["id"] as? Int) ?? abs(songmid.hashValue)
-            let name = (songInfo["name"] as? String) ?? (songInfo["title"] as? String) ?? (songInfo["songname"] as? String) ?? (item["name"] as? String) ?? ""
+            // name 不带脏标后缀，title 带 "(Explicit)" 后缀（QQ音乐标准做法）
+            let title = (songInfo["title"] as? String) ?? (item["title"] as? String) ?? ""
+            let name = (songInfo["name"] as? String) ?? (songInfo["songname"] as? String) ?? (item["name"] as? String) ?? title
             let interval = (songInfo["interval"] as? Int) ?? (item["interval"] as? Int) ?? 0
 
             var artists: [ArtistRef] = []
@@ -422,30 +424,29 @@ enum QQMusicAPI {
             let picUrl = albumMid.isEmpty ? nil : "https://y.gtimg.cn/music/photo_new/T002R800x800M000\(albumMid).jpg"
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumMid)
 
-            // QQ音乐 Explicit 脏标：全面检查所有可能字段
+            // QQ音乐 Explicit 脏标：title 字段带 "(Explicit)" 后缀是最可靠的判断
+            // 同时保留 action.switch 等字段检查作为备用
+            let titleHasExplicit = title.localizedCaseInsensitiveContains("(Explicit)")
             let status = (item["status"] as? Int) ?? (songInfo["status"] as? Int) ?? 0
-            let action = (item["action"] as? Int) ?? (songInfo["action"] as? Int) ?? 0
+            let actionDict = (item["action"] as? [String: Any]) ?? (songInfo["action"] as? [String: Any]) ?? [:]
+            let actionSwitch = (actionDict["switch"] as? Int) ?? 0
             let payDict = (item["pay"] as? [String: Any]) ?? (songInfo["pay"] as? [String: Any]) ?? [:]
             let payPay = (payDict["pay"] as? Int) ?? 0
             let label = (item["label"] as? String) ?? (songInfo["label"] as? String) ?? ""
             let ktag = (item["ktag"] as? Int) ?? (songInfo["ktag"] as? Int) ?? 0
             let type = (item["type"] as? Int) ?? (songInfo["type"] as? Int) ?? 0
-            // 脏标可能在多个位置：status/action bit11(2048), label包含explicit, ktag, type等
-            let isExplicit = (status & 128) != 0 || (status & 2048) != 0 ||
-                             (action & 128) != 0 || (action & 2048) != 0 ||
+            let isExplicit = titleHasExplicit ||
+                             (status & 128) != 0 || (status & 2048) != 0 ||
+                             (actionSwitch & 128) != 0 || (actionSwitch & 2048) != 0 ||
                              (payPay & 128) != 0 || (payPay & 2048) != 0 ||
                              (ktag & 2048) != 0 ||
                              label.lowercased().contains("explicit") ||
                              label.contains("脏标") ||
                              type == 11
 
-            // 调试：打印第一首歌的完整JSON，帮助定位脏标
+            // 调试：打印第一首歌的脏标判断信息
             if isFirstSong {
-                if let jsonData = try? JSONSerialization.data(withJSONObject: item, options: [.prettyPrinted]),
-                   let jsonStr = String(data: jsonData, encoding: .utf8) {
-                    DebugLogger.shared.log("QQ脏标", "歌曲[\(name)] 完整JSON: \(jsonStr.prefix(2000))")
-                }
-                DebugLogger.shared.log("QQ脏标", "歌曲[\(name)] item.keys=\(Array(item.keys)) songInfo.keys=\(Array(songInfo.keys)) status=\(status) action=\(action) payPay=\(payPay) isExplicit=\(isExplicit)")
+                DebugLogger.shared.log("QQ脏标", "歌曲[\(name)] title=\(title) titleHasExplicit=\(titleHasExplicit) status=\(status) actionSwitch=\(actionSwitch) isExplicit=\(isExplicit)")
                 isFirstSong = false
             }
 

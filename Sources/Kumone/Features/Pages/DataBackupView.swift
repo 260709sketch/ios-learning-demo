@@ -74,7 +74,7 @@ struct DataBackupView: View {
         }
         .fileImporter(
             isPresented: $showFilePicker,
-            allowedContentTypes: [.item],
+            allowedContentTypes: [.json, .data],
             allowsMultipleSelection: false
         ) { result in
             handleFileImport(result: result)
@@ -155,29 +155,38 @@ struct DataBackupView: View {
     }
 
     private func restoreBackup(from url: URL) {
+        DebugLogger.shared.log("数据备份", "开始恢复文件: \(url.lastPathComponent)")
+
         // fileImporter返回的URL需要安全范围访问
         let didStartAccessing = url.startAccessingSecurityScopedResource()
+        DebugLogger.shared.log("数据备份", "startAccessingSecurityScopedResource: \(didStartAccessing)")
         defer {
             if didStartAccessing {
                 url.stopAccessingSecurityScopedResource()
+                DebugLogger.shared.log("数据备份", "stopAccessingSecurityScopedResource")
             }
         }
 
         do {
-            DebugLogger.shared.log("数据备份", "开始恢复文件: \(url.lastPathComponent)")
             // 读取文件
             let data = try Data(contentsOf: url)
             DebugLogger.shared.log("数据备份", "文件大小: \(data.count) 字节")
             guard let backup = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw NSError(domain: "Backup", code: -1, userInfo: [NSLocalizedDescriptionKey: "文件格式错误"])
+                throw NSError(domain: "Backup", code: -1, userInfo: [NSLocalizedDescriptionKey: "文件格式错误，不是有效的 JSON 备份文件"])
             }
             DebugLogger.shared.log("数据备份", "备份文件键: \(Array(backup.keys))")
+
+            var restoredSettings = 0
+            var restoredTracks = 0
 
             // 1. 恢复设置
             if let settings = backup["settings"] as? [String: Any],
                let bundleID = Bundle.main.bundleIdentifier {
                 UserDefaults.standard.setPersistentDomain(settings, forName: bundleID)
-                DebugLogger.shared.log("数据备份", "恢复设置: \(settings.count) 项", level: .success)
+                restoredSettings = settings.count
+                DebugLogger.shared.log("数据备份", "恢复设置: \(restoredSettings) 项", level: .success)
+            } else {
+                DebugLogger.shared.log("数据备份", "备份中无设置数据或 bundleID 为空", level: .warning)
             }
 
             // 2. 恢复收藏歌单（兼容旧键名localPlaylist）
@@ -186,17 +195,21 @@ struct DataBackupView: View {
                 let playlistData = try JSONSerialization.data(withJSONObject: playlistArray)
                 let tracks = try JSONDecoder().decode([Track].self, from: playlistData)
                 localStore.replaceAll(tracks)
-                DebugLogger.shared.log("数据备份", "恢复收藏歌单: \(tracks.count) 首", level: .success)
+                restoredTracks = tracks.count
+                DebugLogger.shared.log("数据备份", "恢复收藏歌单: \(restoredTracks) 首", level: .success)
+            } else {
+                DebugLogger.shared.log("数据备份", "备份中无收藏歌单数据", level: .warning)
             }
 
             alertTitle = "恢复成功"
-            alertMessage = "数据已恢复，重启应用后生效"
+            alertMessage = "已恢复 \(restoredSettings) 项设置和 \(restoredTracks) 首收藏歌曲，重启应用后设置生效"
             showAlert = true
             statusMessage = "已从 \(url.lastPathComponent) 恢复数据"
+            DebugLogger.shared.log("数据备份", "恢复完成: 设置=\(restoredSettings) 歌曲=\(restoredTracks)", level: .success)
         } catch {
             DebugLogger.shared.log("数据备份", "恢复失败: \(error.localizedDescription)", level: .error)
             alertTitle = "恢复失败"
-            alertMessage = error.localizedDescription
+            alertMessage = "\(error.localizedDescription)\n\n请确认选择的是 Kumone_backup_ 开头的 JSON 备份文件"
             showAlert = true
         }
     }
