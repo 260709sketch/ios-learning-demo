@@ -74,9 +74,10 @@ struct DataBackupView: View {
         }
         .fileImporter(
             isPresented: $showFilePicker,
-            allowedContentTypes: [.json, .data],
+            allowedContentTypes: [.item],
             allowsMultipleSelection: false
         ) { result in
+            DebugLogger.shared.log("数据备份", "fileImporter 回调触发 result=\(result)")
             handleFileImport(result: result)
         }
         .alert(alertTitle, isPresented: $showAlert) {
@@ -143,11 +144,18 @@ struct DataBackupView: View {
     // MARK: - 恢复
 
     private func handleFileImport(result: Result<[URL], Error>) {
+        DebugLogger.shared.log("数据备份", "fileImporter 回调 result=\(result)")
         switch result {
         case .success(let urls):
-            guard let url = urls.first else { return }
+            guard let url = urls.first else {
+                DebugLogger.shared.log("数据备份", "未选择任何文件", level: .warning)
+                statusMessage = "未选择文件"
+                return
+            }
+            statusMessage = "正在恢复：\(url.lastPathComponent)..."
             restoreBackup(from: url)
         case .failure(let error):
+            DebugLogger.shared.log("数据备份", "文件选择失败: \(error.localizedDescription)", level: .error)
             alertTitle = "导入失败"
             alertMessage = error.localizedDescription
             showAlert = true
