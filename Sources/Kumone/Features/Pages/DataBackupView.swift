@@ -153,11 +153,18 @@ struct DataBackupView: View {
     private func handlePickedFile(_ url: URL) {
         DebugLogger.shared.log("数据备份", "选择文件: \(url.lastPathComponent)")
         statusMessage = "正在恢复：\(url.lastPathComponent)..."
-        restoreBackup(from: url)
+        // 确保在主线程执行恢复操作（LocalPlaylistStore 是 @MainActor）
+        DispatchQueue.main.async {
+            self.restoreBackup(from: url)
+        }
     }
 
     private func restoreBackup(from url: URL) {
         DebugLogger.shared.log("数据备份", "开始恢复文件: \(url.lastPathComponent)")
+        DebugLogger.shared.log("数据备份", "恢复前歌单数量: \(localStore.count)")
+        if let bundleID = Bundle.main.bundleIdentifier {
+            DebugLogger.shared.log("数据备份", "bundleID: \(bundleID)")
+        }
 
         // asCopy:true 时系统已复制到临时目录，可直接读取，无需 security-scoped
         do {
@@ -172,33 +179,38 @@ struct DataBackupView: View {
             var restoredSettings = 0
             var restoredTracks = 0
 
-            // 1. 恢复设置
-            if let settings = backup["settings"] as? [String: Any],
-               let bundleID = Bundle.main.bundleIdentifier {
-                UserDefaults.standard.setPersistentDomain(settings, forName: bundleID)
-                restoredSettings = settings.count
-                DebugLogger.shared.log("数据备份", "恢复设置: \(restoredSettings) 项", level: .success)
-            } else {
-                DebugLogger.shared.log("数据备份", "备份中无设置数据或 bundleID 为空", level: .warning)
-            }
-
-            // 2. 恢复收藏歌单（兼容旧键名localPlaylist）
+            // 1. 先恢复收藏歌单（避免 setPersistentDomain 覆盖后丢失引用）
             let playlistArray = (backup["favoritePlaylist"] as? [[String: Any]]) ?? (backup["localPlaylist"] as? [[String: Any]])
             if let playlistArray = playlistArray {
+                DebugLogger.shared.log("数据备份", "备份中歌单数据条数: \(playlistArray.count)")
                 let playlistData = try JSONSerialization.data(withJSONObject: playlistArray)
                 let tracks = try JSONDecoder().decode([Track].self, from: playlistData)
                 localStore.replaceAll(tracks)
                 restoredTracks = tracks.count
-                DebugLogger.shared.log("数据备份", "恢复收藏歌单: \(restoredTracks) 首", level: .success)
+                DebugLogger.shared.log("数据备份", "恢复收藏歌单: \(restoredTracks) 首，恢复后数量: \(localStore.count)", level: .success)
             } else {
-                DebugLogger.shared.log("数据备份", "备份中无收藏歌单数据", level: .warning)
+                DebugLogger.shared.log("数据备份", "备份中无收藏歌单数据（favoritePlaylist/localPlaylist 均不存在）", level: .warning)
+            }
+
+            // 2. 再恢复设置
+            if let settings = backup["settings"] as? [String: Any],
+               let bundleID = Bundle.main.bundleIdentifier {
+                DebugLogger.shared.log("数据备份", "备份中设置条数: \(settings.count)")
+                UserDefaults.standard.setPersistentDomain(settings, forName: bundleID)
+                restoredSettings = settings.count
+                DebugLogger.shared.log("数据备份", "恢复设置: \(restoredSettings) 项", level: .success)
+                // setPersistentDomain 会覆盖 UserDefaults，重新保存歌单确保不丢失
+                localStore.save()
+                DebugLogger.shared.log("数据备份", "setPersistentDomain 后重新保存歌单，数量: \(localStore.count)")
+            } else {
+                DebugLogger.shared.log("数据备份", "备份中无设置数据或 bundleID 为空", level: .warning)
             }
 
             alertTitle = "恢复成功"
-            alertMessage = "已恢复 \(restoredSettings) 项设置和 \(restoredTracks) 首收藏歌曲，重启应用后设置生效"
+            alertMessage = "已恢复 \(restoredSettings) 项设置和 \(restoredTracks) 首收藏歌曲。\n\n设置需重启应用后生效，收藏歌单已立即更新。"
             showAlert = true
-            statusMessage = "已从 \(url.lastPathComponent) 恢复数据"
-            DebugLogger.shared.log("数据备份", "恢复完成: 设置=\(restoredSettings) 歌曲=\(restoredTracks)", level: .success)
+            statusMessage = "已从 \(url.lastPathComponent) 恢复：\(restoredSettings) 项设置，\(restoredTracks) 首歌曲"
+            DebugLogger.shared.log("数据备份", "恢复完成: 设置=\(restoredSettings) 歌曲=\(restoredTracks) 最终歌单=\(localStore.count)", level: .success)
         } catch {
             DebugLogger.shared.log("数据备份", "恢复失败: \(error.localizedDescription)", level: .error)
             alertTitle = "恢复失败"

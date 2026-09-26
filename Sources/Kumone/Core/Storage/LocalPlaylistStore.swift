@@ -22,7 +22,7 @@ final class LocalPlaylistStore: ObservableObject {
         }
     }
 
-    private func save() {
+    func save() {
         if let data = try? JSONEncoder().encode(tracks) {
             UserDefaults.standard.set(data, forKey: defaultsKey)
         }
