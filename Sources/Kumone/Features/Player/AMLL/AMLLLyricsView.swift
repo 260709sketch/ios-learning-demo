@@ -203,12 +203,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
         // 背景模式控制：
-        // - flowing: 恢复默认flowSpeed + setStaticMode(false) + resume()
-        // - still: setFlowSpeed(0)让frameTime不增加(背景不流动) + setStaticMode(true) + pause()
-        //   三重保险确保背景完全静止，同时歌词是单独LyricPlayer不受影响
-        let bgRenderCmd = (backgroundMode == .flowing)
-            ? "if(typeof Fu._defaultFlowSpeed==='undefined'&&Fu.renderer){Fu._defaultFlowSpeed=Fu.renderer.flowSpeed;}Fu.setFlowSpeed(Fu._defaultFlowSpeed||1);Fu.setStaticMode(false);Fu.resume();"
-            : "if(typeof Fu._defaultFlowSpeed==='undefined'&&Fu.renderer){Fu._defaultFlowSpeed=Fu.renderer.flowSpeed;}Fu.setFlowSpeed(0);Fu.setStaticMode(true);Fu.pause();"
+        // - flowing: Fu.resume() 恢复流动渲染
+        // - still: Fu.pause() 暂停渲染循环，背景画面静止可见
+        let bgRenderCmd = (backgroundMode == .flowing) ? "Fu.resume();" : "Fu.pause();"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -219,8 +216,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 el.style.opacity = '\(opacityValue)';
                 el.style.pointerEvents = '\(pointerEvents)';
             }
-            // 静态模式三重保险：flowSpeed=0 + staticMode + pause
-            // 流动模式恢复默认flowSpeed + 关闭staticMode + resume
+            // 静态模式暂停背景渲染，流动模式恢复
             if (typeof Fu !== 'undefined') {
                 \(bgRenderCmd)
             }
@@ -271,8 +267,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         userContent.add(self, name: "amllEvent")
 
         // 提前注入背景模式设置，避免 WebView 加载时流动背景闪烁
-        // still: setStaticMode(true) + pause 完全停止背景渲染，节省性能
-        // flowing: setStaticMode(false) + resume 恢复流动渲染
+        // still: Fu.pause() 暂停背景渲染，节省性能
+        // flowing: Fu.resume() 恢复流动渲染
         let bgStatic = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
         (function() {
@@ -281,7 +277,6 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 tries++;
                 if (typeof Fu !== 'undefined' && Fu) {
                     clearInterval(timer);
-                    Fu.setStaticMode(\(bgStatic));
                     if (\(bgStatic)) { Fu.pause(); } else { Fu.resume(); }
                 } else if (tries > 100) {
                     clearInterval(timer);
@@ -468,10 +463,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             if let image = await ImageCache.shared.image(for: url) {
                 if let dataURL = image.amllJPEGDataURL() {
                     callJS("setAlbum", args: [dataURL])
-                    // 静态模式下渲染循环已暂停，setAlbum后临时resume让背景更新封面，
-                    // resume时保持flowSpeed=0只更新封面不流动，3秒后再pause彻底停止渲染
+                    // 静态模式下渲染循环已暂停，setAlbum后临时resume一帧更新封面，然后立即pause
                     if backgroundMode == .still {
-                        callJSRaw("if(typeof Fu!=='undefined'){Fu.setFlowSpeed(0);Fu.resume();setTimeout(function(){Fu.pause();},3000);}true;")
+                        callJSRaw("if(typeof Fu!=='undefined'){Fu.resume();setTimeout(function(){Fu.pause();},100);}true;")
                     }
                 }
             }
