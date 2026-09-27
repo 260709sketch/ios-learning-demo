@@ -146,6 +146,8 @@ struct LiquidGlassConfig: Codable, Equatable, Hashable {
     var refractiveIndex: Double = 1.5
     /// 色散强度 0-30
     var dispersionStrength: Double = 5
+    /// 渲染帧率 30/60/90/120
+    var preferredFramesPerSecond: Int = 60
 
     static let `default` = LiquidGlassConfig()
 

@@ -155,12 +155,13 @@ struct LiquidGlassBackground: UIViewRepresentable {
             view = UIVisualEffectView(effect: effect)
         } else {
             let effect: LiquidGlassEffect
+            let fps = config?.preferredFramesPerSecond ?? 60
             if let config = config {
                 effect = LiquidGlassEffect(customLiquidGlass: config.toLiquidGlass)
             } else {
                 effect = LiquidGlassEffect(style: style, isNative: false)
             }
-            view = LiquidGlassEffectView(effect: effect)
+            view = LiquidGlassEffectView(effect: effect, preferredFramesPerSecond: fps)
         }
         view.contentScaleFactor = contentScaleFactor
         return view

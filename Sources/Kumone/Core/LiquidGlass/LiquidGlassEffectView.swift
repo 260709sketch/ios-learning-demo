@@ -22,16 +22,16 @@ public class LiquidGlassEffectView: UIView, AnyVisualEffectView {
         }
     }
 
-    public required init(effect: LiquidGlassEffect) {
+    public required init(effect: LiquidGlassEffect, preferredFramesPerSecond: Int = 60) {
         self.effect = effect
 
         super.init(frame: .zero)
 
         let glassConfig = effect.customLiquidGlass ?? effect.style.liquidGlass
-        let liquidGlassView = LiquidGlassView(glassConfig)
+        let liquidGlassView = LiquidGlassView(glassConfig, preferredFramesPerSecond: preferredFramesPerSecond)
         addSubview(liquidGlassView)
         self.liquidGlassView = liquidGlassView
-        
+
         setupContentView()
     }
 

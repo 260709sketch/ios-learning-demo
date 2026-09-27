@@ -85,6 +85,19 @@ struct LiquidGlassSettingsView: View {
                         set: { settings.liquidGlassConfig.dispersionStrength = $0; settings.liquidGlassPreset = .custom }
                     ), in: 0...30)
                 }
+
+                VStack(alignment: .leading) {
+                    Picker("渲染帧率", selection: Binding(
+                        get: { settings.liquidGlassConfig.preferredFramesPerSecond },
+                        set: { settings.liquidGlassConfig.preferredFramesPerSecond = $0; settings.liquidGlassPreset = .custom }
+                    )) {
+                        Text("30 FPS").tag(30)
+                        Text("60 FPS").tag(60)
+                        Text("90 FPS").tag(90)
+                        Text("120 FPS").tag(120)
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
 
             Section("预览") {

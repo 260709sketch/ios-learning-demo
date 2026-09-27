@@ -255,11 +255,11 @@ final class LiquidGlassView: MTKView {
     // Backdrop capture view (stays in superview, contains only CABackdropLayer)
     private let backdropView = BackdropView()
 
-    init(_ liquidGlass: LiquidGlass) {
+    init(_ liquidGlass: LiquidGlass, preferredFramesPerSecond: Int = 60) {
         self.liquidGlass = liquidGlass
 
         super.init(frame: .zero, device: LiquidGlassRenderer.shared.device)
-        
+
         if liquidGlass.shadowOverlay {
             let shadowView = ShadowView()
             addSubview(shadowView)
@@ -267,7 +267,7 @@ final class LiquidGlassView: MTKView {
         }
         setupMetal()
         layer.shouldRasterize = true
-//        preferredFramesPerSecond = 15
+        self.preferredFramesPerSecond = preferredFramesPerSecond
 //        clipsToBounds = true
 //        autoResizeDrawable = false
 //        contentMode = .center
