@@ -46,6 +46,7 @@ struct LiquidGlassTabBar: View {
                             radius: isPressed ? 20 : 8,
                             y: isPressed ? 8 : 3)
                     .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isPressed)
+                    .animation(settle, value: selection)
                     .zIndex(isPressed ? 1 : 0)
 
                 HStack(spacing: 0) {
