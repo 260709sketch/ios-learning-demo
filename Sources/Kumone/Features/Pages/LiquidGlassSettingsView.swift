@@ -102,7 +102,6 @@ struct LiquidGlassSettingsView: View {
 
             Section("预览") {
                 LiquidGlassPreview()
-                    .frame(height: 80)
                     .listRowInsets(EdgeInsets())
             }
 
