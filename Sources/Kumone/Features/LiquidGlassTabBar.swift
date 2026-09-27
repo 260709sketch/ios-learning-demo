@@ -58,7 +58,7 @@ struct LiquidGlassTabBar: View {
         }
         .frame(height: contentHeight)
         .padding(innerInset)
-        .background { LiquidGlassBackground(style: .regular) }
+        .background(.regularMaterial, in: Capsule())
         .overlay {
             Capsule().strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0.22),
                                    lineWidth: 0.5)
@@ -126,15 +126,19 @@ struct LiquidGlassTabBar: View {
 /// 液态玻璃背景：用 UIViewRepresentable 包装液态玻璃效果
 struct LiquidGlassBackground: UIViewRepresentable {
     var style: LiquidGlassEffect.Style = .regular
+    var contentScaleFactor: CGFloat = 1.0  // 降低渲染分辨率提升性能
 
     func makeUIView(context: Context) -> UIView {
+        let view: UIView
         if #available(iOS 26.0, *) {
             let effect = UIGlassEffect(style: style.nativeStyle)
-            return UIVisualEffectView(effect: effect)
+            view = UIVisualEffectView(effect: effect)
         } else {
             let effect = LiquidGlassEffect(style: style, isNative: false)
-            return LiquidGlassEffectView(effect: effect)
+            view = LiquidGlassEffectView(effect: effect)
         }
+        view.contentScaleFactor = contentScaleFactor
+        return view
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
