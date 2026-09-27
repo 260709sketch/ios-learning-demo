@@ -114,12 +114,18 @@ struct LiquidGlassTabBar: View {
     }
 }
 
-/// 液态玻璃背景：用 UIViewRepresentable 包装 LiquidGlassEffectView
+/// 液态玻璃背景：用 UIViewRepresentable 包装液态玻璃效果
 struct LiquidGlassBackground: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
-        let effect = LiquidGlassEffect(style: .regular, isNative: true)
-        let view = VisualEffectView(effect: effect)
-        return view
+        if #available(iOS 26.0, *) {
+            // iOS 26+ 使用原生 UIGlassEffect
+            let effect = UIGlassEffect(style: .regular)
+            return UIVisualEffectView(effect: effect)
+        } else {
+            // iOS 16-25 使用自定义 Metal 液态玻璃实现
+            let effect = LiquidGlassEffect(style: .regular, isNative: false)
+            return LiquidGlassEffectView(effect: effect)
+        }
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
