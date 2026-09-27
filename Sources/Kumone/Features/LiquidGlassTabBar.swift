@@ -85,14 +85,26 @@ struct LiquidGlassTabBar: View {
         .contentShape(Rectangle())
     }
 
-    /// The sliding indicator — a liquid glass capsule with thumb preset.
+    /// The sliding indicator — resting pill morphs to liquid glass when lifted.
     private var selectionPill: some View {
-        LiquidGlassBackground(style: .thumb, contentScaleFactor: 1.0)
-            .clipShape(Capsule(style: .continuous))
-            .overlay {
-                Capsule(style: .continuous)
-                    .strokeBorder(.white.opacity(colorScheme == .dark ? 0.12 : 0.25), lineWidth: 0.5)
-            }
+        ZStack {
+            // 静止状态：半透明白色药丸
+            Capsule(style: .continuous)
+                .fill(colorScheme == .dark
+                      ? Color.white.opacity(0.12)
+                      : Color.white.opacity(0.35))
+                .opacity(isPressed ? 0 : 1)
+
+            // 抬起状态：液态玻璃
+            LiquidGlassBackground(style: .thumb, contentScaleFactor: 1.0)
+                .clipShape(Capsule(style: .continuous))
+                .overlay {
+                    Capsule(style: .continuous)
+                        .strokeBorder(.white.opacity(colorScheme == .dark ? 0.12 : 0.25), lineWidth: 0.5)
+                }
+                .opacity(isPressed ? 1 : 0)
+        }
+        .animation(.easeInOut(duration: 0.2), value: isPressed)
     }
 
     private func index(for x: CGFloat, cellW: CGFloat, count: Int) -> Int {
