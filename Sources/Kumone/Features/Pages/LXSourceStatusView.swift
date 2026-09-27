@@ -99,6 +99,11 @@ struct LXSourceStatusView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                if let fileSize = log.fileSizeText {
+                    Label(fileSize, systemImage: "doc.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 Label(log.requestedQuality, systemImage: "arrow.down.circle")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
