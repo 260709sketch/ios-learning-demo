@@ -380,7 +380,6 @@ final class LXMusicEngine: NSObject {
                 "songId": "001fXNtB2b58tO",
                 "pic": "",
                 "album": "叶惠美",
-                "hash": "",
                 "rid": ""
             ]
         } else {
@@ -401,7 +400,6 @@ final class LXMusicEngine: NSObject {
                 "songId": "1330348068",
                 "pic": "",
                 "album": "thank u, next",
-                "hash": "",
                 "rid": ""
             ]
         }
@@ -652,7 +650,10 @@ final class LXMusicEngine: NSObject {
             "strMediaMid": songmid,
             "pic": pic,
             "album": track.album.name,
-            "hash": "",
+            // 注意：不要设置 hash 为空字符串！
+            // 付费音源（如聆澜）用 musicInfo?.hash ?? musicInfo?.songmid 取 ID，
+            // 空字符串会通过 ?? 检查，导致 songId 为空，请求失败。
+            // 不设置 hash 字段时它为 nil，会正确 fallback 到 songmid。
             "rid": "",
             // meta 保留旧格式兼容
             "meta": [
