@@ -203,11 +203,11 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
         // 背景模式控制：
-        // - flowing: Fu.resume() 持续流动
-        // - still: Fu.pause() 停止渲染，保持当前静态画面（不隐藏#bg）
+        // - flowing: _bgStill=false + Fu.resume() 持续流动
+        // - still: _bgStill=true + Fu.pause()，保底定时器每500ms强制pause
         let bgRenderCmd = (backgroundMode == .flowing)
-            ? "Fu.resume();"
-            : "Fu.pause();"
+            ? "window._bgStill=false;Fu.resume();"
+            : "window._bgStill=true;Fu.pause();"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -267,11 +267,18 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let userContent = WKUserContentController()
         userContent.add(self, name: "amllEvent")
 
-        // 提前注入背景模式设置
-        // still: 先渲染3秒让封面加载绘制，然后pause保持静态画面
-        // flowing: Fu.resume() 持续流动
+        // 提前注入背景模式设置 + 保底强制pause
+        // still: 先渲染3秒让封面加载，然后pause；每500ms保底检查强制pause
+        // flowing: 持续流动
         let bgStatic = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
+        window._bgStill = \(bgStatic);
+        // 保底：每500ms检查，静态模式下强制pause，防止任何未知resume
+        setInterval(function(){
+          if(window._bgStill && typeof Fu!=='undefined' && Fu && Fu.renderer && !Fu.renderer.paused){
+            Fu.pause();
+          }
+        }, 500);
         (function() {
             var tries = 0;
             var timer = setInterval(function() {
@@ -279,7 +286,6 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 if (typeof Fu !== 'undefined' && Fu) {
                     clearInterval(timer);
                     if (\(bgStatic)) {
-                        // 静态模式：先渲染3秒等封面加载，然后pause保持静态画面
                         Fu.resume();
                         setTimeout(function(){ Fu.pause(); }, 3000);
                     } else {
