@@ -243,8 +243,8 @@ final class LiquidGlassView: MTKView {
 
     /// 帧计数器，用于降低背景捕获频率
     private var frameCount = 0
-    /// 每N帧捕获一次背景（2=每2帧捕获一次，CPU开销减半）
-    private let captureFrameInterval = 2
+    /// 每N帧捕获一次背景（3=每3帧捕获一次，CPU开销降到1/3）
+    private let captureFrameInterval = 3
 
     /// Whether to automatically capture superview on each frame. 
     /// Set to false for manual control via `captureBackground()`.
@@ -472,10 +472,11 @@ final class LiquidGlassView: MTKView {
 
     override func draw(_ rect: CGRect) {
         // Auto-capture background from superview if enabled
-        // 每 captureFrameInterval 帧才捕获一次背景，中间帧复用上次纹理，CPU开销减半
         if autoCapture {
             frameCount += 1
-            if frameCount % captureFrameInterval == 0 || backgroundTexture == nil {
+            // 滑动时完全暂停背景捕获，只用上次的纹理，CPU开销几乎为零
+            let isScrolling = ScrollDetector.shared.isScrolling
+            if !isScrolling && (frameCount % captureFrameInterval == 0 || backgroundTexture == nil) {
                 captureBackground()
             }
         }
