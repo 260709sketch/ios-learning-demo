@@ -203,9 +203,10 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
         // 背景模式控制：
-        // - flowing: Fu.resume() 流动渲染
-        // - still: Fu.pause() 渲染一帧后暂停，背景画面静止可见
-        let bgRenderCmd = (backgroundMode == .flowing) ? "Fu.resume()" : "Fu.pause()"
+        // - flowing: Fu.setStaticMode(false) 流动背景
+        // - still: Fu.setStaticMode(true) 静态背景（关键：用setStaticMode而不是pause，
+        //   pause只暂停渲染循环，staticMode仍为false，恢复后继续流动）
+        let bgRenderCmd = (backgroundMode == .flowing) ? "Fu.setStaticMode(false)" : "Fu.setStaticMode(true)"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -216,7 +217,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 el.style.opacity = '\(opacityValue)';
                 el.style.pointerEvents = '\(pointerEvents)';
             }
-            // 静态模式暂停背景渲染器，流动模式恢复
+            // 静态模式用setStaticMode，流动模式关闭静态模式
             if (typeof Fu !== 'undefined') {
                 \(bgRenderCmd);
             }
@@ -267,8 +268,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         userContent.add(self, name: "amllEvent")
 
         // 提前注入背景模式设置，避免 WebView 加载时流动背景闪烁
-        // still 模式下等 Fu 初始化后暂停渲染，flowing 模式恢复渲染
-        let bgPause = (backgroundMode == .flowing) ? "false" : "true"
+        // still 模式下等 Fu 初始化后设置静态模式，flowing 模式关闭静态模式
+        // 关键：用setStaticMode而不是pause/resume，pause只暂停渲染循环不改变staticMode
+        let bgStatic = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
         (function() {
             var tries = 0;
@@ -276,7 +278,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 tries++;
                 if (typeof Fu !== 'undefined' && Fu) {
                     clearInterval(timer);
-                    if (\(bgPause)) { Fu.pause(); } else { Fu.resume(); }
+                    Fu.setStaticMode(\(bgStatic));
                 } else if (tries > 100) {
                     clearInterval(timer);
                 }
