@@ -79,12 +79,14 @@ struct LiquidGlassTabBar: View {
         .contentShape(Rectangle())
     }
 
-    /// The sliding indicator — a bar-height capsule with Telegram's faint tint.
+    /// The sliding indicator — a liquid glass capsule.
     private var selectionPill: some View {
-        Capsule(style: .continuous)
-            .fill(colorScheme == .dark
-                  ? Color.white.opacity(0.10)
-                  : Color.black.opacity(0.075))
+        LiquidGlassBackground()
+            .clipShape(Capsule(style: .continuous))
+            .overlay {
+                Capsule(style: .continuous)
+                    .strokeBorder(.white.opacity(colorScheme == .dark ? 0.12 : 0.25), lineWidth: 0.5)
+            }
     }
 
     private func index(for x: CGFloat, cellW: CGFloat, count: Int) -> Int {
