@@ -875,6 +875,11 @@ final class PlayerService: ObservableObject {
 
         let lxStore = LXSourceStore.shared
         let lxEngine = LXMusicEngine.shared
+
+        // 应用启动时音源可能还在异步加载，等待初始化完成再解析
+        // 避免用户手速快点击播放时提示"音源网络问题"
+        await lxStore.waitForInitialization()
+
         let targetQuality = lxEngine.lxQuality(from: SettingsManager.shared.audioQuality)
         let platform = track.sourcePlatform ?? "wy"
         DebugLogger.shared.log("LX", "\(preloadOnly ? "[预加载]" : "[播放]") 开始解析 歌曲=\(track.name) 平台=\(platform) songmid=\(track.platformSongId ?? String(track.id)) 请求音质=\(targetQuality)")

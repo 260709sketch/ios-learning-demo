@@ -90,14 +90,25 @@ final class LXSourceStore: ObservableObject {
         sources = list
 
         // 恢复上次激活的音源并自动重新加载
+        // 使用最高优先级，确保应用启动后音源最快可用
         let savedID = UserDefaults.standard.string(forKey: activeSourceKey)
         if let savedID, let source = sources.first(where: { $0.id == savedID }) {
             activeSourceID = savedID
-            Task { await activate(source) }
+            Task(priority: .userInitiated) { await activate(source) }
         } else if let firstSource = sources.first {
             // 兜底：没有保存的激活音源但列表不为空，自动激活第一个
             activeSourceID = firstSource.id
-            Task { await activate(firstSource) }
+            Task(priority: .userInitiated) { await activate(firstSource) }
+        }
+    }
+
+    /// 等待音源初始化完成。播放时调用，确保引擎已加载完毕。
+    func waitForInitialization() async {
+        // 每 50ms 检查一次，最多等 5 秒
+        var waited = 0
+        while isInitializing && waited < 5000 {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            waited += 50
         }
     }
 
