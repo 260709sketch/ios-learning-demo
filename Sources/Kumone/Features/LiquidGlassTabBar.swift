@@ -58,7 +58,7 @@ struct LiquidGlassTabBar: View {
         }
         .frame(height: contentHeight)
         .padding(innerInset)
-        .background(.regularMaterial, in: Capsule())
+        .background { LiquidGlassBackground(style: .regular, contentScaleFactor: 0.75) }
         .overlay {
             Capsule().strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0.22),
                                    lineWidth: 0.5)
@@ -86,7 +86,7 @@ struct LiquidGlassTabBar: View {
 
     /// The sliding indicator — a liquid glass capsule with thumb preset.
     private var selectionPill: some View {
-        LiquidGlassBackground(style: .thumb)
+        LiquidGlassBackground(style: .thumb, contentScaleFactor: 1.0)
             .clipShape(Capsule(style: .continuous))
             .overlay {
                 Capsule(style: .continuous)
