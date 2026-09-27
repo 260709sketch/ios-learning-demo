@@ -203,12 +203,12 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
         // 背景模式控制：
-        // - flowing: Fu.setStaticMode(false) + Fu.resume() 流动背景，渲染循环运行
-        // - still: Fu.setStaticMode(true) + Fu.pause() 静态背景，完全停止背景渲染循环
-        //   （歌词是单独的LyricPlayer，不受Fu.pause影响，背景保持最后一帧画面）
+        // - flowing: 恢复默认flowSpeed + setStaticMode(false) + resume()
+        // - still: setFlowSpeed(0)让frameTime不增加(背景不流动) + setStaticMode(true) + pause()
+        //   三重保险确保背景完全静止，同时歌词是单独LyricPlayer不受影响
         let bgRenderCmd = (backgroundMode == .flowing)
-            ? "Fu.setStaticMode(false); Fu.resume();"
-            : "Fu.setStaticMode(true); Fu.pause();"
+            ? "if(typeof Fu._defaultFlowSpeed==='undefined'&&Fu.renderer){Fu._defaultFlowSpeed=Fu.renderer.flowSpeed;}Fu.setFlowSpeed(Fu._defaultFlowSpeed||1);Fu.setStaticMode(false);Fu.resume();"
+            : "if(typeof Fu._defaultFlowSpeed==='undefined'&&Fu.renderer){Fu._defaultFlowSpeed=Fu.renderer.flowSpeed;}Fu.setFlowSpeed(0);Fu.setStaticMode(true);Fu.pause();"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -219,8 +219,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 el.style.opacity = '\(opacityValue)';
                 el.style.pointerEvents = '\(pointerEvents)';
             }
-            // 静态模式：setStaticMode + pause 完全停止背景渲染，节省性能
-            // 流动模式：setStaticMode(false) + resume 恢复流动渲染
+            // 静态模式三重保险：flowSpeed=0 + staticMode + pause
+            // 流动模式恢复默认flowSpeed + 关闭staticMode + resume
             if (typeof Fu !== 'undefined') {
                 \(bgRenderCmd)
             }
@@ -469,9 +469,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 if let dataURL = image.amllJPEGDataURL() {
                     callJS("setAlbum", args: [dataURL])
                     // 静态模式下渲染循环已暂停，setAlbum后临时resume让背景更新封面，
-                    // 延迟3秒等图片加载渲染完成后再pause，确保切歌时背景封面能更新
+                    // resume时保持flowSpeed=0只更新封面不流动，3秒后再pause彻底停止渲染
                     if backgroundMode == .still {
-                        callJSRaw("if(typeof Fu!=='undefined'){Fu.resume();setTimeout(function(){Fu.pause();},3000);}true;")
+                        callJSRaw("if(typeof Fu!=='undefined'){Fu.setFlowSpeed(0);Fu.resume();setTimeout(function(){Fu.pause();},3000);}true;")
                     }
                 }
             }
