@@ -267,7 +267,7 @@ final class LiquidGlassView: MTKView {
         }
         setupMetal()
         layer.shouldRasterize = true
-        preferredFramesPerSecond = 30
+        preferredFramesPerSecond = 15
 //        clipsToBounds = true
 //        autoResizeDrawable = false
 //        contentMode = .center
