@@ -135,6 +135,26 @@ struct Track: Codable, Hashable, Identifiable {
         try c.encodeIfPresent(sourcePlatform, forKey: .sourcePlatform)
         try c.encodeIfPresent(platformSongId, forKey: .platformSongId)
     }
+
+    /// 用于测试的简易 init
+    init(id: Int, name: String, artists: [ArtistRef], album: AlbumRef, durationMS: Int, sourcePlatform: String?, platformSongId: String?) {
+        self.id = id
+        self.name = name
+        self.artists = artists
+        self.album = album
+        self.durationMS = durationMS
+        self.alias = []
+        self.transNames = []
+        self.fee = 0
+        self.mvID = 0
+        self.trackNo = 1
+        self.disc = nil
+        self.noCopyright = false
+        self.isCloud = false
+        self.embeddedPrivilege = nil
+        self.sourcePlatform = sourcePlatform
+        self.platformSongId = platformSongId
+    }
 }
 
 /// Playability flags per track, returned in parallel `privileges` arrays.

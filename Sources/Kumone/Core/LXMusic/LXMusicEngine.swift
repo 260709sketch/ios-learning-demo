@@ -359,43 +359,32 @@ final class LXMusicEngine: NSObject {
     /// 测试音源是否能真正获取播放链接（用固定测试歌曲实际请求 musicUrl）
     /// - Parameter platform: 测试平台，"wy"=网易云，"tx"=QQ音乐
     func testMusicURL(platform: String = "wy") async -> Bool {
-        // 不同平台用不同的测试歌曲信息
-        let testInfo: [String: Any]
+        // 用 Track 对象 + lxMusicInfo 构造，跟实际播放完全一致
+        let testTrack: Track
         if platform == "tx" {
             // QQ音乐测试歌曲：晴天（周杰伦）
-            testInfo = [
-                "name": "晴天",
-                "singer": "周杰伦",
-                "source": "tx",
-                "songmid": "001fXNtB2b58tO",
-                "interval": "04:29",
-                "albumName": "叶惠美",
-                "img": "",
-                "typeUrl": [:] as [String: String],
-                "albumId": 0,
-                "types": [["type": "128k", "size": ""]],
-                "_types": ["128k": ["size": ""]],
-                "strMediaMid": "001fXNtB2b58tO",
-                "albumMid": "",
-                "songId": "102980018",
-                "vid": ""
-            ]
+            testTrack = Track(
+                id: 102980018,
+                name: "晴天",
+                artists: [ArtistRef(id: 0, name: "周杰伦")],
+                album: AlbumRef(id: 0, name: "叶惠美", picUrl: nil),
+                durationMS: 269000,
+                sourcePlatform: "tx",
+                platformSongId: "001fXNtB2b58tO"
+            )
         } else {
             // 网易云测试歌曲：thank u, next
-            testInfo = [
-                "name": "thank u, next",
-                "singer": "Ariana Grande",
-                "source": "wy",
-                "songmid": "1330348068",
-                "interval": "03:27",
-                "albumName": "thank u, next",
-                "img": "",
-                "typeUrl": [:] as [String: String],
-                "albumId": 0,
-                "types": [["type": "128k", "size": ""]],
-                "_types": ["128k": ["size": ""]]
-            ]
+            testTrack = Track(
+                id: 1330348068,
+                name: "thank u, next",
+                artists: [ArtistRef(id: 0, name: "Ariana Grande")],
+                album: AlbumRef(id: 0, name: "thank u, next", picUrl: nil),
+                durationMS: 207000,
+                sourcePlatform: "wy",
+                platformSongId: "1330348068"
+            )
         }
+        let testInfo = lxMusicInfo(from: testTrack, quality: "128k")
         let payload: [String: Any] = [
             "requestKey": "",
             "data": [
