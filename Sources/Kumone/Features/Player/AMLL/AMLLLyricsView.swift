@@ -470,7 +470,10 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             if let image = await ImageCache.shared.image(for: url) {
                 if let dataURL = image.amllJPEGDataURL() {
                     callJS("setAlbum", args: [dataURL])
-                    // 静态模式下#bg已隐藏，不需要渲染封面，只更新内部状态即可
+                    // 静态模式切歌：临时resume 2秒让新封面加载绘制，然后pause保持静态画面
+                    if backgroundMode == .still {
+                        callJSRaw("if(typeof Fu!=='undefined'){Fu.resume();setTimeout(function(){Fu.pause();},2000);}true;")
+                    }
                 }
             }
         }
