@@ -22,12 +22,7 @@ struct SettingsView: View {
                 NavigationLink {
                     LXSourceManageView()
                 } label: {
-                    Label("自定义音源", systemImage: "antenna.radiowaves.left.and.right")
-                }
-                NavigationLink {
-                    LXSourceStatusView()
-                } label: {
-                    Label("音源状态", systemImage: "list.bullet.clipboard")
+                    Text("自定义音源")
                 }
                 Text("激活自定义音源后，所有歌曲（包括网易云歌曲）均通过自定义音源解析播放，不再走网易云官方通道，网易云 VIP 将不生效。无损音质取决于音源脚本实际返回的质量。")
                     .font(.caption)
