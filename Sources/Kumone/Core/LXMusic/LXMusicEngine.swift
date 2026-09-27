@@ -380,6 +380,7 @@ final class LXMusicEngine: NSObject {
                 "songId": "001fXNtB2b58tO",
                 "pic": "",
                 "album": "叶惠美",
+                "hash": "001fXNtB2b58tO",
                 "rid": ""
             ]
         } else {
@@ -400,6 +401,7 @@ final class LXMusicEngine: NSObject {
                 "songId": "1330348068",
                 "pic": "",
                 "album": "thank u, next",
+                "hash": "1330348068",
                 "rid": ""
             ]
         }
@@ -428,6 +430,17 @@ final class LXMusicEngine: NSObject {
         let requestKey = "request__\(UUID().uuidString)"
         var payload = payload
         payload["requestKey"] = requestKey
+
+        // 参考 wellmusic：在 data.info 里添加 requestContext，部分音源脚本会用到
+        if var data = payload["data"] as? [String: Any],
+           var info = data["info"] as? [String: Any] {
+            info["requestContext"] = [
+                "requestKey": requestKey,
+                "requestType": "current"
+            ]
+            data["info"] = info
+            payload["data"] = data
+        }
 
         return try await withCheckedThrowingContinuation { cont in
             jsQueue.async {
@@ -650,11 +663,14 @@ final class LXMusicEngine: NSObject {
             "strMediaMid": songmid,
             "pic": pic,
             "album": track.album.name,
-            // 注意：不要设置 hash 为空字符串！
+            // 关键：hash 设为歌曲 ID（参考 wellmusic 实现）
             // 付费音源（如聆澜）用 musicInfo?.hash ?? musicInfo?.songmid 取 ID，
-            // 空字符串会通过 ?? 检查，导致 songId 为空，请求失败。
-            // 不设置 hash 字段时它为 nil，会正确 fallback 到 songmid。
+            // 空字符串会通过 ?? 检查导致 songId 为空；设为 songmid 则两种取值方式都正确。
+            "hash": songmid,
             "rid": "",
+            // wellmusic 额外字段：title / artist
+            "title": track.name,
+            "artist": singer,
             // meta 保留旧格式兼容
             "meta": [
                 "songId": songmid,
