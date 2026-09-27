@@ -4,6 +4,7 @@ import SwiftUI
 /// 第三方液态玻璃 DIY 设置页面
 struct LiquidGlassSettingsView: View {
     @EnvironmentObject private var settings: SettingsManager
+    @State private var previewBg: PreviewBackground = .image
 
     var body: some View {
         Form {
@@ -101,7 +102,15 @@ struct LiquidGlassSettingsView: View {
             }
 
             Section("预览") {
-                LiquidGlassPreview()
+                Picker("预览背景", selection: $previewBg) {
+                    ForEach(PreviewBackground.allCases) { bg in
+                        Text(bg.displayName).tag(bg)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                LiquidGlassPreview(background: previewBg)
+                    .frame(height: 140)
                     .listRowInsets(EdgeInsets())
             }
 
@@ -121,72 +130,60 @@ struct LiquidGlassSettingsView: View {
 
 /// 预览背景模式
 private enum PreviewBackground: String, CaseIterable, Identifiable {
-    case image = "图"
-    case light = "浅"
-    case dark = "深"
-    case blank = "空"
+    case image = "图片"
+    case light = "浅色"
+    case dark = "深色"
+    case blank = "空白"
 
     var id: String { rawValue }
+    var displayName: String { rawValue }
 }
 
 /// 液态玻璃效果预览
 private struct LiquidGlassPreview: View {
     @EnvironmentObject private var settings: SettingsManager
     @Environment(\.colorScheme) private var colorScheme
-    @State private var previewBg: PreviewBackground = .image
+    var background: PreviewBackground
 
     var body: some View {
-        VStack(spacing: 8) {
-            Picker("预览背景", selection: $previewBg) {
-                ForEach(PreviewBackground.allCases) { bg in
-                    Text(bg.rawValue).tag(bg)
+        ZStack {
+            // 背景
+            previewBackgroundView
+
+            // 液态玻璃预览
+            HStack(spacing: 20) {
+                Circle()
+                    .fill(.white.opacity(0.8))
+                    .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(.white.opacity(0.9))
+                        .frame(width: 100, height: 12)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(.white.opacity(0.6))
+                        .frame(width: 60, height: 8)
                 }
+
+                Spacer()
+
+                Image(systemName: "play.fill")
+                    .font(.title2)
+                    .foregroundStyle(.white)
             }
-            .pickerStyle(.segmented)
             .padding(.horizontal, 16)
-            .padding(.top, 12)
-
-            ZStack {
-                // 背景
-                previewBackgroundView
-
-                // 液态玻璃预览
-                HStack(spacing: 20) {
-                    Circle()
-                        .fill(.white.opacity(0.8))
-                        .frame(width: 40, height: 40)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.white.opacity(0.9))
-                            .frame(width: 100, height: 12)
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.white.opacity(0.6))
-                            .frame(width: 60, height: 8)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "play.fill")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal, 16)
-                .background {
-                    LiquidGlassBackground(config: settings.liquidGlassConfig, contentScaleFactor: 0.5)
-                        .id(settings.liquidGlassConfig)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
-                .padding(16)
+            .background {
+                LiquidGlassBackground(config: settings.liquidGlassConfig, contentScaleFactor: 0.5)
+                    .id(settings.liquidGlassConfig)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
             }
-            .frame(height: 160)
-            .padding(.bottom, 12)
+            .padding(16)
         }
     }
 
     @ViewBuilder
     private var previewBackgroundView: some View {
-        switch previewBg {
+        switch background {
         case .image:
             // 彩色渐变模拟图片内容
             LinearGradient(
