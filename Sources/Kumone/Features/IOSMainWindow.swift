@@ -291,8 +291,14 @@ public struct IOSMainWindow: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                GlassTabBar(items: visibleTabItems, selection: $selectedTab) { tab in
-                    popToRoot(tab)
+                if settings.tabBarStyle == .liquidGlass {
+                    LiquidGlassTabBar(items: visibleLiquidTabItems, selection: $selectedTab) { tab in
+                        popToRoot(tab)
+                    }
+                } else {
+                    GlassTabBar(items: visibleGlassTabItems, selection: $selectedTab) { tab in
+                        popToRoot(tab)
+                    }
                 }
             }
             .padding(.bottom, 6)
@@ -305,14 +311,26 @@ public struct IOSMainWindow: View {
     }
 
     /// 根据设置过滤后的可见 tab items（"我的"强制显示）
-    private var visibleTabItems: [GlassTabBar.Item] {
-        Self.tabItems.filter { item in
+    private var visibleGlassTabItems: [GlassTabBar.Item] {
+        Self.glassTabItems.filter { item in
             switch item.tab {
             case .home: return !settings.hideHomeTab
             case .explore: return !settings.hideExploreTab
             case .fm: return !settings.hideFmTab
             case .search: return !settings.hideSearchTab
-            case .library: return true // "我的"强制显示
+            case .library: return true
+            }
+        }
+    }
+
+    private var visibleLiquidTabItems: [LiquidGlassTabBar.Item] {
+        Self.liquidTabItems.filter { item in
+            switch item.tab {
+            case .home: return !settings.hideHomeTab
+            case .explore: return !settings.hideExploreTab
+            case .fm: return !settings.hideFmTab
+            case .search: return !settings.hideSearchTab
+            case .library: return true
             }
         }
     }
@@ -382,7 +400,15 @@ enum IOSTab: Hashable {
 }
 
 extension IOSMainWindow {
-    static let tabItems: [GlassTabBar.Item] = [
+    static let glassTabItems: [GlassTabBar.Item] = [
+        .init(tab: .home, title: "推荐", icon: "house"),
+        .init(tab: .explore, title: "精选", icon: "square.grid.2x2"),
+        .init(tab: .fm, title: "漫游", icon: "dot.radiowaves.left.and.right"),
+        .init(tab: .search, title: "搜索", icon: "magnifyingglass"),
+        .init(tab: .library, title: "我的", icon: "person.crop.circle"),
+    ]
+
+    static let liquidTabItems: [LiquidGlassTabBar.Item] = [
         .init(tab: .home, title: "推荐", icon: "house"),
         .init(tab: .explore, title: "精选", icon: "square.grid.2x2"),
         .init(tab: .fm, title: "漫游", icon: "dot.radiowaves.left.and.right"),

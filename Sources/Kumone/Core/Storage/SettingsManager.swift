@@ -87,6 +87,21 @@ public enum NowPlayingMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// 底部栏样式
+enum TabBarStyle: String, CaseIterable, Identifiable {
+    case `default`    // 默认毛玻璃
+    case liquidGlass  // 液态玻璃
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .default: return String(localized: "默认")
+        case .liquidGlass: return String(localized: "液态玻璃")
+        }
+    }
+}
+
 @MainActor
 final class SettingsManager: ObservableObject {
     static let shared = SettingsManager()
@@ -96,6 +111,7 @@ final class SettingsManager: ObservableObject {
         static let preloadNextTrack = "settings.preloadNextTrack"
         static let appearance = "settings.appearance"
         static let nowPlayingMode = "settings.nowPlayingMode"
+        static let tabBarStyle = "settings.tabBarStyle"
         static let showTranslation = "settings.showLyricsTranslation"
         static let showRomaji = "settings.showLyricsRomaji"  // migrated to `annotation`
         static let annotation = "settings.lyricsAnnotation"
@@ -182,6 +198,11 @@ final class SettingsManager: ObservableObject {
 
     @Published var nowPlayingMode: NowPlayingMode {
         didSet { UserDefaults.standard.set(nowPlayingMode.rawValue, forKey: Keys.nowPlayingMode) }
+    }
+
+    /// 底部栏样式（默认毛玻璃 / 液态玻璃）
+    @Published var tabBarStyle: TabBarStyle {
+        didSet { UserDefaults.standard.set(tabBarStyle.rawValue, forKey: Keys.tabBarStyle) }
     }
 
     @Published var showLyricsTranslation: Bool {
@@ -377,6 +398,7 @@ final class SettingsManager: ObservableObject {
         defaults.set(normalizedAudioCacheSizeMB, forKey: Keys.audioCacheSizeMB)
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppAppearance.init) ?? .auto
         nowPlayingMode = defaults.string(forKey: Keys.nowPlayingMode).flatMap(NowPlayingMode.init) ?? .immersive
+        tabBarStyle = defaults.string(forKey: Keys.tabBarStyle).flatMap(TabBarStyle.init) ?? .default
         showLyricsTranslation = defaults.object(forKey: Keys.showTranslation) as? Bool ?? true
         // Carry over the old on/off romaji toggle for anyone who had it on.
         lyricsAnnotation = defaults.string(forKey: Keys.annotation).flatMap(LyricsAnnotation.init)
