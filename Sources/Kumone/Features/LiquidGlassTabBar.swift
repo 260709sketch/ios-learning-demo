@@ -130,6 +130,25 @@ struct LiquidGlassBackground: UIViewRepresentable {
     var contentScaleFactor: CGFloat = 1.0  // 降低渲染分辨率提升性能
 
     func makeUIView(context: Context) -> UIView {
+        let container = UIView()
+        container.clipsToBounds = true
+        let glassView = createGlassView()
+        glassView.frame = container.bounds
+        glassView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        container.addSubview(glassView)
+        return container
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        // 配置变化时重新创建液态玻璃视图
+        uiView.subviews.forEach { $0.removeFromSuperview() }
+        let glassView = createGlassView()
+        glassView.frame = uiView.bounds
+        glassView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        uiView.addSubview(glassView)
+    }
+
+    private func createGlassView() -> UIView {
         let view: UIView
         if #available(iOS 26.0, *) {
             let effect = UIGlassEffect(style: style.nativeStyle)
@@ -145,10 +164,6 @@ struct LiquidGlassBackground: UIViewRepresentable {
         }
         view.contentScaleFactor = contentScaleFactor
         return view
-    }
-
-    func updateUIView(_ uiView: UIView, context: Context) {
-        // 液态玻璃效果自动更新，无需手动处理
     }
 }
 #endif
