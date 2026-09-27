@@ -109,10 +109,10 @@ struct LiquidGlassSettingsView: View {
 
 /// 预览背景模式
 private enum PreviewBackground: String, CaseIterable, Identifiable {
-    case image = "图片"
-    case light = "浅色"
-    case dark = "深色"
-    case blank = "空白"
+    case image = "图"
+    case light = "浅"
+    case dark = "深"
+    case blank = "空"
 
     var id: String { rawValue }
 }
@@ -167,7 +167,7 @@ private struct LiquidGlassPreview: View {
                 }
                 .padding(16)
             }
-            .frame(height: 100)
+            .frame(height: 160)
             .padding(.bottom, 12)
         }
     }
