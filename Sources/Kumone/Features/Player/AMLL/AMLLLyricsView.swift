@@ -384,11 +384,12 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 歌词居中对齐
         callJS("setAlignPosition", args: [0.5])
 
-        // 应用自定义布局（位置、字号、字重、字体、显示状态）
+        // 应用自定义布局（位置、字号、字重、字体、显示状态、背景模式）
+        // 关键：必须传入 backgroundMode，否则默认 .flowing 会把静态背景重置成流动背景
         applyLayout(
             top: layoutTop, bottom: layoutBottom, horizontal: layoutHorizontal,
             fontSize: layoutFontSize, fontWeight: layoutFontWeight, fontFamily: layoutFontFamily,
-            showLyrics: layoutShowLyrics
+            showLyrics: layoutShowLyrics, backgroundMode: backgroundMode
         )
 
         // 监听 PlayerService 变化
