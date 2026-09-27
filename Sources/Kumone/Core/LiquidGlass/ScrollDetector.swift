@@ -44,7 +44,7 @@ public final class ScrollDetector: ObservableObject {
 
         // 每次滑动都重置停止计时器
         stopTimer?.invalidate()
-        stopTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+        stopTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
             self?.scrollingScrollViews.removeAll()
             self?.updateScrollingState()
         }

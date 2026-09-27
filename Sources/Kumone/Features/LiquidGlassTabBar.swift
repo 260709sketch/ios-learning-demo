@@ -174,24 +174,24 @@ struct LiquidGlassBackground: UIViewRepresentable {
 
     private func createGlassView(isScrolling: Bool) -> UIView {
         let view: UIView
-        // 滑动时降低渲染质量：分辨率减半、帧率减半
-        let scale = isScrolling ? contentScaleFactor * 0.5 : contentScaleFactor
-        let baseFps = config?.preferredFramesPerSecond ?? 60
-        let fps = isScrolling ? max(30, baseFps / 2) : baseFps
-
-        if #available(iOS 26.0, *) {
+        if isScrolling {
+            // 滑动时用系统毛玻璃，零开销，绝对流畅
+            let effect = UIBlurEffect(style: .systemUltraThinMaterial)
+            view = UIVisualEffectView(effect: effect)
+        } else if #available(iOS 26.0, *) {
             let effect = UIGlassEffect(style: style.nativeStyle)
             view = UIVisualEffectView(effect: effect)
         } else {
             let effect: LiquidGlassEffect
+            let fps = config?.preferredFramesPerSecond ?? 60
             if let config = config {
                 effect = LiquidGlassEffect(customLiquidGlass: config.toLiquidGlass)
             } else {
                 effect = LiquidGlassEffect(style: style, isNative: false)
             }
             view = LiquidGlassEffectView(effect: effect, preferredFramesPerSecond: fps)
+            view.contentScaleFactor = contentScaleFactor
         }
-        view.contentScaleFactor = max(0.1, scale)
         return view
     }
 }
