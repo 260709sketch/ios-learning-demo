@@ -203,12 +203,11 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
         // 背景模式控制：
-        // - flowing: _bgStill=false，Fu.resume()持续流动
-        // - still: _bgStill=true，保底定时器(每3秒)会自动确保Fu.pause()
-        //   切歌时updateAlbumArt会临时resume渲染封面后再pause
+        // - flowing: Fu.resume() 持续流动
+        // - still: Fu.pause() 停止渲染，保持当前静态画面（不隐藏#bg）
         let bgRenderCmd = (backgroundMode == .flowing)
-            ? "window._bgStill=false;if(window._pauseTimer){clearTimeout(window._pauseTimer);window._pauseTimer=null;}Fu.resume();"
-            : "window._bgStill=true;"
+            ? "Fu.resume();"
+            : "Fu.pause();"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -268,18 +267,11 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let userContent = WKUserContentController()
         userContent.add(self, name: "amllEvent")
 
-        // 提前注入背景模式设置 + 保底机制
-        // still: 先渲染4秒等封面绘制，然后pause；每3秒保底检查确保静态模式下一定pause
-        // flowing: 持续流动渲染
+        // 提前注入背景模式设置
+        // still: 先渲染3秒让封面加载绘制，然后pause保持静态画面
+        // flowing: Fu.resume() 持续流动
         let bgStatic = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
-        window._bgStill = \(bgStatic);
-        // 保底机制：每3秒检查，静态模式下如果Fu未pause且不在渲染封面，则强制pause
-        window._bgGuardTimer = setInterval(function(){
-          if(window._bgStill && !window._renderingCover && typeof Fu!=='undefined' && Fu && Fu.renderer && !Fu.renderer.paused){
-            Fu.pause();
-          }
-        }, 3000);
         (function() {
             var tries = 0;
             var timer = setInterval(function() {
@@ -287,13 +279,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 if (typeof Fu !== 'undefined' && Fu) {
                     clearInterval(timer);
                     if (\(bgStatic)) {
-                        window._renderingCover=true;
+                        // 静态模式：先渲染3秒等封面加载，然后pause保持静态画面
                         Fu.resume();
-                        window._pauseTimer = setTimeout(function(){
-                            window._pauseTimer = null;
-                            window._renderingCover=false;
-                            if (window._bgStill) Fu.pause();
-                        }, 4000);
+                        setTimeout(function(){ Fu.pause(); }, 3000);
                     } else {
                         Fu.resume();
                     }
@@ -482,24 +470,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             if let image = await ImageCache.shared.image(for: url) {
                 if let dataURL = image.amllJPEGDataURL() {
                     callJS("setAlbum", args: [dataURL])
-                    // 静态模式切歌：resume渲染3秒让新封面加载绘制，然后pause
-                    // _renderingCover标记防止保底定时器提前pause
-                    if backgroundMode == .still {
-                        callJSRaw("""
-                        if(typeof Fu!=='undefined'){
-                          if(window._pauseTimer){clearTimeout(window._pauseTimer);window._pauseTimer=null;}
-                          window._renderingCover=true;
-                          Fu.setFlowSpeed(0.3);
-                          Fu.resume();
-                          window._pauseTimer=setTimeout(function(){
-                            window._pauseTimer=null;
-                            window._renderingCover=false;
-                            if(window._bgStill)Fu.pause();
-                          },3000);
-                        }
-                        true;
-                        """)
-                    }
+                    // 静态模式下#bg已隐藏，不需要渲染封面，只更新内部状态即可
                 }
             }
         }

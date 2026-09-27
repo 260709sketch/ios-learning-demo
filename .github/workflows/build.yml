@@ -28,6 +28,8 @@ jobs:
 
       - name: Build KumoneIOS for iOS Simulator
         run: |
+          # 清理 SwiftPM 缓存，避免 binary target 缓存冲突
+          rm -rf ~/Library/Caches/org.swift.swiftpm/artifacts
           cd ios
           xcodebuild \
             -project KumoneIOS.xcodeproj \
