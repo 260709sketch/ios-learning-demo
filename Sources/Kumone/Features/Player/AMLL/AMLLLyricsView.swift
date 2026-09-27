@@ -466,9 +466,21 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             if let image = await ImageCache.shared.image(for: url) {
                 if let dataURL = image.amllJPEGDataURL() {
                     callJS("setAlbum", args: [dataURL])
-                    // 静态模式下渲染循环已暂停，setAlbum后临时resume一帧更新封面，然后立即pause
+                    // 静态模式下切歌更新封面：
+                    // resume渲染循环但flowSpeed=0（背景不流动，只绘制新封面颜色），
+                    // 1秒后pause停止渲染，恢复默认flowSpeed（pause状态下不影响）
                     if backgroundMode == .still {
-                        callJSRaw("if(typeof Fu!=='undefined'){Fu.resume();setTimeout(function(){Fu.pause();},100);}true;")
+                        callJSRaw("""
+                        if(typeof Fu!=='undefined'){
+                          Fu.setFlowSpeed(0);
+                          Fu.resume();
+                          setTimeout(function(){
+                            Fu.pause();
+                            Fu.setFlowSpeed(0.3);
+                          },1000);
+                        }
+                        true;
+                        """)
                     }
                 }
             }
