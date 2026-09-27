@@ -16,6 +16,7 @@ struct LiquidGlassTabBar: View {
     var onReselect: (IOSTab) -> Void = { _ in }
 
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var settings: SettingsManager
 
     /// Finger x (in content space) while actively dragging the pill; nil at rest.
     @State private var dragX: CGFloat?
@@ -59,7 +60,7 @@ struct LiquidGlassTabBar: View {
         }
         .frame(height: contentHeight)
         .padding(innerInset)
-        .background { LiquidGlassBackground(style: .white, contentScaleFactor: 0.3) }
+        .background { LiquidGlassBackground(config: settings.liquidGlassConfig, contentScaleFactor: 0.3) }
         .overlay {
             Capsule().strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0.22),
                                    lineWidth: 0.5)
@@ -125,6 +126,7 @@ struct LiquidGlassTabBar: View {
 /// 液态玻璃背景：用 UIViewRepresentable 包装液态玻璃效果
 struct LiquidGlassBackground: UIViewRepresentable {
     var style: LiquidGlassEffect.Style = .regular
+    var config: LiquidGlassConfig? = nil
     var contentScaleFactor: CGFloat = 1.0  // 降低渲染分辨率提升性能
 
     func makeUIView(context: Context) -> UIView {
@@ -133,7 +135,12 @@ struct LiquidGlassBackground: UIViewRepresentable {
             let effect = UIGlassEffect(style: style.nativeStyle)
             view = UIVisualEffectView(effect: effect)
         } else {
-            let effect = LiquidGlassEffect(style: style, isNative: false)
+            let effect: LiquidGlassEffect
+            if let config = config {
+                effect = LiquidGlassEffect(customLiquidGlass: config.toLiquidGlass)
+            } else {
+                effect = LiquidGlassEffect(style: style, isNative: false)
+            }
             view = LiquidGlassEffectView(effect: effect)
         }
         view.contentScaleFactor = contentScaleFactor

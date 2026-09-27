@@ -46,6 +46,13 @@ struct SettingsView: View {
                         Text(style.displayName).tag(style)
                     }
                 }
+                if settings.tabBarStyle == .liquidGlass {
+                    NavigationLink {
+                        LiquidGlassSettingsView()
+                    } label: {
+                        Label("第三方液态玻璃调节", systemImage: "slider.horizontal.3")
+                    }
+                }
                 #endif
                 #if os(macOS)
                 // macOS only renders two now-playing layouts — 黑胶 and the

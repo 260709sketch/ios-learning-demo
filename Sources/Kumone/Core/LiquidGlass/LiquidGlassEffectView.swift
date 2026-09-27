@@ -27,7 +27,8 @@ public class LiquidGlassEffectView: UIView, AnyVisualEffectView {
 
         super.init(frame: .zero)
 
-        let liquidGlassView = LiquidGlassView(effect.style.liquidGlass)
+        let glassConfig = effect.customLiquidGlass ?? effect.style.liquidGlass
+        let liquidGlassView = LiquidGlassView(glassConfig)
         addSubview(liquidGlassView)
         self.liquidGlassView = liquidGlassView
         
@@ -97,6 +98,9 @@ public class LiquidGlassEffect: UIVisualEffect {
 
     let isNative: Bool
 
+    /// 自定义 LiquidGlass 配置，设置后优先使用
+    var customLiquidGlass: LiquidGlass?
+
     /// Enables interactive behavior for the glass effect.
     public var isInteractive = false
 
@@ -111,6 +115,12 @@ public class LiquidGlassEffect: UIVisualEffect {
         self.style = style
         self.isNative = isNative
         super.init()
+    }
+
+    /// Creates a glass effect with custom LiquidGlass configuration.
+    convenience init(customLiquidGlass: LiquidGlass) {
+        self.init(style: .regular, isNative: false)
+        self.customLiquidGlass = customLiquidGlass
     }
 
     required init?(coder: NSCoder) {

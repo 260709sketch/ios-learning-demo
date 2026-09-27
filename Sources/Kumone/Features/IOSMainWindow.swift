@@ -510,7 +510,7 @@ struct IOSMiniPlayerBar: View {
             if settings.tabBarStyle == .liquidGlass {
                 content
                     .background {
-                        LiquidGlassBackground(style: .white, contentScaleFactor: 0.3)
+                        LiquidGlassBackground(config: settings.liquidGlassConfig, contentScaleFactor: 0.3)
                             .clipShape(Capsule())
                     }
                     .overlay {
