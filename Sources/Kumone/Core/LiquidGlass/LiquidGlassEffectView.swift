@@ -18,7 +18,18 @@ public class LiquidGlassEffectView: UIView, AnyVisualEffectView {
             oldValue?.removeFromSuperview()
             if let liquidGlassView {
                 insertSubview(liquidGlassView, belowSubview: contentView)
+                liquidGlassView.isPaused = _isPaused
             }
+        }
+    }
+
+    /// 暂停液态玻璃渲染循环（静态背景模式下使用，节省性能）
+    private var _isPaused = false
+    var isPaused: Bool {
+        get { _isPaused }
+        set {
+            _isPaused = newValue
+            liquidGlassView?.isPaused = newValue
         }
     }
 

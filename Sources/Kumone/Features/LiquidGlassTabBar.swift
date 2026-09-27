@@ -56,7 +56,7 @@ struct LiquidGlassTabBar: View {
         }
         .frame(height: contentHeight)
         .padding(innerInset)
-        .background { LiquidGlassBackground(config: settings.liquidGlassConfig, contentScaleFactor: 0.3) }
+        .background { LiquidGlassBackground(config: settings.liquidGlassConfig, contentScaleFactor: 0.3, isPaused: settings.amllBackgroundMode == .still) }
         .overlay {
             Capsule().strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0.22),
                                    lineWidth: 0.5)
@@ -122,6 +122,7 @@ struct LiquidGlassBackground: UIViewRepresentable {
     var style: LiquidGlassEffect.Style = .regular
     var config: LiquidGlassConfig? = nil
     var contentScaleFactor: CGFloat = 1.0  // 降低渲染分辨率提升性能
+    var isPaused: Bool = false  // 暂停渲染循环（静态背景模式下使用）
 
     @State private var isScrolling = false
 
@@ -181,7 +182,9 @@ struct LiquidGlassBackground: UIViewRepresentable {
             } else {
                 effect = LiquidGlassEffect(style: style, isNative: false)
             }
-            view = LiquidGlassEffectView(effect: effect, preferredFramesPerSecond: fps)
+            let glassView = LiquidGlassEffectView(effect: effect, preferredFramesPerSecond: fps)
+            glassView.isPaused = isPaused  // 静态背景模式下暂停渲染
+            view = glassView
         }
         view.contentScaleFactor = max(0.1, scale)
         return view
