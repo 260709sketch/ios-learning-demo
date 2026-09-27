@@ -52,6 +52,9 @@ struct SettingsView: View {
                     } label: {
                         Label("第三方液态玻璃调节", systemImage: "slider.horizontal.3")
                     }
+                    Text("iOS 26 及以上系统建议保持默认底部栏样式即可。第三方液态玻璃基于 Metal 自定义渲染，可能造成较明显的性能损失和滑动卡顿，低配设备尤其明显。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 #endif
                 #if os(macOS)
