@@ -202,13 +202,13 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 元素在渲染树中，动画持续运行，切回时歌词已是最新状态。
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
-        // 背景模式控制（统一用_pauseTimer管理，避免频繁调用推迟pause）：
-        // - flowing: 清除定时器，Fu.resume()持续流动
-        // - still: 设置_bgStill，若Fu正在渲染则3秒后pause（确保封面绘制）
-        //   已pause则保持；_pauseScheduled防止重复安排定时器
+        // 背景模式控制：
+        // - flowing: _bgStill=false，Fu.resume()持续流动
+        // - still: _bgStill=true，保底定时器(每3秒)会自动确保Fu.pause()
+        //   切歌时updateAlbumArt会临时resume渲染封面后再pause
         let bgRenderCmd = (backgroundMode == .flowing)
             ? "window._bgStill=false;if(window._pauseTimer){clearTimeout(window._pauseTimer);window._pauseTimer=null;}Fu.resume();"
-            : "window._bgStill=true;if(!window._pauseTimer&&Fu.renderer&&!Fu.renderer.paused){window._pauseTimer=setTimeout(function(){window._pauseTimer=null;if(window._bgStill)Fu.pause();},3000);}"
+            : "window._bgStill=true;"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -268,12 +268,18 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let userContent = WKUserContentController()
         userContent.add(self, name: "amllEvent")
 
-        // 提前注入背景模式设置
-        // still: 先正常渲染等封面加载绘制，4秒后pause保持静态画面
-        // flowing: Fu.resume() 持续流动渲染
+        // 提前注入背景模式设置 + 保底机制
+        // still: 先渲染4秒等封面绘制，然后pause；每3秒保底检查确保静态模式下一定pause
+        // flowing: 持续流动渲染
         let bgStatic = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
         window._bgStill = \(bgStatic);
+        // 保底机制：每3秒检查，静态模式下如果Fu未pause且不在渲染封面，则强制pause
+        window._bgGuardTimer = setInterval(function(){
+          if(window._bgStill && !window._renderingCover && typeof Fu!=='undefined' && Fu && Fu.renderer && !Fu.renderer.paused){
+            Fu.pause();
+          }
+        }, 3000);
         (function() {
             var tries = 0;
             var timer = setInterval(function() {
@@ -281,16 +287,17 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 if (typeof Fu !== 'undefined' && Fu) {
                     clearInterval(timer);
                     if (\(bgStatic)) {
-                        // 静态模式：先渲染4秒等封面加载绘制，然后pause
+                        window._renderingCover=true;
                         Fu.resume();
                         window._pauseTimer = setTimeout(function(){
                             window._pauseTimer = null;
+                            window._renderingCover=false;
                             if (window._bgStill) Fu.pause();
                         }, 4000);
                     } else {
                         Fu.resume();
                     }
-                } else if (tries > 100) {
+                } else if (tries > 500) {
                     clearInterval(timer);
                 }
             }, 10);
@@ -475,15 +482,18 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             if let image = await ImageCache.shared.image(for: url) {
                 if let dataURL = image.amllJPEGDataURL() {
                     callJS("setAlbum", args: [dataURL])
-                    // 静态模式切歌：清除旧定时器，resume渲染3秒让新封面加载绘制，然后pause
+                    // 静态模式切歌：resume渲染3秒让新封面加载绘制，然后pause
+                    // _renderingCover标记防止保底定时器提前pause
                     if backgroundMode == .still {
                         callJSRaw("""
                         if(typeof Fu!=='undefined'){
                           if(window._pauseTimer){clearTimeout(window._pauseTimer);window._pauseTimer=null;}
+                          window._renderingCover=true;
                           Fu.setFlowSpeed(0.3);
                           Fu.resume();
                           window._pauseTimer=setTimeout(function(){
                             window._pauseTimer=null;
+                            window._renderingCover=false;
                             if(window._bgStill)Fu.pause();
                           },3000);
                         }
