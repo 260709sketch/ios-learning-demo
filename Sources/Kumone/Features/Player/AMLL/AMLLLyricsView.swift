@@ -202,12 +202,13 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 元素在渲染树中，动画持续运行，切回时歌词已是最新状态。
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
-        // 背景模式控制：
-        // - flowing: Fu.resume() 恢复流动渲染
-        // - still: Fu.pause() 暂停渲染循环，背景画面静止可见
-        // 同时设置 window._bgStill 标记，setPlaying(true) 时不会自动 Fu.resume()
-        let bgStill = (backgroundMode == .flowing) ? "false" : "true"
-        let bgRenderCmd = (backgroundMode == .flowing) ? "window._bgStill=false;Fu.resume();" : "window._bgStill=true;Fu.pause();"
+        // 背景模式控制（统一用_pauseTimer管理，避免频繁调用推迟pause）：
+        // - flowing: 清除定时器，Fu.resume()持续流动
+        // - still: 设置_bgStill，若Fu正在渲染则3秒后pause（确保封面绘制）
+        //   已pause则保持；_pauseScheduled防止重复安排定时器
+        let bgRenderCmd = (backgroundMode == .flowing)
+            ? "window._bgStill=false;if(window._pauseTimer){clearTimeout(window._pauseTimer);window._pauseTimer=null;}Fu.resume();"
+            : "window._bgStill=true;if(!window._pauseTimer&&Fu.renderer&&!Fu.renderer.paused){window._pauseTimer=setTimeout(function(){window._pauseTimer=null;if(window._bgStill)Fu.pause();},3000);}"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -218,7 +219,6 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 el.style.opacity = '\(opacityValue)';
                 el.style.pointerEvents = '\(pointerEvents)';
             }
-            // 静态模式暂停背景渲染，流动模式恢复
             if (typeof Fu !== 'undefined') {
                 \(bgRenderCmd)
             }
@@ -268,9 +268,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let userContent = WKUserContentController()
         userContent.add(self, name: "amllEvent")
 
-        // 提前注入背景模式设置，避免 WebView 加载时流动背景闪烁
-        // still: Fu.pause() 暂停背景渲染，节省性能
-        // flowing: Fu.resume() 恢复流动渲染
+        // 提前注入背景模式设置
+        // still: 先正常渲染等封面加载绘制，4秒后pause保持静态画面
+        // flowing: Fu.resume() 持续流动渲染
         let bgStatic = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
         window._bgStill = \(bgStatic);
@@ -280,7 +280,16 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 tries++;
                 if (typeof Fu !== 'undefined' && Fu) {
                     clearInterval(timer);
-                    if (\(bgStatic)) { Fu.pause(); } else { Fu.resume(); }
+                    if (\(bgStatic)) {
+                        // 静态模式：先渲染4秒等封面加载绘制，然后pause
+                        Fu.resume();
+                        window._pauseTimer = setTimeout(function(){
+                            window._pauseTimer = null;
+                            if (window._bgStill) Fu.pause();
+                        }, 4000);
+                    } else {
+                        Fu.resume();
+                    }
                 } else if (tries > 100) {
                     clearInterval(timer);
                 }
@@ -466,18 +475,17 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             if let image = await ImageCache.shared.image(for: url) {
                 if let dataURL = image.amllJPEGDataURL() {
                     callJS("setAlbum", args: [dataURL])
-                    // 静态模式下切歌更新封面：
-                    // resume渲染循环但flowSpeed=0（背景不流动，只绘制新封面颜色），
-                    // 1秒后pause停止渲染，恢复默认flowSpeed（pause状态下不影响）
+                    // 静态模式切歌：清除旧定时器，resume渲染3秒让新封面加载绘制，然后pause
                     if backgroundMode == .still {
                         callJSRaw("""
                         if(typeof Fu!=='undefined'){
-                          Fu.setFlowSpeed(0);
+                          if(window._pauseTimer){clearTimeout(window._pauseTimer);window._pauseTimer=null;}
+                          Fu.setFlowSpeed(0.3);
                           Fu.resume();
-                          setTimeout(function(){
-                            Fu.pause();
-                            Fu.setFlowSpeed(0.3);
-                          },1000);
+                          window._pauseTimer=setTimeout(function(){
+                            window._pauseTimer=null;
+                            if(window._bgStill)Fu.pause();
+                          },3000);
                         }
                         true;
                         """)
