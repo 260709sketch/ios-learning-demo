@@ -107,48 +107,121 @@ struct LiquidGlassSettingsView: View {
     }
 }
 
+/// 预览背景模式
+private enum PreviewBackground: String, CaseIterable, Identifiable {
+    case image = "图片"
+    case light = "浅色"
+    case dark = "深色"
+    case blank = "空白"
+
+    var id: String { rawValue }
+}
+
 /// 液态玻璃效果预览
 private struct LiquidGlassPreview: View {
     @EnvironmentObject private var settings: SettingsManager
     @Environment(\.colorScheme) private var colorScheme
+    @State private var previewBg: PreviewBackground = .image
 
     var body: some View {
-        ZStack {
-            // 背景渐变，模拟内容
+        VStack(spacing: 8) {
+            Picker("预览背景", selection: $previewBg) {
+                ForEach(PreviewBackground.allCases) { bg in
+                    Text(bg.rawValue).tag(bg)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            ZStack {
+                // 背景
+                previewBackgroundView
+
+                // 液态玻璃预览
+                HStack(spacing: 20) {
+                    Circle()
+                        .fill(.white.opacity(0.8))
+                        .frame(width: 40, height: 40)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.white.opacity(0.9))
+                            .frame(width: 100, height: 12)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.white.opacity(0.6))
+                            .frame(width: 60, height: 8)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "play.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 16)
+                .background {
+                    LiquidGlassBackground(config: settings.liquidGlassConfig, contentScaleFactor: 0.5)
+                        .id(settings.liquidGlassConfig)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .padding(16)
+            }
+            .frame(height: 100)
+            .padding(.bottom, 12)
+        }
+    }
+
+    @ViewBuilder
+    private var previewBackgroundView: some View {
+        switch previewBg {
+        case .image:
+            // 彩色渐变模拟图片内容
             LinearGradient(
-                colors: [.blue, .purple, .pink, .orange],
+                colors: [.blue, .purple, .pink, .orange, .yellow],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-
-            // 液态玻璃预览
-            HStack(spacing: 20) {
-                Circle()
-                    .fill(.white.opacity(0.8))
-                    .frame(width: 40, height: 40)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.white.opacity(0.9))
-                        .frame(width: 100, height: 12)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.white.opacity(0.6))
-                        .frame(width: 60, height: 8)
+            // 加一些圆形模拟图片元素
+            .overlay {
+                HStack(spacing: 20) {
+                    Circle().fill(.red.opacity(0.6)).frame(width: 50, height: 50)
+                    Circle().fill(.green.opacity(0.6)).frame(width: 30, height: 30)
+                    Spacer()
+                    Circle().fill(.blue.opacity(0.6)).frame(width: 40, height: 40)
                 }
-
-                Spacer()
-
-                Image(systemName: "play.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white)
+                .padding(20)
             }
-            .padding(.horizontal, 16)
-            .background {
-                LiquidGlassBackground(config: settings.liquidGlassConfig, contentScaleFactor: 0.5)
-                    .id(settings.liquidGlassConfig)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+        case .light:
+            Color.white
+            // 浅色模式下加一些灰色元素
+            .overlay {
+                HStack(spacing: 20) {
+                    RoundedRectangle(cornerRadius: 8).fill(.gray.opacity(0.3)).frame(width: 50, height: 50)
+                    VStack(alignment: .leading, spacing: 6) {
+                        RoundedRectangle(cornerRadius: 4).fill(.gray.opacity(0.4)).frame(width: 80, height: 10)
+                        RoundedRectangle(cornerRadius: 4).fill(.gray.opacity(0.2)).frame(width: 50, height: 8)
+                    }
+                    Spacer()
+                }
+                .padding(20)
             }
-            .padding(16)
+        case .dark:
+            Color.black
+            // 深色模式下加一些白色元素
+            .overlay {
+                HStack(spacing: 20) {
+                    RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.2)).frame(width: 50, height: 50)
+                    VStack(alignment: .leading, spacing: 6) {
+                        RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.3)).frame(width: 80, height: 10)
+                        RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.15)).frame(width: 50, height: 8)
+                    }
+                    Spacer()
+                }
+                .padding(20)
+            }
+        case .blank:
+            Color.clear
         }
     }
 }
