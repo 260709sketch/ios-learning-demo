@@ -923,13 +923,16 @@ final class PlayerService: ObservableObject {
                     DebugLogger.shared.log("LX", "音源[\(source.name)]返回URL无效", level: .error)
                     let log = LXRequestLog(
                         date: Date(), trackName: track.name, trackArtist: track.artistNames,
-                        requestedQuality: targetQuality, actualQuality: nil, url: nil,
+                        requestedQuality: targetQuality, actualQuality: nil, url: nil, fileSize: nil,
                         duration: Date().timeIntervalSince(startTime), success: false,
                         errorMessage: "返回 URL 无效"
                     )
                     await MainActor.run { lxStore.addRequestLog(log) }
                     continue
                 }
+
+                // 异步获取文件大小（HEAD请求，3秒超时，不阻塞播放）
+                let fileSize = await fetchFileSize(from: url)
 
                 // 全局状态只在正常播放时修改，预加载不干扰当前播放
                 if !preloadOnly {
@@ -950,6 +953,7 @@ final class PlayerService: ObservableObject {
                     let log = LXRequestLog(
                         date: Date(), trackName: track.name, trackArtist: track.artistNames,
                         requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
+                        fileSize: fileSize,
                         duration: Date().timeIntervalSince(startTime), success: false,
                         errorMessage: "音频加载失败"
                     )
@@ -961,6 +965,7 @@ final class PlayerService: ObservableObject {
                 let log = LXRequestLog(
                     date: Date(), trackName: track.name, trackArtist: track.artistNames,
                     requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
+                    fileSize: fileSize,
                     duration: Date().timeIntervalSince(startTime), success: true, errorMessage: nil
                 )
                 await MainActor.run { lxStore.addRequestLog(log) }
@@ -975,7 +980,7 @@ final class PlayerService: ObservableObject {
             } catch {
                 let log = LXRequestLog(
                     date: Date(), trackName: track.name, trackArtist: track.artistNames,
-                    requestedQuality: targetQuality, actualQuality: nil, url: nil,
+                    requestedQuality: targetQuality, actualQuality: nil, url: nil, fileSize: nil,
                     duration: Date().timeIntervalSince(startTime), success: false,
                     errorMessage: error.localizedDescription
                 )
@@ -986,6 +991,24 @@ final class PlayerService: ObservableObject {
 
         // 全部音源失败
         return false
+    }
+
+    /// 异步获取音频文件大小（HEAD请求，3秒超时）
+    private func fetchFileSize(from url: URL) async -> Int? {
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = 3
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse,
+               let lengthStr = httpResponse.value(forHTTPHeaderField: "Content-Length"),
+               let length = Int(lengthStr) {
+                return length
+            }
+        } catch {
+            DebugLogger.shared.log("LX", "获取文件大小失败: \(error.localizedDescription)", level: .warning)
+        }
+        return nil
     }
 
     private func handleUnplayable(_ track: Track) {

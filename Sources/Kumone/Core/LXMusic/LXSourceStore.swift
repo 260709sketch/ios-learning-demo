@@ -12,12 +12,25 @@ struct LXRequestLog: Identifiable, Hashable {
     let requestedQuality: String
     let actualQuality: String?
     let url: String?
+    let fileSize: Int?  // 文件大小（字节）
     let duration: TimeInterval
     let success: Bool
     let errorMessage: String?
 
     var durationText: String {
         String(format: "%.1fs", duration)
+    }
+
+    /// 文件大小显示文本（MB）
+    var fileSizeText: String? {
+        guard let fileSize, fileSize > 0 else { return nil }
+        let mb = Double(fileSize) / 1024.0 / 1024.0
+        if mb >= 1 {
+            return String(format: "%.1f MB", mb)
+        } else {
+            let kb = Double(fileSize) / 1024.0
+            return String(format: "%.0f KB", kb)
+        }
     }
 }
 

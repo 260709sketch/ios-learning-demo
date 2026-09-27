@@ -553,24 +553,24 @@ final class SettingsManager: ObservableObject {
         } else {
             amllBackgroundMode = storedUseAMLL ? .flowing : .still
         }
-        amllLyricTop = defaults.object(forKey: Keys.amllLyricTop) as? Int ?? 170
-        amllLyricBottom = defaults.object(forKey: Keys.amllLyricBottom) as? Int ?? 230
-        amllLyricHorizontal = defaults.object(forKey: Keys.amllLyricHorizontal) as? Int ?? 0
-        amllFontSize = defaults.object(forKey: Keys.amllFontSize) as? Int ?? 22
-        amllFontWeight = defaults.object(forKey: Keys.amllFontWeight) as? Int ?? 700
+        amllLyricTop = defaults.object(forKey: Keys.amllLyricTop) as? Int ?? 145
+        amllLyricBottom = defaults.object(forKey: Keys.amllLyricBottom) as? Int ?? 280
+        amllLyricHorizontal = defaults.object(forKey: Keys.amllLyricHorizontal) as? Int ?? 10
+        amllFontSize = defaults.object(forKey: Keys.amllFontSize) as? Int ?? 32
+        amllFontWeight = defaults.object(forKey: Keys.amllFontWeight) as? Int ?? 800
         amllFontFamily = defaults.string(forKey: Keys.amllFontFamily) ?? ""
         showVIPBadge = defaults.object(forKey: Keys.showVIPBadge) as? Bool ?? false
         hideHomeTab = defaults.object(forKey: Keys.hideHomeTab) as? Bool ?? false
         hideExploreTab = defaults.object(forKey: Keys.hideExploreTab) as? Bool ?? false
         hideFmTab = defaults.object(forKey: Keys.hideFmTab) as? Bool ?? false
         hideSearchTab = defaults.object(forKey: Keys.hideSearchTab) as? Bool ?? false
-        playerArtworkTopOffset = defaults.object(forKey: Keys.playerArtworkTopOffset) as? Int ?? 0
-        playerArtworkScale = defaults.object(forKey: Keys.playerArtworkScale) as? Double ?? 1.0
-        playerTrackInfoSpacing = defaults.object(forKey: Keys.playerTrackInfoSpacing) as? Int ?? 20
-        playerControlsBottomOffset = defaults.object(forKey: Keys.playerControlsBottomOffset) as? Int ?? 0
+        playerArtworkTopOffset = defaults.object(forKey: Keys.playerArtworkTopOffset) as? Int ?? -70
+        playerArtworkScale = defaults.object(forKey: Keys.playerArtworkScale) as? Double ?? 1.3
+        playerTrackInfoSpacing = defaults.object(forKey: Keys.playerTrackInfoSpacing) as? Int ?? 34
+        playerControlsBottomOffset = defaults.object(forKey: Keys.playerControlsBottomOffset) as? Int ?? 60
         playerTrackInfoTopOffset = defaults.object(forKey: Keys.playerTrackInfoTopOffset) as? Int ?? 0
-        playerTrackInfoLeftOffset = defaults.object(forKey: Keys.playerTrackInfoLeftOffset) as? Int ?? 0
-        playerTrackInfoRightOffset = defaults.object(forKey: Keys.playerTrackInfoRightOffset) as? Int ?? 0
+        playerTrackInfoLeftOffset = defaults.object(forKey: Keys.playerTrackInfoLeftOffset) as? Int ?? -5
+        playerTrackInfoRightOffset = defaults.object(forKey: Keys.playerTrackInfoRightOffset) as? Int ?? -10
         enableUnblock = defaults.object(forKey: Keys.unblock) as? Bool ?? true
         if let rawSourceIDs = defaults.stringArray(forKey: Keys.unblockSources) {
             enabledAudioSourceIDs = Set(rawSourceIDs.compactMap(AudioSourceID.init))

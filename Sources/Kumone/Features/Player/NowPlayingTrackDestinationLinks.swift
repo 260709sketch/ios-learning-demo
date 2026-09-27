@@ -37,16 +37,16 @@ struct NowPlayingTrackDestinationLinks: View {
                 if artists.isEmpty {
                     Text(track.artistNames)
                 } else if artists.count == 1, let first = artists.first {
-                    // 单名歌手：直接点击跳转
-                    Button {
-                        onOpenDestination(destination(for: first))
-                    } label: {
-                        Text(first.name)
-                            .contentShape(Rectangle())
-                            .padding(.vertical, 3)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("打开歌手：\(first.name)")
+                    // 单名歌手：直接点击跳转（用 Text + onTapGesture，避免 Button 在嵌套视图中点击失效）
+                    Text(first.name)
+                        .contentShape(Rectangle())
+                        .padding(.vertical, 4)
+                        .padding(.trailing, 4)
+                        .onTapGesture {
+                            onOpenDestination(destination(for: first))
+                        }
+                        .accessibilityLabel("打开歌手：\(first.name)")
+                        .accessibilityAddTraits(.isButton)
                 } else {
                     // 多名歌手：Menu 紧凑菜单，不占位置
                     Menu {
@@ -58,7 +58,8 @@ struct NowPlayingTrackDestinationLinks: View {
                     } label: {
                         Text(artists.map(\.name).joined(separator: " / "))
                             .contentShape(Rectangle())
-                            .padding(.vertical, 3)
+                            .padding(.vertical, 4)
+                            .padding(.trailing, 4)
                     }
                     .accessibilityLabel("选择歌手")
                 }
@@ -69,21 +70,20 @@ struct NowPlayingTrackDestinationLinks: View {
                 if !track.artistNames.isEmpty {
                     Text(" — ")
                 }
-                Button {
-                    onOpenDestination(albumDest)
-                } label: {
-                    Text(track.album.name)
-                        .contentShape(Rectangle())
-                        .padding(.vertical, 3)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("打开专辑：\(track.album.name)")
+                Text(track.album.name)
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 4)
+                    .padding(.leading, 4)
+                    .onTapGesture {
+                        onOpenDestination(albumDest)
+                    }
+                    .accessibilityLabel("打开专辑：\(track.album.name)")
+                    .accessibilityAddTraits(.isButton)
             }
         }
         .font(font)
         .foregroundStyle(color)
         .lineLimit(1)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .contain)
     }
 }
