@@ -1,6 +1,7 @@
 #if os(iOS)
 import SwiftUI
 import UIKit
+import Combine
 
 /// 液态玻璃底部栏：底部栏普通毛玻璃 + 选中项液态玻璃药丸（点击/长按抬起效果）
 struct LiquidGlassTabBar: View {
@@ -130,33 +131,59 @@ struct LiquidGlassBackground: UIViewRepresentable {
     var config: LiquidGlassConfig? = nil
     var contentScaleFactor: CGFloat = 1.0  // 降低渲染分辨率提升性能
 
+    @State private var isScrolling = false
+
     func makeUIView(context: Context) -> UIView {
         let container = UIView()
         container.clipsToBounds = true
-        let glassView = createGlassView()
+        let glassView = createGlassView(isScrolling: isScrolling)
         glassView.frame = container.bounds
         glassView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         container.addSubview(glassView)
+
+        // 监听全局滑动状态
+        context.coordinator.cancellable = ScrollDetector.shared.$isScrolling
+            .receive(on: DispatchQueue.main)
+            .sink { [weak container] scrolling in
+                guard let container else { return }
+                container.subviews.forEach { $0.removeFromSuperview() }
+                let glassView = createGlassView(isScrolling: scrolling)
+                glassView.frame = container.bounds
+                glassView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                container.addSubview(glassView)
+            }
         return container
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
         // 配置变化时重新创建液态玻璃视图
         uiView.subviews.forEach { $0.removeFromSuperview() }
-        let glassView = createGlassView()
+        let glassView = createGlassView(isScrolling: isScrolling)
         glassView.frame = uiView.bounds
         glassView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         uiView.addSubview(glassView)
     }
 
-    private func createGlassView() -> UIView {
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    final class Coordinator {
+        var cancellable: AnyCancellable?
+    }
+
+    private func createGlassView(isScrolling: Bool) -> UIView {
         let view: UIView
+        // 滑动时降低渲染质量：分辨率减半、帧率减半
+        let scale = isScrolling ? contentScaleFactor * 0.5 : contentScaleFactor
+        let baseFps = config?.preferredFramesPerSecond ?? 60
+        let fps = isScrolling ? max(30, baseFps / 2) : baseFps
+
         if #available(iOS 26.0, *) {
             let effect = UIGlassEffect(style: style.nativeStyle)
             view = UIVisualEffectView(effect: effect)
         } else {
             let effect: LiquidGlassEffect
-            let fps = config?.preferredFramesPerSecond ?? 60
             if let config = config {
                 effect = LiquidGlassEffect(customLiquidGlass: config.toLiquidGlass)
             } else {
@@ -164,7 +191,7 @@ struct LiquidGlassBackground: UIViewRepresentable {
             }
             view = LiquidGlassEffectView(effect: effect, preferredFramesPerSecond: fps)
         }
-        view.contentScaleFactor = contentScaleFactor
+        view.contentScaleFactor = max(0.1, scale)
         return view
     }
 }
