@@ -405,7 +405,8 @@ final class LXMusicEngine: NSObject {
             ]
         ]
         do {
-            let result = try await sendJSRequest(payload: payload, timeout: 15)
+            // 参考 LX-Y-Music：音质超时 5 秒，我们用 8 秒留有余量
+            let result = try await sendJSRequest(payload: payload, timeout: 8)
             guard let data = result["data"] as? [String: Any],
                   let url = data["url"] as? String,
                   !url.isEmpty else {
