@@ -204,7 +204,10 @@ public struct IOSMainWindow: View {
 
     @ViewBuilder
     private var tabInterface: some View {
-        if #available(iOS 26.0, *) {
+        // iOS 26 + 默认底部栏 = 原生 TabView（系统自动液态玻璃，性能好）
+        // iOS 26 + 第三方液态玻璃 = 自定义 LiquidGlassTabBar
+        // iOS 16-25 = 自定义底部栏（GlassTabBar 或 LiquidGlassTabBar）
+        if #available(iOS 26.0, *), settings.tabBarStyle == .default {
             iOS26TabInterface
         } else {
             customTabInterface

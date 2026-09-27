@@ -63,14 +63,7 @@ struct GlassTabBar: View {
         }
         .frame(height: contentHeight)
         .padding(innerInset)
-        .background {
-            // iOS 26+ 用系统原生 UIGlassEffect 液态玻璃，iOS 16-25 保持普通毛玻璃
-            if #available(iOS 26.0, *) {
-                NativeGlassEffectView()
-            } else {
-                Capsule().fill(.regularMaterial)
-            }
-        }
+        .background { Capsule().fill(.regularMaterial) }
         .overlay {
             Capsule().strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0.22),
                                    lineWidth: 0.5)
@@ -131,14 +124,5 @@ struct GlassTabBar: View {
                 isDragging = false
             }
     }
-}
-
-/// iOS 26+ 原生液态玻璃效果包装（仅 iOS 26+ 使用，低版本不编译）
-@available(iOS 26.0, *)
-private struct NativeGlassEffectView: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIVisualEffectView {
-        UIVisualEffectView(effect: UIGlassEffect(style: .regular))
-    }
-    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
 }
 #endif
