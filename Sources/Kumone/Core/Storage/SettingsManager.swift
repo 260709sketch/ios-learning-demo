@@ -135,7 +135,7 @@ enum LiquidGlassPreset: String, CaseIterable, Identifiable {
 }
 
 /// 液态玻璃自定义配置
-struct LiquidGlassConfig: Codable, Equatable {
+struct LiquidGlassConfig: Codable, Equatable, Hashable {
     /// 白色色调透明度 0-1
     var tintOpacity: Double = 0.45
     /// 背景模糊半径 0-1

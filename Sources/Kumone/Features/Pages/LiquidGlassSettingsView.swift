@@ -145,6 +145,7 @@ private struct LiquidGlassPreview: View {
             .padding(.horizontal, 16)
             .background {
                 LiquidGlassBackground(config: settings.liquidGlassConfig, contentScaleFactor: 0.5)
+                    .id(settings.liquidGlassConfig)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
             }
             .padding(16)
