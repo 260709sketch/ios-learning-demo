@@ -59,7 +59,7 @@ struct LiquidGlassTabBar: View {
         }
         .frame(height: contentHeight)
         .padding(innerInset)
-        .background { LiquidGlassBackground(style: .regular, contentScaleFactor: 0.75) }
+        .background { LiquidGlassBackground(style: .white, contentScaleFactor: 0.75) }
         .overlay {
             Capsule().strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0.22),
                                    lineWidth: 0.5)
@@ -85,26 +85,12 @@ struct LiquidGlassTabBar: View {
         .contentShape(Rectangle())
     }
 
-    /// The sliding indicator — resting pill morphs to liquid glass when lifted.
+    /// The sliding indicator — a bar-height capsule with faint tint.
     private var selectionPill: some View {
-        ZStack {
-            // 静止状态：半透明白色药丸
-            Capsule(style: .continuous)
-                .fill(colorScheme == .dark
-                      ? Color.white.opacity(0.12)
-                      : Color.white.opacity(0.35))
-                .opacity(isPressed ? 0 : 1)
-
-            // 抬起状态：液态玻璃
-            LiquidGlassBackground(style: .thumb, contentScaleFactor: 1.0)
-                .clipShape(Capsule(style: .continuous))
-                .overlay {
-                    Capsule(style: .continuous)
-                        .strokeBorder(.white.opacity(colorScheme == .dark ? 0.12 : 0.25), lineWidth: 0.5)
-                }
-                .opacity(isPressed ? 1 : 0)
-        }
-        .animation(.easeInOut(duration: 0.2), value: isPressed)
+        Capsule(style: .continuous)
+            .fill(colorScheme == .dark
+                  ? Color.white.opacity(0.10)
+                  : Color.black.opacity(0.075))
     }
 
     private func index(for x: CGFloat, cellW: CGFloat, count: Int) -> Int {

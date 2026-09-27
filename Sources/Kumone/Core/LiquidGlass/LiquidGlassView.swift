@@ -119,6 +119,27 @@ struct LiquidGlass {
         backgroundTextureBlurRadius: 0.3,
         tintColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0, green: 0.04958364581, blue: 0.09951775161, alpha: 0.7981493615) : UIColor(red: 0.9023525731, green: 0.9509486998, blue: 1, alpha: 0.8002892298) },//.systemBackground.withAlphaComponent(0.8),
     )
+
+    static let white = Self.init(
+        shaderUniforms: .init(
+            glassThickness: 10,
+            refractiveIndex: 1.5,
+            dispersionStrength: 5,
+            fresnelDistanceRange: 70,
+            fresnelIntensity: 0,
+            fresnelEdgeSharpness: 0,
+            glareDistanceRange: 30,
+            glareAngleConvergence: 0.1,
+            glareOppositeSideBias: 1,
+            glareIntensity: 0.1,
+            glareEdgeSharpness: -0.15,
+            glareDirectionOffset: -.pi / 4,
+        ),
+        backgroundTextureSizeCoefficient: 1,
+        backgroundTextureScaleCoefficient: 0.2,
+        backgroundTextureBlurRadius: 0.6,
+        tintColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor.white.withAlphaComponent(0.25) : UIColor.white.withAlphaComponent(0.45) },
+    )
 }
 
 final class BackdropView: UIView {
