@@ -5,6 +5,7 @@
 //  Created by Alexey Demin on 2025-12-05.
 //
 
+#if os(iOS)
 import UIKit
 import simd
 import MetalKit
@@ -493,3 +494,4 @@ extension UIView {
         return current
     }
 }
+#endif

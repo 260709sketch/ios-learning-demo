@@ -5,6 +5,7 @@
 //  Created by Alexey Demin on 2025-12-23.
 //
 
+#if os(iOS)
 import UIKit
 
 public class LiquidGlassEffectView: UIView, AnyVisualEffectView {
@@ -170,3 +171,4 @@ public func VisualEffectView(effect: UIVisualEffect?) -> AnyVisualEffectView {
         return UIVisualEffectView(effect: effect)
     }
 }
+#endif

@@ -5,6 +5,7 @@
 //  Created by Alexey Demin on 2025-12-22.
 //
 
+#if os(iOS)
 import CoreVideo
 
 class ZeroCopyBridge {
@@ -78,3 +79,4 @@ class ZeroCopyBridge {
         return cvTexture.flatMap { CVMetalTextureGetTexture($0) }
     }
 }
+#endif
