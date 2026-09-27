@@ -19,13 +19,6 @@ struct SettingsView: View {
                 Text("播放5秒后自动预加载下一首歌，切换时秒开不卡顿")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                #if os(iOS)
-                Picker("底部栏样式", selection: $settings.tabBarStyle) {
-                    ForEach(TabBarStyle.allCases) { style in
-                        Text(style.displayName).tag(style)
-                    }
-                }
-                #endif
                 NavigationLink {
                     LXSourceManageView()
                 } label: {
@@ -47,6 +40,13 @@ struct SettingsView: View {
                         Text(appearance.displayName).tag(appearance)
                     }
                 }
+                #if os(iOS)
+                Picker("底部栏样式", selection: $settings.tabBarStyle) {
+                    ForEach(TabBarStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                #endif
                 #if os(macOS)
                 // macOS only renders two now-playing layouts — 黑胶 and the
                 // regular page; the iOS 沉浸/简洁 options all fall back to the
