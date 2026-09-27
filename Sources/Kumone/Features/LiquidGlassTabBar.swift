@@ -58,7 +58,7 @@ struct LiquidGlassTabBar: View {
         }
         .frame(height: contentHeight)
         .padding(innerInset)
-        .background(.regularMaterial, in: Capsule())
+        .background { LiquidGlassBackground(style: .regular) }
         .overlay {
             Capsule().strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0.22),
                                    lineWidth: 0.5)

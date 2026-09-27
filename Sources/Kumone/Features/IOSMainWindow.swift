@@ -507,13 +507,26 @@ struct IOSMiniPlayerBar: View {
     @ViewBuilder
     private var playerBarSurface: some View {
         if presentation.drawsBackground {
-            content
-                .background(.regularMaterial, in: Capsule())
-                .overlay {
-                    Capsule()
-                        .strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
-                }
-                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+            if settings.tabBarStyle == .liquidGlass {
+                content
+                    .background {
+                        LiquidGlassBackground(style: .regular)
+                            .clipShape(Capsule())
+                    }
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
+                    }
+                    .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+            } else {
+                content
+                    .background(.regularMaterial, in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
+                    }
+                    .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+            }
         } else {
             content
         }
