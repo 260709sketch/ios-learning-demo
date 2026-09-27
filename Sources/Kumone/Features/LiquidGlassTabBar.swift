@@ -40,11 +40,12 @@ struct LiquidGlassTabBar: View {
                 selectionPill
                     .frame(width: cellW - 8, height: contentHeight)
                     .position(x: pillX, y: geo.size.height / 2)
-                    .scaleEffect(isPressed ? 1.08 : 1.0)
-                    .shadow(color: .black.opacity(isPressed ? 0.25 : 0.12),
-                            radius: isPressed ? 16 : 8,
-                            y: isPressed ? 6 : 3)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isPressed)
+                    .scaleEffect(isPressed ? 1.15 : 1.0)
+                    .shadow(color: .black.opacity(isPressed ? 0.30 : 0.12),
+                            radius: isPressed ? 20 : 8,
+                            y: isPressed ? 8 : 3)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isPressed)
+                    .zIndex(isPressed ? 1 : 0)
 
                 HStack(spacing: 0) {
                     ForEach(items) { item in
