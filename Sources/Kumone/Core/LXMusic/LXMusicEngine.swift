@@ -375,12 +375,10 @@ final class LXMusicEngine: NSObject {
                 "albumId": 0,
                 "types": [["type": "128k", "size": ""]],
                 "_types": ["128k": ["size": ""]],
-                "id": "001fXNtB2b58tO",
-                "songId": "001fXNtB2b58tO",
-                "pic": "",
-                "album": "叶惠美",
-                "hash": "001fXNtB2b58tO",
-                "rid": ""
+                "strMediaMid": "001fXNtB2b58tO",
+                "albumMid": "",
+                "songId": "102980018",
+                "vid": ""
             ]
         } else {
             // 网易云测试歌曲：thank u, next
@@ -395,13 +393,7 @@ final class LXMusicEngine: NSObject {
                 "typeUrl": [:] as [String: String],
                 "albumId": 0,
                 "types": [["type": "128k", "size": ""]],
-                "_types": ["128k": ["size": ""]],
-                "id": "1330348068",
-                "songId": "1330348068",
-                "pic": "",
-                "album": "thank u, next",
-                "hash": "1330348068",
-                "rid": ""
+                "_types": ["128k": ["size": ""]]
             ]
         }
         let payload: [String: Any] = [
@@ -429,17 +421,6 @@ final class LXMusicEngine: NSObject {
         let requestKey = "request__\(UUID().uuidString)"
         var payload = payload
         payload["requestKey"] = requestKey
-
-        // 参考 wellmusic：在 data.info 里添加 requestContext，部分音源脚本会用到
-        if var data = payload["data"] as? [String: Any],
-           var info = data["info"] as? [String: Any] {
-            info["requestContext"] = [
-                "requestKey": requestKey,
-                "requestType": "current"
-            ]
-            data["info"] = info
-            payload["data"] = data
-        }
 
         return try await withCheckedThrowingContinuation { cont in
             jsQueue.async {
@@ -535,9 +516,10 @@ final class LXMusicEngine: NSObject {
                 let body: Any
                 if binary {
                     body = Array(payload)
+                } else if let json = try? JSONSerialization.jsonObject(with: payload) {
+                    // 自动解析 JSON，跟 LX-Y-Music / LX 官方保持一致
+                    body = json
                 } else {
-                    // 始终返回字符串，跟 wellmusic / LX 官方保持一致
-                    // 不要自动解析 JSON，否则音源脚本用 JSON.parse(body) 会失败
                     body = String(data: payload, encoding: .utf8) ?? ""
                 }
                 let resp: [String: Any] = [
@@ -623,16 +605,14 @@ final class LXMusicEngine: NSObject {
     }
 
     private func lxMusicInfo(from track: Track, quality: String = "128k") -> [String: Any] {
-        // 根据来源平台选择正确的 source 和 songmid
+        // 参考 LX-Y-Music-IOS 项目的 toOldMusicInfo() 标准格式
         let source = track.sourcePlatform ?? "wy"
         let songmid = track.platformSongId ?? String(track.id)
         let pic = track.album.picUrl ?? ""
-        // LX 音源标准：多歌手用"、"分隔
         let singer = track.artists.map { $0.name }.joined(separator: "、")
-        // 官方 LX Mobile toOldMusicInfo() 标准格式：interval 为 mm:ss
         let durationSec = Int(track.duration)
         let interval = String(format: "%02d:%02d", durationSec / 60, durationSec % 60)
-        // 标准音质列表（官方格式 types / _types）
+
         let qualityInfo: [[String: Any]] = [
             ["type": "128k", "size": ""],
             ["type": "320k", "size": ""],
@@ -643,8 +623,8 @@ final class LXMusicEngine: NSObject {
             "320k": ["size": ""],
             "flac": ["size": ""]
         ]
+
         var info: [String: Any] = [
-            // 官方 LX Mobile 标准字段
             "name": track.name,
             "singer": singer,
             "source": source,
@@ -656,34 +636,27 @@ final class LXMusicEngine: NSObject {
             "albumId": track.album.id,
             "types": qualityInfo,
             "_types": qualityMap,
-            // 兼容字段：部分音源使用这些名称
-            "id": songmid,
-            "songId": songmid,
-            "strMediaMid": songmid,
-            "pic": pic,
-            "album": track.album.name,
-            // 关键：hash 设为歌曲 ID（参考 wellmusic 实现）
-            // 付费音源（如聆澜）用 musicInfo?.hash ?? musicInfo?.songmid 取 ID，
-            // 空字符串会通过 ?? 检查导致 songId 为空；设为 songmid 则两种取值方式都正确。
-            "hash": songmid,
-            "rid": "",
-            // wellmusic 额外字段：title / artist / _quality
-            "title": track.name,
-            "artist": singer,
-            "_quality": quality,
-            // meta 保留旧格式兼容
-            "meta": [
-                "songId": songmid,
-                "songmid": songmid,
-                "albumId": track.album.id,
-                "albumName": track.album.name,
-                "picUrl": pic,
-                "img": pic,
-                "fee": track.fee,
-                "qualitys": qualityInfo,
-                "_qualitys": qualityMap
-            ]
         ]
+
+        // 按音源平台特殊处理（参考 toOldMusicInfo）
+        switch source {
+        case "kg":
+            info["hash"] = track.platformSongId ?? ""
+        case "tx":
+            info["strMediaMid"] = songmid
+            info["songmid"] = songmid
+            info["albumMid"] = ""
+            info["songId"] = String(track.id)
+            info["vid"] = ""
+        case "mg":
+            info["copyrightId"] = ""
+            info["lrcUrl"] = ""
+            info["mrcUrl"] = ""
+            info["trcUrl"] = ""
+        default:
+            break
+        }
+
         return info
     }
 
