@@ -334,8 +334,7 @@ final class LXMusicEngine: NSObject {
         let source = track.sourcePlatform ?? "wy"
         // QQ音乐音源不支持 flac24bit，降级为 flac
         let adjustedQuality = (source == "tx" && quality == "flac24bit") ? "flac" : quality
-        var musicInfo = lxMusicInfo(from: track)
-        musicInfo["_quality"] = adjustedQuality
+        var musicInfo = lxMusicInfo(from: track, quality: adjustedQuality)
         let payload: [String: Any] = [
             "requestKey": "",
             "data": [
@@ -623,7 +622,7 @@ final class LXMusicEngine: NSObject {
         }
     }
 
-    private func lxMusicInfo(from track: Track) -> [String: Any] {
+    private func lxMusicInfo(from track: Track, quality: String = "128k") -> [String: Any] {
         // 根据来源平台选择正确的 source 和 songmid
         let source = track.sourcePlatform ?? "wy"
         let songmid = track.platformSongId ?? String(track.id)
@@ -668,9 +667,10 @@ final class LXMusicEngine: NSObject {
             // 空字符串会通过 ?? 检查导致 songId 为空；设为 songmid 则两种取值方式都正确。
             "hash": songmid,
             "rid": "",
-            // wellmusic 额外字段：title / artist
+            // wellmusic 额外字段：title / artist / _quality
             "title": track.name,
             "artist": singer,
+            "_quality": quality,
             // meta 保留旧格式兼容
             "meta": [
                 "songId": songmid,
