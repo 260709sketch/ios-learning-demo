@@ -17,19 +17,19 @@ public final class ScrollDetector: ObservableObject {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(scrollViewDidScroll(_:)),
-            name: UIScrollView.didScrollNotification,
+            name: NSNotification.Name("UIScrollViewDidScrollNotification"),
             object: nil
         )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(scrollViewDidEndDragging(_:)),
-            name: UIScrollView.didEndDraggingNotification,
+            name: NSNotification.Name("UIScrollViewDidEndDraggingNotification"),
             object: nil
         )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(scrollViewDidEndDecelerating(_:)),
-            name: UIScrollView.didEndDeceleratingNotification,
+            name: NSNotification.Name("UIScrollViewDidEndDeceleratingNotification"),
             object: nil
         )
     }
