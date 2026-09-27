@@ -205,7 +205,9 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // 背景模式控制：
         // - flowing: Fu.resume() 恢复流动渲染
         // - still: Fu.pause() 暂停渲染循环，背景画面静止可见
-        let bgRenderCmd = (backgroundMode == .flowing) ? "Fu.resume();" : "Fu.pause();"
+        // 同时设置 window._bgStill 标记，setPlaying(true) 时不会自动 Fu.resume()
+        let bgStill = (backgroundMode == .flowing) ? "false" : "true"
+        let bgRenderCmd = (backgroundMode == .flowing) ? "window._bgStill=false;Fu.resume();" : "window._bgStill=true;Fu.pause();"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -271,6 +273,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         // flowing: Fu.resume() 恢复流动渲染
         let bgStatic = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
+        window._bgStill = \(bgStatic);
         (function() {
             var tries = 0;
             var timer = setInterval(function() {
