@@ -241,6 +241,11 @@ final class LiquidGlassView: MTKView {
     // Background texture for the shader
     private var backgroundTexture: MTLTexture?
 
+    /// 帧计数器，用于降低背景捕获频率
+    private var frameCount = 0
+    /// 每N帧捕获一次背景（2=每2帧捕获一次，CPU开销减半）
+    private let captureFrameInterval = 2
+
     /// Whether to automatically capture superview on each frame. 
     /// Set to false for manual control via `captureBackground()`.
     var autoCapture: Bool = true
@@ -467,8 +472,12 @@ final class LiquidGlassView: MTKView {
 
     override func draw(_ rect: CGRect) {
         // Auto-capture background from superview if enabled
+        // 每 captureFrameInterval 帧才捕获一次背景，中间帧复用上次纹理，CPU开销减半
         if autoCapture {
-            captureBackground()
+            frameCount += 1
+            if frameCount % captureFrameInterval == 0 || backgroundTexture == nil {
+                captureBackground()
+            }
         }
         
         guard let drawable = currentDrawable,
