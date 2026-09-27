@@ -70,7 +70,7 @@ public class LiquidGlassEffectView: UIView, AnyVisualEffectView {
 public class LiquidGlassEffect: UIVisualEffect {
 
     public enum Style {
-        case regular, clear, lens
+        case regular, clear, lens, thumb
 
         @available(iOS 26.0, *)
         var nativeStyle: UIGlassEffect.Style {
@@ -78,6 +78,7 @@ public class LiquidGlassEffect: UIVisualEffect {
             case .regular: .regular
             case .clear: .clear
             case .lens: .regular
+            case .thumb: .clear
             }
         }
 
@@ -86,6 +87,7 @@ public class LiquidGlassEffect: UIVisualEffect {
             case .regular: .regular
             case .clear: .regular // TODO: Add clear LiquidGlass preset.
             case .lens: .lens
+            case .thumb: .thumb()
             }
         }
     }

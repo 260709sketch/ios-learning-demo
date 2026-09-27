@@ -2,8 +2,7 @@
 import SwiftUI
 import UIKit
 
-/// 液态玻璃底部栏：基于 LiquidGlassKit 的 Metal 渲染实现
-/// 与 GlassTabBar 结构相同，只是背景换成液态玻璃效果
+/// 液态玻璃底部栏：底部栏普通毛玻璃 + 选中项液态玻璃药丸（点击/长按抬起效果）
 struct LiquidGlassTabBar: View {
     struct Item: Identifiable {
         let tab: IOSTab
@@ -21,6 +20,7 @@ struct LiquidGlassTabBar: View {
     /// Finger x (in content space) while actively dragging the pill; nil at rest.
     @State private var dragX: CGFloat?
     @State private var isDragging = false
+    @State private var isPressed = false
 
     private let innerInset: CGFloat = 4
     private let contentHeight: CGFloat = 56
@@ -40,6 +40,11 @@ struct LiquidGlassTabBar: View {
                 selectionPill
                     .frame(width: cellW - 8, height: contentHeight)
                     .position(x: pillX, y: geo.size.height / 2)
+                    .scaleEffect(isPressed ? 1.08 : 1.0)
+                    .shadow(color: .black.opacity(isPressed ? 0.25 : 0.12),
+                            radius: isPressed ? 16 : 8,
+                            y: isPressed ? 6 : 3)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isPressed)
 
                 HStack(spacing: 0) {
                     ForEach(items) { item in
@@ -53,7 +58,7 @@ struct LiquidGlassTabBar: View {
         }
         .frame(height: contentHeight)
         .padding(innerInset)
-        .background { LiquidGlassBackground() }
+        .background(.regularMaterial, in: Capsule())
         .overlay {
             Capsule().strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0.22),
                                    lineWidth: 0.5)
@@ -79,9 +84,9 @@ struct LiquidGlassTabBar: View {
         .contentShape(Rectangle())
     }
 
-    /// The sliding indicator — a liquid glass capsule.
+    /// The sliding indicator — a liquid glass capsule with thumb preset.
     private var selectionPill: some View {
-        LiquidGlassBackground()
+        LiquidGlassBackground(style: .thumb)
             .clipShape(Capsule(style: .continuous))
             .overlay {
                 Capsule(style: .continuous)
@@ -96,6 +101,7 @@ struct LiquidGlassTabBar: View {
     private func dragGesture(cellW: CGFloat, count: Int) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
+                isPressed = true
                 if !isDragging && abs(value.translation.width) < 8 { return }
                 isDragging = true
                 dragX = value.location.x
@@ -103,6 +109,7 @@ struct LiquidGlassTabBar: View {
                 if tab != selection { selection = tab }
             }
             .onEnded { value in
+                isPressed = false
                 let tab = items[index(for: value.location.x, cellW: cellW, count: count)].tab
                 if isDragging {
                     withAnimation(settle) { selection = tab; dragX = nil }
@@ -118,14 +125,14 @@ struct LiquidGlassTabBar: View {
 
 /// 液态玻璃背景：用 UIViewRepresentable 包装液态玻璃效果
 struct LiquidGlassBackground: UIViewRepresentable {
+    var style: LiquidGlassEffect.Style = .regular
+
     func makeUIView(context: Context) -> UIView {
         if #available(iOS 26.0, *) {
-            // iOS 26+ 使用原生 UIGlassEffect（lens映射到regular）
-            let effect = UIGlassEffect(style: .regular)
+            let effect = UIGlassEffect(style: style.nativeStyle)
             return UIVisualEffectView(effect: effect)
         } else {
-            // iOS 16-25 使用自定义 Metal 液态玻璃实现，lens预设更通透
-            let effect = LiquidGlassEffect(style: .lens, isNative: false)
+            let effect = LiquidGlassEffect(style: style, isNative: false)
             return LiquidGlassEffectView(effect: effect)
         }
     }
