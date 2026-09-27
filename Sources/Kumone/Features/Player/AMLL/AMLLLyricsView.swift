@@ -468,6 +468,11 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
             if let image = await ImageCache.shared.image(for: url) {
                 if let dataURL = image.amllJPEGDataURL() {
                     callJS("setAlbum", args: [dataURL])
+                    // 静态模式下渲染循环已暂停，setAlbum后临时resume让背景更新封面，
+                    // 延迟500ms等图片加载渲染完成后再pause，确保切歌时背景封面能更新
+                    if backgroundMode == .still {
+                        callJSRaw("if(typeof Fu!=='undefined'){Fu.resume();setTimeout(function(){Fu.pause();},500);}true;")
+                    }
                 }
             }
         }
