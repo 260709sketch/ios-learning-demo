@@ -203,10 +203,12 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         let opacityValue = showLyrics ? "1" : "0"
         let pointerEvents = showLyrics ? "auto" : "none"
         // 背景模式控制：
-        // - flowing: Fu.setStaticMode(false) 流动背景
-        // - still: Fu.setStaticMode(true) 静态背景（关键：用setStaticMode而不是pause，
-        //   pause只暂停渲染循环，staticMode仍为false，恢复后继续流动）
-        let bgRenderCmd = (backgroundMode == .flowing) ? "Fu.setStaticMode(false)" : "Fu.setStaticMode(true)"
+        // - flowing: Fu.setStaticMode(false) + Fu.resume() 流动背景，渲染循环运行
+        // - still: Fu.setStaticMode(true) + Fu.pause() 静态背景，完全停止背景渲染循环
+        //   （歌词是单独的LyricPlayer，不受Fu.pause影响，背景保持最后一帧画面）
+        let bgRenderCmd = (backgroundMode == .flowing)
+            ? "Fu.setStaticMode(false); Fu.resume();"
+            : "Fu.setStaticMode(true); Fu.pause();"
         let js = """
         (function() {
             var el = document.getElementById('lyrics');
@@ -217,9 +219,10 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 el.style.opacity = '\(opacityValue)';
                 el.style.pointerEvents = '\(pointerEvents)';
             }
-            // 静态模式用setStaticMode，流动模式关闭静态模式
+            // 静态模式：setStaticMode + pause 完全停止背景渲染，节省性能
+            // 流动模式：setStaticMode(false) + resume 恢复流动渲染
             if (typeof Fu !== 'undefined') {
-                \(bgRenderCmd);
+                \(bgRenderCmd)
             }
         })();
         true;
@@ -268,8 +271,8 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
         userContent.add(self, name: "amllEvent")
 
         // 提前注入背景模式设置，避免 WebView 加载时流动背景闪烁
-        // still 模式下等 Fu 初始化后设置静态模式，flowing 模式关闭静态模式
-        // 关键：用setStaticMode而不是pause/resume，pause只暂停渲染循环不改变staticMode
+        // still: setStaticMode(true) + pause 完全停止背景渲染，节省性能
+        // flowing: setStaticMode(false) + resume 恢复流动渲染
         let bgStatic = (backgroundMode == .flowing) ? "false" : "true"
         let bgInitScript = """
         (function() {
@@ -279,6 +282,7 @@ private final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessage
                 if (typeof Fu !== 'undefined' && Fu) {
                     clearInterval(timer);
                     Fu.setStaticMode(\(bgStatic));
+                    if (\(bgStatic)) { Fu.pause(); } else { Fu.resume(); }
                 } else if (tries > 100) {
                     clearInterval(timer);
                 }
