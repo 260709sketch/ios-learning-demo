@@ -535,9 +535,9 @@ final class LXMusicEngine: NSObject {
                 let body: Any
                 if binary {
                     body = Array(payload)
-                } else if let json = try? JSONSerialization.jsonObject(with: payload) {
-                    body = json
                 } else {
+                    // 始终返回字符串，跟 wellmusic / LX 官方保持一致
+                    // 不要自动解析 JSON，否则音源脚本用 JSON.parse(body) 会失败
                     body = String(data: payload, encoding: .utf8) ?? ""
                 }
                 let resp: [String: Any] = [
