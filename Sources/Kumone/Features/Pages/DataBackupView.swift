@@ -106,9 +106,11 @@ struct DataBackupView: View {
                 let settingsCount = (backup["settings"] as? [String: Any])?.count ?? 0
                 let playlistCount = ((backup["favoritePlaylist"] as? [[String: Any]]) ?? (backup["localPlaylist"] as? [[String: Any]]))?.count ?? 0
                 let lxSourceCount = (backup["lxSources"] as? [[String: Any]])?.count ?? 0
+                let hasLiquidGlass = (backup["settings"] as? [String: Any])?["settings.liquidGlassConfig"] != nil
                 let timestamp = backup["timestamp"] as? TimeInterval ?? 0
                 let dateStr = timestamp > 0 ? DateFormatter.localizedString(from: Date(timeIntervalSince1970: timestamp), dateStyle: .medium, timeStyle: .short) : "未知"
-                Text("文件：\(pendingFileName)\n备份时间：\(dateStr)\n设置项：\(settingsCount) 项\n收藏歌曲：\(playlistCount) 首\n自定义音源：\(lxSourceCount) 个\n\n恢复后将覆盖当前数据，确定继续吗？")
+                let liquidGlassInfo = hasLiquidGlass ? "\n液态玻璃配置：已包含" : ""
+                Text("文件：\(pendingFileName)\n备份时间：\(dateStr)\n设置项：\(settingsCount) 项\n收藏歌曲：\(playlistCount) 首\n自定义音源：\(lxSourceCount) 个\(liquidGlassInfo)\n\n恢复后将覆盖当前数据，确定继续吗？")
             } else {
                 Text("")
             }
