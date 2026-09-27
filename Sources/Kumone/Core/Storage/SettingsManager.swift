@@ -104,11 +104,12 @@ enum TabBarStyle: String, CaseIterable, Identifiable {
 
 /// 液态玻璃预设
 enum LiquidGlassPreset: String, CaseIterable, Identifiable {
-    case custom   // 自定义
-    case white    // 白色高模糊
-    case regular  // 标准（蓝色调）
-    case lens     // 透镜（通透高色散）
-    case thumb    // 缩略图（近透明淡冷色）
+    case custom      // 自定义
+    case white       // 白色高模糊
+    case lightBlue   // 浅蓝色（原库regular浅色模式）
+    case darkBlue    // 深蓝色（原库regular深色模式）
+    case lens        // 透镜（通透高色散）
+    case thumb       // 缩略图（近透明淡冷色）
 
     var id: String { rawValue }
 
@@ -116,7 +117,8 @@ enum LiquidGlassPreset: String, CaseIterable, Identifiable {
         switch self {
         case .custom: return "自定义"
         case .white: return "白色"
-        case .regular: return "标准"
+        case .lightBlue: return "浅蓝"
+        case .darkBlue: return "深蓝"
         case .lens: return "透镜"
         case .thumb: return "透明"
         }
@@ -126,17 +128,25 @@ enum LiquidGlassPreset: String, CaseIterable, Identifiable {
     var config: LiquidGlassConfig {
         switch self {
         case .custom: return .default
-        case .white: return LiquidGlassConfig(tintOpacity: 0.45, blurRadius: 0.6, glassThickness: 10, refractiveIndex: 1.5, dispersionStrength: 5)
-        case .regular: return LiquidGlassConfig(tintOpacity: 0.8, blurRadius: 0.3, glassThickness: 10, refractiveIndex: 1.5, dispersionStrength: 5)
-        case .lens: return LiquidGlassConfig(tintOpacity: 0, blurRadius: 0, glassThickness: 6, refractiveIndex: 1.1, dispersionStrength: 15)
-        case .thumb: return LiquidGlassConfig(tintOpacity: 0.15, blurRadius: 0, glassThickness: 10, refractiveIndex: 1.11, dispersionStrength: 5)
+        case .white:
+            return LiquidGlassConfig(tintOpacity: 0.45, blurRadius: 0.6, glassThickness: 10, refractiveIndex: 1.5, dispersionStrength: 5, tintRed: 1.0, tintGreen: 1.0, tintBlue: 1.0)
+        case .lightBlue:
+            // 原库 regular 浅色模式：RGB(0.902, 0.951, 1.0)
+            return LiquidGlassConfig(tintOpacity: 0.8, blurRadius: 0.3, glassThickness: 10, refractiveIndex: 1.5, dispersionStrength: 5, tintRed: 0.902, tintGreen: 0.951, tintBlue: 1.0)
+        case .darkBlue:
+            // 原库 regular 深色模式：RGB(0, 0.05, 0.1)
+            return LiquidGlassConfig(tintOpacity: 0.8, blurRadius: 0.3, glassThickness: 10, refractiveIndex: 1.5, dispersionStrength: 5, tintRed: 0, tintGreen: 0.05, tintBlue: 0.1)
+        case .lens:
+            return LiquidGlassConfig(tintOpacity: 0, blurRadius: 0, glassThickness: 6, refractiveIndex: 1.1, dispersionStrength: 15, tintRed: 1.0, tintGreen: 1.0, tintBlue: 1.0)
+        case .thumb:
+            return LiquidGlassConfig(tintOpacity: 0.15, blurRadius: 0, glassThickness: 10, refractiveIndex: 1.11, dispersionStrength: 5, tintRed: 1.0, tintGreen: 1.0, tintBlue: 1.0)
         }
     }
 }
 
 /// 液态玻璃自定义配置
 struct LiquidGlassConfig: Codable, Equatable, Hashable {
-    /// 白色色调透明度 0-1
+    /// 色调透明度 0-1
     var tintOpacity: Double = 0.45
     /// 背景模糊半径 0-1
     var blurRadius: Double = 0.6
@@ -148,6 +158,12 @@ struct LiquidGlassConfig: Codable, Equatable, Hashable {
     var dispersionStrength: Double = 5
     /// 渲染帧率 30/60/90/120
     var preferredFramesPerSecond: Int = 60
+    /// 色调颜色 R 0-1
+    var tintRed: Double = 1.0
+    /// 色调颜色 G 0-1
+    var tintGreen: Double = 1.0
+    /// 色调颜色 B 0-1
+    var tintBlue: Double = 1.0
 
     static let `default` = LiquidGlassConfig()
 
@@ -172,7 +188,7 @@ struct LiquidGlassConfig: Codable, Equatable, Hashable {
             backgroundTextureSizeCoefficient: 1,
             backgroundTextureScaleCoefficient: 0.2,
             backgroundTextureBlurRadius: blurRadius,
-            tintColor: UIColor.white.withAlphaComponent(CGFloat(tintOpacity))
+            tintColor: UIColor(red: CGFloat(tintRed), green: CGFloat(tintGreen), blue: CGFloat(tintBlue), alpha: CGFloat(tintOpacity))
         )
     }
     #endif
@@ -190,6 +206,7 @@ final class SettingsManager: ObservableObject {
         static let tabBarStyle = "settings.tabBarStyle"
         static let liquidGlassConfig = "settings.liquidGlassConfig"
         static let liquidGlassPreset = "settings.liquidGlassPreset"
+        static let customLiquidGlassConfig = "settings.customLiquidGlassConfig"
         static let showTranslation = "settings.showLyricsTranslation"
         static let showRomaji = "settings.showLyricsRomaji"  // migrated to `annotation`
         static let annotation = "settings.lyricsAnnotation"
@@ -283,11 +300,24 @@ final class SettingsManager: ObservableObject {
         didSet { UserDefaults.standard.set(tabBarStyle.rawValue, forKey: Keys.tabBarStyle) }
     }
 
-    /// 液态玻璃自定义配置
+    /// 液态玻璃自定义配置（用户调节后的参数，切换预设不覆盖）
+    @Published var customLiquidGlassConfig: LiquidGlassConfig {
+        didSet {
+            if let data = try? JSONEncoder().encode(customLiquidGlassConfig) {
+                UserDefaults.standard.set(data, forKey: Keys.customLiquidGlassConfig)
+            }
+        }
+    }
+
+    /// 液态玻璃当前生效配置
     @Published var liquidGlassConfig: LiquidGlassConfig {
         didSet {
             if let data = try? JSONEncoder().encode(liquidGlassConfig) {
                 UserDefaults.standard.set(data, forKey: Keys.liquidGlassConfig)
+            }
+            // 在自定义预设下调节参数时，同步保存到自定义配置
+            if liquidGlassPreset == .custom {
+                customLiquidGlassConfig = liquidGlassConfig
             }
         }
     }
@@ -296,8 +326,11 @@ final class SettingsManager: ObservableObject {
     @Published var liquidGlassPreset: LiquidGlassPreset {
         didSet {
             UserDefaults.standard.set(liquidGlassPreset.rawValue, forKey: Keys.liquidGlassPreset)
-            // 切换预设时应用预设值（custom不覆盖用户配置）
-            if liquidGlassPreset != .custom {
+            if liquidGlassPreset == .custom {
+                // 切回自定义时恢复用户之前调节的参数
+                liquidGlassConfig = customLiquidGlassConfig
+            } else {
+                // 切换到预设时应用预设值，不覆盖自定义配置
                 liquidGlassConfig = liquidGlassPreset.config
             }
         }
@@ -497,6 +530,9 @@ final class SettingsManager: ObservableObject {
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppAppearance.init) ?? .auto
         nowPlayingMode = defaults.string(forKey: Keys.nowPlayingMode).flatMap(NowPlayingMode.init) ?? .immersive
         tabBarStyle = defaults.string(forKey: Keys.tabBarStyle).flatMap(TabBarStyle.init) ?? .default
+        customLiquidGlassConfig = (defaults.data(forKey: Keys.customLiquidGlassConfig)
+            .flatMap { try? JSONDecoder().decode(LiquidGlassConfig.self, from: $0) })
+            ?? .default
         liquidGlassConfig = (defaults.data(forKey: Keys.liquidGlassConfig)
             .flatMap { try? JSONDecoder().decode(LiquidGlassConfig.self, from: $0) })
             ?? .default
@@ -554,5 +590,11 @@ final class SettingsManager: ObservableObject {
             max(storedAmbientBackgroundIntensity, Self.mainWindowAmbientBackgroundIntensityRange.lowerBound),
             Self.mainWindowAmbientBackgroundIntensityRange.upperBound
         )
+        // 初始化后手动应用预设（didSet在初始化期间不触发）
+        if liquidGlassPreset == .custom {
+            liquidGlassConfig = customLiquidGlassConfig
+        } else {
+            liquidGlassConfig = liquidGlassPreset.config
+        }
     }
 }
