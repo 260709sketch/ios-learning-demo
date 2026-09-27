@@ -22,7 +22,6 @@ struct LiquidGlassTabBar: View {
     /// Finger x (in content space) while actively dragging the pill; nil at rest.
     @State private var dragX: CGFloat?
     @State private var isDragging = false
-    @State private var isPressed = false
 
     private let innerInset: CGFloat = 4
     private let contentHeight: CGFloat = 56
@@ -42,13 +41,8 @@ struct LiquidGlassTabBar: View {
                 selectionPill
                     .frame(width: cellW - 8, height: contentHeight)
                     .position(x: pillX, y: geo.size.height / 2)
-                    .scaleEffect(isPressed ? 1.15 : 1.0)
-                    .shadow(color: .black.opacity(isPressed ? 0.30 : 0.12),
-                            radius: isPressed ? 20 : 8,
-                            y: isPressed ? 8 : 3)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isPressed)
+                    .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
                     .animation(settle, value: selection)
-                    .zIndex(isPressed ? 1 : 0)
 
                 HStack(spacing: 0) {
                     ForEach(items) { item in
@@ -103,7 +97,6 @@ struct LiquidGlassTabBar: View {
     private func dragGesture(cellW: CGFloat, count: Int) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                isPressed = true
                 if !isDragging && abs(value.translation.width) < 8 { return }
                 isDragging = true
                 dragX = value.location.x
@@ -111,7 +104,6 @@ struct LiquidGlassTabBar: View {
                 if tab != selection { selection = tab }
             }
             .onEnded { value in
-                isPressed = false
                 let tab = items[index(for: value.location.x, cellW: cellW, count: count)].tab
                 if isDragging {
                     withAnimation(settle) { selection = tab; dragX = nil }
