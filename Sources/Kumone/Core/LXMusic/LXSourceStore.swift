@@ -103,23 +103,37 @@ final class LXSourceStore: ObservableObject {
         sources = list
 
         // 恢复上次激活的音源并自动重新加载
-        // 使用最高优先级，确保应用启动后音源最快可用
+        // 关键：启动Task之前就设置isInitializing=true，防止waitForInitialization提前返回
         let savedID = UserDefaults.standard.string(forKey: activeSourceKey)
         if let savedID, let source = sources.first(where: { $0.id == savedID }) {
             activeSourceID = savedID
+            isInitializing = true
             Task(priority: .userInitiated) { await activate(source) }
         } else if let firstSource = sources.first {
             // 兜底：没有保存的激活音源但列表不为空，自动激活第一个
             activeSourceID = firstSource.id
+            isInitializing = true
             Task(priority: .userInitiated) { await activate(firstSource) }
         }
     }
 
     /// 等待音源初始化完成。播放时调用，确保引擎已加载完毕。
     func waitForInitialization() async {
-        // 每 50ms 检查一次，最多等 5 秒
+        // 每 50ms 检查一次，最多等 8 秒
+        // 不仅等isInitializing，还要等currentSource被设置（引擎真正加载完成）
         var waited = 0
-        while isInitializing && waited < 5000 {
+        while waited < 8000 {
+            if !isInitializing {
+                // 初始化完成，但要确认引擎真的加载了音源
+                if LXMusicEngine.shared.currentSource != nil { break }
+                // isInitializing=false但currentSource=nil，说明激活失败，尝试重试一次
+                if let activeID = activeSourceID,
+                   let source = sources.first(where: { $0.id == activeID }),
+                   !isInitializing {
+                    isInitializing = true
+                    Task(priority: .userInitiated) { await activate(source) }
+                }
+            }
             try? await Task.sleep(nanoseconds: 50_000_000)
             waited += 50
         }
@@ -285,12 +299,14 @@ final class LXSourceStore: ObservableObject {
 
     /// 加载并激活音源。
     func activate(_ source: LXSourceInfo) async {
+        isInitializing = true
+        lastError = nil
+        defer { isInitializing = false }
+
         guard let script = script(for: source.id) else {
             lastError = "音源脚本不存在"
             return
         }
-        isInitializing = true
-        lastError = nil
         do {
             let caps = try await engine.load(source: source, script: script)
             if caps.isEmpty {
@@ -301,7 +317,6 @@ final class LXSourceStore: ObservableObject {
         } catch {
             lastError = error.localizedDescription
         }
-        isInitializing = false
     }
 
     func deactivate() async {
