@@ -32,8 +32,12 @@ enum KugouAPI {
         if parts.count <= 1 {
             return [ArtistRef(id: singerID, name: trimmed, singerMid: String(singerID))]
         }
+        // 多歌手：第一个用真正的 singerID，其他用歌手名作为 singerMid（用于搜索）
         return parts.enumerated().map { idx, name in
-            ArtistRef(id: singerID + idx, name: name, singerMid: String(singerID + idx))
+            if idx == 0 && singerID > 0 {
+                return ArtistRef(id: singerID, name: name, singerMid: String(singerID))
+            }
+            return ArtistRef(id: abs(name.hashValue), name: name, singerMid: name)
         }
     }
 
@@ -273,6 +277,15 @@ enum KugouAPI {
 
     // MARK: - 歌手歌曲
     static func artistSongs(authorID: String, page: Int = 1, limit: Int = 20) async throws -> (tracks: [Track], total: Int) {
+        // 非数字 authorID（歌手名）：用搜索方式获取该歌手的歌曲
+        if Int(authorID) == nil {
+            let allSongs = try await searchSongs(authorID, page: 1, limit: 50)
+            let filtered = allSongs.filter { track in
+                track.artists.contains { $0.name.lowercased() == authorID.lowercased() }
+            }
+            let result = filtered.isEmpty ? allSongs : filtered
+            return (Array(result.prefix(limit)), result.count)
+        }
         let urlStr = "https://mobilecdn.kugou.com/api/v3/singer/song?format=json&singerid=\(authorID)&page=\(page)&pagesize=\(limit)"
         guard let url = URL(string: urlStr) else { return ([], 0) }
 
@@ -329,6 +342,25 @@ enum KugouAPI {
 
     // MARK: - 歌手专辑
     static func artistAlbums(authorID: String, page: Int = 1, limit: Int = 20) async throws -> (albums: [AlbumSummary], total: Int) {
+        // 非数字 authorID（歌手名）：用搜索方式获取该歌手的专辑
+        if Int(authorID) == nil {
+            let allSongs = try await searchSongs(authorID, page: 1, limit: 50)
+            let filtered = allSongs.filter { track in
+                track.artists.contains { $0.name.lowercased() == authorID.lowercased() }
+            }
+            let songs = filtered.isEmpty ? allSongs : filtered
+            var seen = Set<String>()
+            var albums: [AlbumSummary] = []
+            for song in songs {
+                let key = song.album.name
+                guard !key.isEmpty, seen.insert(key).inserted else { continue }
+                if let album = makeAlbum(id: song.album.id, name: song.album.name, picUrl: song.album.picUrl, artistName: authorID, albumID: song.album.albumMid ?? String(song.album.id)) {
+                    albums.append(album)
+                }
+                if albums.count >= limit { break }
+            }
+            return (albums, albums.count)
+        }
         let urlStr = "https://mobilecdn.kugou.com/api/v3/singer/album?format=json&singerid=\(authorID)&page=\(page)&pagesize=\(limit)"
         guard let url = URL(string: urlStr) else { return ([], 0) }
 
