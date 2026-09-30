@@ -21,7 +21,6 @@ struct AppleMusicPlayerView: View {
     let onDismiss: () -> Void
 
     @EnvironmentObject private var player: PlayerService
-    @EnvironmentObject private var settings: SettingsManager
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var account = AccountStore.shared
     @ObservedObject private var clock = PlayerService.shared.clock
@@ -29,8 +28,6 @@ struct AppleMusicPlayerView: View {
 
     @State private var showLyrics = false
     @State private var showQueue = false
-    @State private var showComments = false
-    @State private var showPlayerSettings = false
     @AppStorage("wellmusic.lyricOffset") private var lyricOffset = 0.0
     @AppStorage("wellmusic.appleMusic.showVolume") private var showVolumeControl = false
     @AppStorage("wellmusic.appleMusic.primaryHex") private var primaryHex = ""
@@ -92,12 +89,7 @@ struct AppleMusicPlayerView: View {
         .onDisappear { resumeTask?.cancel() }
         .sheet(isPresented: $showQueue) {
             Group {
-                if #available(iOS 16.4, *) {
-                    QueueView()
-                        .environmentObject(player)
-                        .presentationDetents([.medium, .large])
-                        .presentationBackground(.ultraThinMaterial)
-                } else if #available(iOS 16.0, *) {
+                if #available(iOS 16.0, *) {
                     QueueView()
                         .environmentObject(player)
                         .presentationDetents([.medium, .large])
@@ -106,198 +98,6 @@ struct AppleMusicPlayerView: View {
                         .environmentObject(player)
                 }
             }
-        }
-        .sheet(isPresented: $showComments) {
-            Group {
-                if let t = track {
-                    CommentsView(track: t)
-                }
-            }
-            .modifier(CommentsSheetDetents())
-        }
-        .sheet(isPresented: $showPlayerSettings) {
-            playerSettingsSheet
-        }
-    }
-
-    // MARK: - 三点菜单
-
-    @ViewBuilder
-    private var moreMenu: some View {
-        Menu {
-            // 定时关闭（嵌套子菜单）
-            Menu {
-                ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in
-                    Button("\(minutes) 分钟") {
-                        WellHaptics.tap()
-                        player.sleepTimer.schedule(afterMinutes: minutes)
-                    }
-                }
-                Button {
-                    WellHaptics.tap()
-                    player.sleepTimer.scheduleAtEndOfCurrentTrack()
-                } label: {
-                    Label("当前歌曲结束时停止", systemImage: "music.note")
-                }
-                if player.sleepTimer.state.isActive {
-                    Divider()
-                    Button("取消定时", role: .destructive) {
-                        player.sleepTimer.cancel()
-                    }
-                }
-            } label: {
-                Label("定时关闭", systemImage: "timer")
-            }
-
-            Button {
-                guard let t = track else { return }
-                LocalPlaylistStore.shared.addTrack(t)
-                ToastCenter.shared.show("已添加到收藏")
-            } label: {
-                Label("添加到本地歌单", systemImage: "plus")
-            }
-
-            Button {
-                ToastCenter.shared.show("下载功能开发中")
-            } label: {
-                Label("下载歌曲", systemImage: "arrow.down.circle")
-            }
-
-            Button {
-                WellHaptics.tap()
-                showPlayerSettings = true
-            } label: {
-                Label("播放器设置", systemImage: "gearshape")
-            }
-        } label: {
-            compactActionButton(icon: "ellipsis") {}
-        }
-    }
-
-    @ViewBuilder
-    private var playerSettingsSheet: some View {
-        NavigationStack {
-            Form {
-                Section("播放") {
-                    Picker("播放器模式", selection: $settings.nowPlayingMode) {
-                        ForEach(NowPlayingMode.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
-                    }
-                    Button {
-                        player.cyclePlaybackMode()
-                    } label: {
-                        HStack {
-                            Text("播放模式")
-                            Spacer()
-                            HStack(spacing: 6) {
-                                Image(systemName: playbackModeIcon)
-                                    .foregroundStyle(accentColor)
-                                Text(playbackModeText)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    Toggle("显示音量控制", isOn: $showVolumeControl)
-                    Stepper(value: $lyricOffset, in: -5...5, step: 0.1) {
-                        HStack {
-                            Text("歌词偏移")
-                            Spacer()
-                            Text(String(format: "%+.1fs", lyricOffset))
-                                .font(.system(.subheadline, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                Section("显示") {
-                    Toggle("显示歌词预览", isOn: $showLyricPreview)
-                    Toggle("显示 VIP 徽章", isOn: $showSongVIPBadge)
-                    Toggle("AMLL 沉浸歌词", isOn: $settings.useAMLLImmersive)
-                    Picker("歌词字体", selection: $settings.amllFontFamily) {
-                        Text("系统默认").tag("")
-                        Text("黑体").tag("PingFang SC")
-                        Text("SF粗体").tag("SF Pro Display")
-                        if !settings.amllFontFamily.isEmpty,
-                           settings.amllFontFamily != "PingFang SC",
-                           settings.amllFontFamily != "SF Pro Display" {
-                            Text("自定义").tag(settings.amllFontFamily)
-                        }
-                    }
-                }
-
-                Section("封面与控件位置") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("大封面尺寸")
-                            Spacer()
-                            Text(String(format: "%.0f%%", settings.playerArtworkScale * 100))
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: $settings.playerArtworkScale, in: 0.7...1.3, step: 0.05)
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("大封面上下位置")
-                            Spacer()
-                            Text(settings.playerArtworkTopOffset > 0 ? "+\(settings.playerArtworkTopOffset)" : "\(settings.playerArtworkTopOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerArtworkTopOffset) },
-                            set: { settings.playerArtworkTopOffset = Int($0) }
-                        ), in: -300...300, step: 5)
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("控制条上下位置")
-                            Spacer()
-                            Text(settings.playerControlsBottomOffset > 0 ? "+\(settings.playerControlsBottomOffset)" : "\(settings.playerControlsBottomOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerControlsBottomOffset) },
-                            set: { settings.playerControlsBottomOffset = Int($0) }
-                        ), in: -200...200, step: 5)
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌曲信息上下位置")
-                            Spacer()
-                            Text(settings.playerTrackInfoTopOffset > 0 ? "+\(settings.playerTrackInfoTopOffset)" : "\(settings.playerTrackInfoTopOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoTopOffset) },
-                            set: { settings.playerTrackInfoTopOffset = Int($0) }
-                        ), in: -300...300, step: 5)
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌曲信息与封面间距")
-                            Spacer()
-                            Text("\(settings.playerTrackInfoSpacing)px")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoSpacing) },
-                            set: { settings.playerTrackInfoSpacing = Int($0) }
-                        ), in: 0...60, step: 2)
-                    }
-                }
-            }
-            .navigationTitle("播放器设置")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .presentationDetentsSafe()
-    }
-
-    private var playbackModeText: String {
-        if player.shuffleEnabled { return "随机播放" }
-        switch player.repeatMode {
-        case .one: return "单曲循环"
-        case .all: return "列表循环"
-        case .off: return "顺序播放"
         }
     }
 
@@ -388,28 +188,16 @@ struct AppleMusicPlayerView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(primaryColor)
                     .lineLimit(1)
-                Group {
-                    if let t = track {
-                        NowPlayingTrackDestinationLinks(
-                            track: t,
-                            font: .system(size: 12, weight: .medium),
-                            color: secondaryColor,
-                            onOpenDestination: onOpenDestination
-                        )
-                    } else {
-                        Text(subtitle)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(secondaryColor)
-                            .lineLimit(1)
-                    }
-                }
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(secondaryColor)
+                    .lineLimit(1)
             }
             Spacer(minLength: 0)
             compactActionButton(
                 icon: isLiked ? "heart.fill" : "heart",
                 active: isLiked
             ) { onFavorite() }
-            moreMenu
         }
         .frame(maxWidth: 420)
     }
@@ -503,29 +291,17 @@ struct AppleMusicPlayerView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                Group {
-                    if let t = track {
-                        NowPlayingTrackDestinationLinks(
-                            track: t,
-                            font: .system(size: 12, weight: .medium),
-                            color: secondaryColor,
-                            onOpenDestination: onOpenDestination
-                        )
-                    } else {
-                        Text(subtitle)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(secondaryColor)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                }
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(secondaryColor)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
             Spacer(minLength: 0)
             compactActionButton(
                 icon: isLiked ? "heart.fill" : "heart",
                 active: isLiked
             ) { onFavorite() }
-            moreMenu
         }
     }
 
@@ -794,9 +570,8 @@ struct AppleMusicPlayerView: View {
         DragGesture(minimumDistance: 25)
             .onEnded { value in
                 guard value.translation.height < -54, abs(value.translation.height) > abs(value.translation.width) else { return }
-                guard track != nil else { return }
                 WellHaptics.medium()
-                showComments = true
+                // 评论区是另一个任务，暂时为空操作
             }
     }
 
@@ -996,65 +771,59 @@ private struct QueueView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 拖动指示条
-            Capsule()
-                .fill(.secondary.opacity(0.45))
-                .frame(width: 36, height: 5)
-                .padding(.top, 10)
-                .padding(.bottom, 8)
-
-            // 标题栏：标题 + 数量 + 清空
-            HStack(spacing: 8) {
-                Text("播放队列")
-                    .font(.system(size: 17, weight: .bold))
-                Text("\(player.queue.count) 首")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                Button(role: .destructive) {
-                    player.clearQueue()
-                } label: {
-                    Text("清空")
-                        .font(.system(size: 15, weight: .medium))
-                }
-                .disabled(player.queue.isEmpty)
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 8)
-
-            if player.queue.isEmpty {
-                Spacer()
-                EmptyStateView(icon: "music.note.list", title: "播放队列为空")
-                Spacer()
-            } else {
-                List {
-                    ForEach(Array(player.queue.enumerated()), id: \.element.id) { index, track in
-                        row(track, index: index)
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
-                    }
-                    .onDelete { offsets in
-                        // 从大到小删除，避免索引漂移
-                        for index in offsets.sorted(by: >) where player.queue.indices.contains(index) {
-                            player.removeFromQueue(at: index)
+        NavigationStack {
+            ZStack {
+                if player.queue.isEmpty {
+                    EmptyStateView(icon: "music.note.list", title: "播放队列为空")
+                } else {
+                    List {
+                        Section {
+                            ForEach(Array(player.queue.enumerated()), id: \.element.id) { index, track in
+                                row(track, index: index)
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16))
+                            }
+                            .onDelete { offsets in
+                                // 从大到小删除，避免索引漂移
+                                for index in offsets.sorted(by: >) where player.queue.indices.contains(index) {
+                                    player.removeFromQueue(at: index)
+                                }
+                            }
+                        } header: {
+                            Text("接下来 (\(player.queue.count) 首)")
+                                .foregroundStyle(.secondary)
                         }
                     }
+                    .scrollContentBackground(.hidden)
+                    .listStyle(.plain)
                 }
-                .scrollContentBackground(.hidden)
-                .listStyle(.plain)
+            }
+            .navigationTitle("播放队列")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        if !player.queue.isEmpty {
+                            Button(role: .destructive) {
+                                player.clearQueue()
+                            } label: {
+                                Label("清空队列", systemImage: "trash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial)
     }
 
     @ViewBuilder
     private func row(_ track: Track, index: Int) -> some View {
         let isCurrent = index == player.currentIndex
         HStack(spacing: 12) {
-            CoverImage(url: URL(string: track.album.picUrl ?? ""), size: 46, cornerRadius: 9)
+            CoverImage(url: URL(string: track.album.picUrl ?? ""), size: 42, cornerRadius: 9)
             VStack(alignment: .leading, spacing: 3) {
                 Text(track.name)
                     .font(.system(size: 15, weight: isCurrent ? .semibold : .regular))
@@ -1078,42 +847,14 @@ private struct QueueView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture {
             player.play(tracks: player.queue, source: .none, startAt: track)
             dismiss()
-        }
-    }
-}
-
-// MARK: - Sheet 辅助修饰器
-
-/// 评论区 sheet：iOS 16.4+ 使用半屏 detents + 透明背景（CommentsView 自绘背景）。
-private struct CommentsSheetDetents: ViewModifier {
-    func body(content: Content) -> some View {
-        Group {
-            if #available(iOS 16.4, *) {
-                content
-                    .presentationDetents([.medium, .large])
-                    .presentationBackground(.clear)
-            } else if #available(iOS 16.0, *) {
-                content
-                    .presentationDetents([.medium, .large])
-            } else {
-                content
-            }
-        }
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func presentationDetentsSafe() -> some View {
-        if #available(iOS 16.0, *) {
-            self.presentationDetents([.medium])
-        } else {
-            self
         }
     }
 }
