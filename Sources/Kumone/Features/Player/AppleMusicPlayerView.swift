@@ -40,7 +40,7 @@ struct AppleMusicPlayerView: View {
     @AppStorage("wellmusic.appleMusic.accentHex") private var accentHex = ""
     @AppStorage("wellmusic.appleMusic.volumeHex") private var volumeHex = ""
     @AppStorage("wellmusic.showSongVIPBadge") private var showSongVIPBadge = true
-    @AppStorage("wellmusic.appleMusic.showLyricPreview") private var showLyricPreview = true
+    @AppStorage("wellmusic.appleMusic.showLyricPreview") private var showLyricPreview = false
     @AppStorage("wellmusic.player.autoSkipOnFailure") private var autoSkipOnFailure = true
     @AppStorage("wellmusic.player.swipeSwitchSong") private var swipeSwitchSong = true
     @AppStorage("wellmusic.player.breath") private var breath = 0.6
@@ -587,7 +587,7 @@ struct AppleMusicPlayerView: View {
 
     private var lyricsPage: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: 30)
+            Color.clear.frame(height: 55)
 
             lyricsHeader
                 .padding(.horizontal, 24)
@@ -766,7 +766,7 @@ struct AppleMusicPlayerView: View {
         }
         .padding(.horizontal, 24)
         .padding(.top, 10)
-        .padding(.bottom, max(14, bottomInset + 4))
+        .padding(.bottom, max(4, bottomInset - 16))
         .gesture(commentsGesture)
     }
 

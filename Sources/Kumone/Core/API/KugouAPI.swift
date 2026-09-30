@@ -107,23 +107,8 @@ enum KugouAPI {
             return []
         }
 
-        // 展开 Grp（其他版本），去重
-        var seen = Set<String>()
-        var allItems: [[String: Any]] = []
-        for item in lists {
-            let hash = (item["FileHash"] as? String) ?? ""
-            if !hash.isEmpty, seen.insert(hash).inserted {
-                allItems.append(item)
-            }
-            if let grp = item["Grp"] as? [[String: Any]] {
-                for child in grp {
-                    let childHash = (child["FileHash"] as? String) ?? ""
-                    if !childHash.isEmpty, seen.insert(childHash).inserted {
-                        allItems.append(child)
-                    }
-                }
-            }
-        }
+        // 不展开 Grp（其他版本），避免同一首歌重复显示
+        let allItems = lists
 
         return allItems.compactMap { item -> Track? in
             let hash = (item["FileHash"] as? String) ?? ""

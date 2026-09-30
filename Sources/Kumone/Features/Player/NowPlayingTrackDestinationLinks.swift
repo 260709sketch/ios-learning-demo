@@ -15,7 +15,8 @@ struct NowPlayingTrackDestinationLinks: View {
 
     private func destination(for artist: ArtistRef) -> Destination {
         if let mid = artist.singerMid, !mid.isEmpty {
-            let summary = ArtistSummary(id: artist.id, name: artist.name, picUrl: nil, sourcePlatform: "tx", singerMid: mid)
+            let platform = track.sourcePlatform ?? "tx"
+            let summary = ArtistSummary(id: artist.id, name: artist.name, picUrl: nil, sourcePlatform: platform, singerMid: mid)
             return .artistWithMid(artist.id, mid, summary)
         }
         return .artist(artist.id)
@@ -24,7 +25,8 @@ struct NowPlayingTrackDestinationLinks: View {
     private var albumDestination: Destination? {
         guard track.album.id > 0, !track.album.name.isEmpty else { return nil }
         if let mid = track.album.albumMid, !mid.isEmpty {
-            let summary = AlbumSummary(id: track.album.id, name: track.album.name, picUrl: track.album.picUrl, sourcePlatform: "tx", albumMid: mid)
+            let platform = track.sourcePlatform ?? "tx"
+            let summary = AlbumSummary(id: track.album.id, name: track.album.name, picUrl: track.album.picUrl, sourcePlatform: platform, albumMid: mid)
             return .albumWithMid(track.album.id, mid, summary)
         }
         return .album(track.album.id)
