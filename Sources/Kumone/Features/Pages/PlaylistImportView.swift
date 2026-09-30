@@ -314,7 +314,7 @@ struct PlaylistImportView: View {
                   let json = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
                   let info = json["info"] as? [String: Any],
                   let listinfo = info["listinfo"] as? [String: Any],
-                  let songs = json["songs"] as? [[String: Any]] else {
+                  let songs = info["songs"] as? [[String: Any]] else {
                 errorMessage = "解析酷狗歌单失败"
                 return
             }
