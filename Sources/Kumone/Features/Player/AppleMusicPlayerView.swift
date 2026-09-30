@@ -501,7 +501,7 @@ struct AppleMusicPlayerView: View {
         let artworkSize = min(contentWidth, min(size.height * 0.50, 390))
 
         return VStack(spacing: 0) {
-            Spacer(minLength: 8)
+            Color.clear.frame(height: 70)
 
             CoverImage(
                 url: coverURL,
