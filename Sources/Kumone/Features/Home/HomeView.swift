@@ -32,6 +32,7 @@ final class HomeViewModel: ObservableObject {
     @Published var toplists: [ToplistItem] = []
     @Published var newAlbums: [AlbumSummary] = []
     @Published var topArtists: [ArtistSummary] = []
+    @Published var showingFollowedArtists = false
     @Published var dailyFirstCover: String?
 
     func load(loggedIn: Bool) async {
@@ -65,15 +66,12 @@ final class HomeViewModel: ObservableObject {
                     break
                 }
             }
-            if !allFollowed.isEmpty {
-                topArtists = allFollowed
-            } else {
-                let artists = try? await NeteaseAPI.topArtists()
-                topArtists = Array((artists ?? []).shuffled().prefix(6))
-            }
+            topArtists = allFollowed
+            showingFollowedArtists = true
         } else {
             let artists = try? await NeteaseAPI.topArtists()
             topArtists = Array((artists ?? []).shuffled().prefix(6))
+            showingFollowedArtists = false
         }
 
         if loggedIn {
@@ -222,7 +220,7 @@ struct HomeView: View {
             }
 
             if !model.topArtists.isEmpty {
-                Shelf(title: "关注歌手", rowHeight: Theme.Layout.artistShelfHeight) {
+                Shelf(title: model.showingFollowedArtists ? "关注歌手" : "热门歌手", rowHeight: Theme.Layout.artistShelfHeight) {
                     ForEach(model.topArtists) { artist in
                         artistCard(artist)
                     }
