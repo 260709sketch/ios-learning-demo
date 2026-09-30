@@ -250,6 +250,16 @@ final class PlayerService: ObservableObject {
                 self.pause()
             }
         }
+
+        // 均衡器设置变化时立即重新应用到当前播放
+        NotificationCenter.default.addObserver(
+            forName: Equalizer.settingsDidChange,
+            object: Equalizer.shared, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.applyEqualizerToCurrentItem()
+            }
+        }
         #endif
 
         timeObserver = engine.addPeriodicTimeObserver(
@@ -1157,6 +1167,22 @@ final class PlayerService: ObservableObject {
         } catch {
             print("Audio cache fallback lookup failed: \(error)")
             return false
+        }
+    }
+
+    /// 均衡器设置变化时重新应用到当前播放项
+    private func applyEqualizerToCurrentItem() {
+        guard let item = engine.currentItem else { return }
+        let assetTrack = item.asset.tracks(withMediaType: .audio).first
+        if Equalizer.shared.isEnabled,
+           let assetTrack,
+           let mix = Equalizer.shared.makeAudioMix(for: assetTrack) {
+            item.audioMix = mix
+        } else if let assetTrack,
+                  let mix = AudioSpectrum.shared.makeAudioMix(for: assetTrack) {
+            item.audioMix = mix
+        } else {
+            item.audioMix = nil
         }
     }
 
