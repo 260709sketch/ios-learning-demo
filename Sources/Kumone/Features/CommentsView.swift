@@ -203,7 +203,7 @@ struct CommentRow: View {
                         .font(.system(size: 12))
                         .foregroundStyle(.gray)
                     Spacer()
-                    Text("赞 \(formattedCount(comment.likedCount))")
+                    Text("\(formattedCount(comment.likedCount)) 赞")
                         .font(.system(size: 12))
                         .foregroundStyle(.gray)
                 }
