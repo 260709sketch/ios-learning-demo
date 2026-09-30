@@ -104,13 +104,20 @@ struct NowPlayingView: View {
             }
             #endif
         }
-        #if os(macOS)
-        // The window toolbar is hidden while this page is up, but SwiftUI keeps
-        // reserving its safe area, which pushed the whole immersive layout —
-        // close button included — a toolbar's height down from the window top.
-        // iOS keeps its safe area: there the inset is the status bar / notch.
+        // Extend edge-to-edge on every platform.
+        // - iOS: the cover presents with a transparent background
+        //   (.presentationBackground(.clear)), so this GeometryReader — and the
+        //   geo.size handed to every compact/regular layout — must cover the
+        //   full screen (status bar / Home Indicator included). The backdrop
+        //   already ignoresSafeArea, but the GeometryReader itself was
+        //   previously limited to the safe area on iOS, which shrank the whole
+        //   player and left the top half transparent. The compact layouts add a
+        //   manual top inset (immersiveHeaderTopInset) to clear the Dynamic
+        //   Island / status bar, so they are designed for full-screen coords.
+        // - macOS: SwiftUI keeps reserving the hidden toolbar's safe area,
+        //   which would otherwise push the whole immersive layout — close
+        //   button included — a toolbar's height down from the window top.
         .ignoresSafeArea()
-        #endif
         .preferredColorScheme(.dark)
         #if os(iOS)
         .task(id: player.currentTrack?.id) {
@@ -1479,9 +1486,9 @@ private struct CompactTrackHeader: View {
         }
         .sheet(isPresented: $showComments) {
             if let track = player.currentTrack {
-                NavigationStack {
-                    CommentsView(track: track)
-                }
+                CommentsView(track: track)
+                    .presentationDetents([.medium, .large])
+                    .presentationBackground(.clear)
             }
         }
     }
@@ -2194,9 +2201,9 @@ private struct MinimalTrackInfoRow: View {
         }
         .sheet(isPresented: $showComments) {
             if let track = player.currentTrack {
-                NavigationStack {
-                    CommentsView(track: track)
-                }
+                CommentsView(track: track)
+                    .presentationDetents([.medium, .large])
+                    .presentationBackground(.clear)
             }
         }
     }
