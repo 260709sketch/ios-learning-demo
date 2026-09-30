@@ -31,6 +31,8 @@ struct AppleMusicPlayerView: View {
     @State private var showQueue = false
     @State private var showComments = false
     @State private var showPlayerSettings = false
+    @State private var layoutMode = false
+    @State private var appleLayoutPart: AppleMusicLayoutPart = .cover
     @AppStorage("wellmusic.lyricOffset") private var lyricOffset = 0.0
     @AppStorage("wellmusic.appleMusic.showVolume") private var showVolumeControl = false
     @AppStorage("wellmusic.appleMusic.primaryHex") private var primaryHex = ""
@@ -93,6 +95,14 @@ struct AppleMusicPlayerView: View {
                     .animation(.easeInOut(duration: 0.22), value: showLyrics)
 
                     playbackControls(bottomInset: geometry.safeAreaInsets.bottom)
+                }
+
+                if layoutMode {
+                    appleMusicLayoutToolbar
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 60)
+                        .transition(.opacity)
+                        .zIndex(100)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)

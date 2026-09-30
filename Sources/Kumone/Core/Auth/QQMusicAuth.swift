@@ -141,6 +141,24 @@ final class QQMusicAuth: ObservableObject {
         Task { await self.fetchProfile() }
     }
 
+    static func loginValidationMessage(_ dict: [String: String]) -> String? {
+        guard hasUsableAccountID(accountID(from: dict)) else {
+            return "未读取到 QQ/微信账号标识，请确认网页登录已经完成"
+        }
+        let credentialKeys = [
+            "p_skey", "skey", "qqmusic_key", "qm_keyst",
+            "music_key", "wxskey", "wx_skey", "musickey"
+        ]
+        guard credentialKeys.contains(where: { !(dict[$0] ?? "").isEmpty }) else {
+            return "已读取到账号，但缺少 QQ 音乐登录凭证，请在网页中重新登录后再同步"
+        }
+        return nil
+    }
+
+    func hasValidLogin(_ dict: [String: String]) -> Bool {
+        Self.loginValidationMessage(dict) == nil
+    }
+
     static let webCookieNames: Set<String> = [
         "uin", "wxuin", "p_uin", "wxopenid", "skey", "p_skey",
         "qqmusic_key", "qm_keyst", "music_key", "wxskey", "wx_skey",

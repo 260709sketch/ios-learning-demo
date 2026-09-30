@@ -458,7 +458,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 NavigationLink {
-                    QQLoginView()
+                    QQWebLoginView(onSuccess: {})
                 } label: {
                     HStack {
                         Label("QQ 音乐登录", systemImage: "music.note")
