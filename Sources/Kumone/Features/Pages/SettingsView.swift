@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var imageCacheUsage: String = String(localized: "计算中…")
     @State private var cacheError: String?
     @State private var showLayoutAdjustment = false
+    @State private var showAMLLLyricAdjustment = false
 
     var body: some View {
         Form {
@@ -146,88 +147,109 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    // 歌词顶部位置
-                    VStack(alignment: .leading, spacing: 4) {
+                    // MARK: AMLL歌词调整
+                    Divider()
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showAMLLLyricAdjustment.toggle()
+                        }
+                    } label: {
                         HStack {
-                            Text("歌词顶部位置")
+                            Text("AMLL歌词调整")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
                             Spacer()
-                            Text("\(settings.amllLyricTop)px")
+                            Image(systemName: showAMLLLyricAdjustment ? "chevron.up" : "chevron.down")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.amllLyricTop) },
-                            set: { settings.amllLyricTop = Int($0) }
-                        ), in: 50...400, step: 5)
                     }
-                    .padding(.top, 4)
+                    .buttonStyle(.plain)
 
-                    // 歌词底部位置
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌词底部位置")
-                            Spacer()
-                            Text("\(settings.amllLyricBottom)px")
-                                .foregroundStyle(.secondary)
+                    if showAMLLLyricAdjustment {
+                        // 歌词顶部位置
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌词顶部位置")
+                                Spacer()
+                                Text("\(settings.amllLyricTop)px")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.amllLyricTop) },
+                                set: { settings.amllLyricTop = Int($0) }
+                            ), in: 50...400, step: 5)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.amllLyricBottom) },
-                            set: { settings.amllLyricBottom = Int($0) }
-                        ), in: 100...500, step: 5)
-                    }
+                        .padding(.top, 4)
 
-                    // 歌词左右位置
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌词左右位置")
-                            Spacer()
-                            Text(settings.amllLyricHorizontal > 0 ? "+\(settings.amllLyricHorizontal)" : "\(settings.amllLyricHorizontal)")
-                                .foregroundStyle(.secondary)
+                        // 歌词底部位置
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌词底部位置")
+                                Spacer()
+                                Text("\(settings.amllLyricBottom)px")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.amllLyricBottom) },
+                                set: { settings.amllLyricBottom = Int($0) }
+                            ), in: 100...500, step: 5)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.amllLyricHorizontal) },
-                            set: { settings.amllLyricHorizontal = Int($0) }
-                        ), in: -200...200, step: 5)
-                    }
 
-                    // 歌词字号
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌词字号")
-                            Spacer()
-                            Text("\(settings.amllFontSize)pt")
-                                .foregroundStyle(.secondary)
+                        // 歌词左右位置
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌词左右位置")
+                                Spacer()
+                                Text(settings.amllLyricHorizontal > 0 ? "+\(settings.amllLyricHorizontal)" : "\(settings.amllLyricHorizontal)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.amllLyricHorizontal) },
+                                set: { settings.amllLyricHorizontal = Int($0) }
+                            ), in: -200...200, step: 5)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.amllFontSize) },
-                            set: { settings.amllFontSize = Int($0) }
-                        ), in: 14...40, step: 1)
-                    }
 
-                    // 歌词字重
-                    Picker("歌词字重", selection: Binding(
-                        get: { settings.amllFontWeight },
-                        set: { settings.amllFontWeight = $0 }
-                    )) {
-                        Text("常规").tag(400)
-                        Text("中等").tag(500)
-                        Text("半粗").tag(600)
-                        Text("粗体").tag(700)
-                        Text("特粗").tag(800)
-                        Text("超粗").tag(900)
-                    }
+                        // 歌词字号
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌词字号")
+                                Spacer()
+                                Text("\(settings.amllFontSize)pt")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.amllFontSize) },
+                                set: { settings.amllFontSize = Int($0) }
+                            ), in: 14...40, step: 1)
+                        }
 
-                    // 歌词字体
-                    Picker("歌词字体", selection: Binding(
-                        get: { settings.amllFontFamily },
-                        set: { settings.amllFontFamily = $0 }
-                    )) {
-                        Text("系统默认").tag("")
-                        Text("黑体").tag("PingFang SC")
-                        Text("SF粗体").tag("SF Pro Display")
-                        if !settings.amllFontFamily.isEmpty,
-                           settings.amllFontFamily != "PingFang SC",
-                           settings.amllFontFamily != "SF Pro Display" {
-                            Text("自定义").tag(settings.amllFontFamily)
+                        // 歌词字重
+                        Picker("歌词字重", selection: Binding(
+                            get: { settings.amllFontWeight },
+                            set: { settings.amllFontWeight = $0 }
+                        )) {
+                            Text("常规").tag(400)
+                            Text("中等").tag(500)
+                            Text("半粗").tag(600)
+                            Text("粗体").tag(700)
+                            Text("特粗").tag(800)
+                            Text("超粗").tag(900)
+                        }
+
+                        // 歌词字体
+                        Picker("歌词字体", selection: Binding(
+                            get: { settings.amllFontFamily },
+                            set: { settings.amllFontFamily = $0 }
+                        )) {
+                            Text("系统默认").tag("")
+                            Text("黑体").tag("PingFang SC")
+                            Text("SF粗体").tag("SF Pro Display")
+                            if !settings.amllFontFamily.isEmpty,
+                               settings.amllFontFamily != "PingFang SC",
+                               settings.amllFontFamily != "SF Pro Display" {
+                                Text("自定义").tag(settings.amllFontFamily)
+                            }
                         }
                     }
 
@@ -407,9 +429,6 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 #endif
-            }
-
-            Section("底部栏") {
                 NavigationLink {
                     BottomBarSettingsView()
                 } label: {
