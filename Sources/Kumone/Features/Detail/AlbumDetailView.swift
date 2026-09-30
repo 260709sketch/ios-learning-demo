@@ -131,14 +131,28 @@ struct AlbumDetailView: View {
         }
 
         if isKugou, let albumIDStr = albumMid {
-            // 酷狗专辑：用初始信息构造 AlbumDetail，加载歌曲列表
+            // 酷狗专辑：先加载歌曲，从歌曲中获取歌手信息
+            let loadedTracks = (try? await KugouAPI.albumInfo(albumID: albumIDStr)) ?? []
+            tracks = loadedTracks
+
+            // 从第一首歌获取歌手信息
+            let firstArtist = loadedTracks.first?.artists.first
+            let artistSingerMid = firstArtist?.singerMid
+            let artistID = firstArtist?.id ?? 0
+            let artistName = firstArtist?.name ?? initialAlbum?.artistName ?? ""
+
             if let initAlbum = initialAlbum {
-                let artistDict: [String: Any] = ["id": 0, "name": initAlbum.artistName]
+                var artistDict: [String: Any] = [
+                    "id": artistID, "name": artistName,
+                    "albumSize": 0, "musicSize": 0, "followed": false, "alias": [],
+                    "sourcePlatform": "kg"
+                ]
+                if let mid = artistSingerMid, !mid.isEmpty { artistDict["singerMid"] = mid }
                 var dict: [String: Any] = [
                     "id": initAlbum.id, "name": initAlbum.name,
                     "artist": artistDict,
                     "publishTime": initAlbum.publishTime,
-                    "size": initAlbum.size
+                    "size": loadedTracks.count
                 ]
                 if let pic = initAlbum.picUrl { dict["picUrl"] = pic }
                 if let data = try? JSONSerialization.data(withJSONObject: dict),
@@ -147,7 +161,6 @@ struct AlbumDetailView: View {
                 }
             }
             isLoading = false
-            tracks = (try? await KugouAPI.albumInfo(albumID: albumIDStr)) ?? []
             otherAlbums = []
             return
         }
