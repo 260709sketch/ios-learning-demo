@@ -230,96 +230,19 @@ enum KugouAPI {
 
     // MARK: - 歌手歌曲
     static func artistSongs(authorID: String, page: Int = 1, limit: Int = 20) async throws -> (tracks: [Track], total: Int) {
-        // 非数字 authorID（歌手名）：用搜索方式获取该歌手的歌曲
-        if Int(authorID) == nil {
-            let allSongs = try await searchSongs(authorID, page: 1, limit: 50)
-            let filtered = allSongs.filter { track in
-                track.artists.contains { $0.name.lowercased() == authorID.lowercased() }
-            }
-            let result = filtered.isEmpty ? allSongs : filtered
-            return (Array(result.prefix(limit)), result.count)
+        // 移动端网页解析已失效（songs为空），改用搜索方式
+        // 先搜索 authorID 获取歌手名和歌曲
+        let allSongs = try await searchSongs(authorID, page: 1, limit: 100)
+        // 尝试从第一首歌获取歌手名
+        let artistName = allSongs.first?.artists.first?.name ?? authorID
+        // 用歌手名搜索更多歌曲
+        let artistSongs = try await searchSongs(artistName, page: page, limit: 100)
+        // 过滤出该歌手的歌曲
+        let filtered = artistSongs.filter { track in
+            track.artists.contains { $0.name.lowercased() == artistName.lowercased() }
         }
-        // mobilecdn API 已失效，改用移动端网页解析
-        let urlStr = "https://m.kugou.com/singer/info/\(authorID)/"
-        guard let url = URL(string: urlStr) else { return ([], 0) }
-        var request = URLRequest(url: url)
-        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let html = String(data: data, encoding: .utf8) else { return ([], 0) }
-
-        // 提取 songs: {...}
-        guard let songsMarker = html.range(of: "songs:") else { return ([], 0) }
-        let afterMarker = html[songsMarker.upperBound...]
-        guard let jsonStart = afterMarker.firstIndex(of: "{") else { return ([], 0) }
-        var depth = 0
-        var jsonEnd = jsonStart
-        var idx = jsonStart
-        while idx < html.endIndex {
-            let char = html[idx]
-            if char == "{" { depth += 1 }
-            else if char == "}" {
-                depth -= 1
-                if depth == 0 {
-                    jsonEnd = html.index(after: idx)
-                    break
-                }
-            }
-            idx = html.index(after: idx)
-        }
-        let jsonStr = String(html[jsonStart..<jsonEnd])
-        guard let jsonData = jsonStr.data(using: .utf8),
-              let json = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let list = json["list"] as? [[String: Any]] else {
-            return ([], 0)
-        }
-        let total = (json["total"] as? Int) ?? list.count
-
-        let tracks = list.compactMap { item -> Track? in
-            // hash 在 mvdata[0].hash
-            guard let mvdata = item["mvdata"] as? [[String: Any]],
-                  let firstMv = mvdata.first,
-                  let hash = firstMv["hash"] as? String, !hash.isEmpty else { return nil }
-            let name = (item["audio_name"] as? String) ?? ""
-            let duration = (item["duration"] as? Int) ?? 0
-            let songID = abs(hash.hashValue)
-            // 歌手：authors[].base.author_name
-            var singerNames: [String] = []
-            if let authors = item["authors"] as? [[String: Any]] {
-                for author in authors {
-                    if let base = author["base"] as? [String: Any],
-                       let aname = base["author_name"] as? String, !aname.isEmpty {
-                        singerNames.append(aname)
-                    }
-                }
-            }
-            if singerNames.isEmpty, let aname = item["author_name"] as? String {
-                singerNames = splitArtistsNames(aname)
-            }
-            let artists = singerNames.enumerated().map { (idx, name) -> ArtistRef in
-                let aid = (idx == 0) ? (Int(authorID) ?? abs(name.hashValue)) : abs(name.hashValue)
-                return ArtistRef(id: aid, name: name, singerMid: String(aid))
-            }
-            let albumName = (item["album_name"] as? String) ?? ""
-            let albumID = (item["album_id"] as? Int) ?? 0
-            let albumAblumID = (item["album_audio_id"] as? String) ?? ""
-            // 封面
-            var picUrl: String? = nil
-            if let cover = item["cover"] as? String, !cover.isEmpty {
-                var normalized = cover.replacingOccurrences(of: "{size}", with: "400")
-                if normalized.hasPrefix("//") { normalized = "https:" + normalized }
-                normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
-                picUrl = normalized
-            }
-            if picUrl == nil, !albumAblumID.isEmpty {
-                picUrl = "https://imgessl.kugou.com/ymm/400/\(albumAblumID).jpg"
-            }
-            if picUrl == nil {
-                picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
-            }
-            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumAblumID)
-            return makeTrack(id: songID, name: name, artists: artists, album: album, durationMS: duration, hash: hash)
-        }
-        return (Array(tracks.prefix(limit)), total)
+        let result = filtered.isEmpty ? artistSongs : filtered
+        return (Array(result.prefix(limit)), result.count)
     }
 
     // MARK: - 歌手专辑
@@ -359,16 +282,24 @@ enum KugouAPI {
     }
 
     // MARK: - 专辑歌曲
-    static func albumInfo(albumID: String, albumName: String = "") async throws -> [Track] {
-        // mobilecdn API 已失效，改用搜索方式：搜索专辑名获取歌曲
-        let keyword = albumName.isEmpty ? albumID : albumName
-        let allSongs = try await searchSongs(keyword, page: 1, limit: 50)
-        // 过滤出同名专辑的歌曲
-        if !albumName.isEmpty {
-            let filtered = allSongs.filter { $0.album.name.lowercased() == albumName.lowercased() }
-            return filtered.isEmpty ? allSongs : filtered
+    static func albumInfo(albumID: String, albumName: String = "", artistName: String = "") async throws -> [Track] {
+        // 搜索歌手名+专辑名，严格过滤专辑名和歌手名
+        let query = artistName.isEmpty ? albumName : "\(artistName) \(albumName)"
+        let allSongs = try await searchSongs(query, page: 1, limit: 100)
+        // 严格过滤：专辑名匹配 + 歌手名匹配
+        let normalizedAlbum = albumName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedArtist = artistName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let filtered = allSongs.filter { track in
+            let trackAlbum = track.album.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            let albumMatch = normalizedAlbum.isEmpty || trackAlbum == normalizedAlbum || trackAlbum.contains(normalizedAlbum) || normalizedAlbum.contains(trackAlbum)
+            if !albumMatch { return false }
+            if normalizedArtist.isEmpty { return true }
+            return track.artists.contains { artist in
+                let a = artist.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                return a == normalizedArtist || a.contains(normalizedArtist) || normalizedArtist.contains(a)
+            }
         }
-        return allSongs
+        return filtered
     }
 
     // MARK: - 评论

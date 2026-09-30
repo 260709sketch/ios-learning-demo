@@ -133,7 +133,8 @@ struct AlbumDetailView: View {
         if isKugou, let albumIDStr = albumMid {
             // 酷狗专辑：先加载歌曲，从歌曲中获取歌手信息
             let albumName = initialAlbum?.name ?? ""
-            let loadedTracks = (try? await KugouAPI.albumInfo(albumID: albumIDStr, albumName: albumName)) ?? []
+            let artistName = initialAlbum?.artistName ?? ""
+            let loadedTracks = (try? await KugouAPI.albumInfo(albumID: albumIDStr, albumName: albumName, artistName: artistName)) ?? []
             tracks = loadedTracks
 
             // 从第一首歌获取歌手信息
