@@ -18,7 +18,9 @@ func relativeTime(_ date: Date) -> String {
 struct CommentsView: View {
     let track: Track
 
-    @State private var neteasePage: NeteaseAPI.SongCommentResponse?
+    @State private var hotComments: [SongComment] = []
+    @State private var comments: [SongComment] = []
+    @State private var total = 0
     @State private var qqComments: [SongComment] = []
     @State private var qqTotal = 0
     @State private var qqPageNum = 0
@@ -28,6 +30,8 @@ struct CommentsView: View {
 
     private let limit = 30
     private let qqPageSize = 25
+
+    private var isQQ: Bool { track.sourcePlatform == "tx" }
 
     var body: some View {
         ZStack {
@@ -55,21 +59,19 @@ struct CommentsView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if track.sourcePlatform == "tx" {
+                    } else if isQQ {
                         qqCommentList
-                    } else if let page = neteasePage {
-                        if (page.hotComments ?? []).isEmpty && (page.comments ?? []).isEmpty {
-                            VStack(spacing: 12) {
-                                Image(systemName: "bubble.left")
-                                    .font(.system(size: 40))
-                                    .foregroundStyle(.secondary)
-                                Text("暂无评论")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            neteaseCommentList(page)
+                    } else if hotComments.isEmpty && comments.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "bubble.left")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text("暂无评论")
+                                .foregroundStyle(.secondary)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        neteaseCommentList
                     }
                 }
                 .navigationTitle("评论")
@@ -79,25 +81,25 @@ struct CommentsView: View {
         .task { await load(reset: true) }
     }
 
-    private func neteaseCommentList(_ page: NeteaseAPI.SongCommentResponse) -> some View {
+    private var neteaseCommentList: some View {
         List {
             Section {
-                Text("《\(track.name)》 · 共 \(page.total) 条评论")
+                Text("《\(track.name)》 · 共 \(total) 条评论")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .listRowBackground(Color.clear)
 
-            if let hot = page.hotComments, !hot.isEmpty {
+            if !hotComments.isEmpty {
                 Section("精彩评论") {
-                    ForEach(hot) { comment in
+                    ForEach(hotComments) { comment in
                         CommentRow(comment: comment)
                             .listRowBackground(Color.clear)
                     }
                 }
             }
 
-            if let comments = page.comments, !comments.isEmpty {
+            if !comments.isEmpty {
                 Section("最新评论") {
                     ForEach(comments) { comment in
                         CommentRow(comment: comment)
@@ -106,7 +108,7 @@ struct CommentsView: View {
                 }
             }
 
-            if (page.comments ?? []).count >= limit {
+            if comments.count >= limit {
                 Section {
                     Button {
                         Task { await loadMore() }
@@ -172,7 +174,9 @@ struct CommentsView: View {
     private func load(reset: Bool) async {
         if reset {
             offset = 0
-            neteasePage = nil
+            hotComments = []
+            comments = []
+            total = 0
             qqComments = []
             qqTotal = 0
             qqPageNum = 0
@@ -180,8 +184,8 @@ struct CommentsView: View {
         }
         errorMessage = nil
         do {
-            if track.sourcePlatform == "tx", let songmid = track.platformSongId {
-                let result = try await QQMusicAPI.comments(songID: songmid, limit: qqPageSize, pagenum: qqPageNum)
+            if isQQ {
+                let result = try await QQMusicAPI.comments(songID: track.id, limit: qqPageSize, pagenum: qqPageNum)
                 if reset {
                     qqComments = result.comments
                 } else {
@@ -191,10 +195,11 @@ struct CommentsView: View {
             } else {
                 let result = try await NeteaseAPI.songComments(id: track.id, limit: limit, offset: offset)
                 if reset {
-                    neteasePage = result
-                } else if var current = neteasePage {
-                    current.comments?.append(contentsOf: result.comments ?? [])
-                    neteasePage = current
+                    hotComments = result.hotComments ?? []
+                    comments = result.comments ?? []
+                    total = result.total
+                } else {
+                    comments.append(contentsOf: result.comments ?? [])
                 }
             }
             loading = false
@@ -222,7 +227,7 @@ struct CommentRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            AsyncImage(url: comment.avatarURL) { phase in
+            AsyncImage(url: URL(string: comment.avatarURL ?? "")) { phase in
                 if case .success(let image) = phase {
                     image.resizable().scaledToFill()
                 } else {
