@@ -28,6 +28,14 @@ struct NowPlayingView: View {
     @State private var showQueueOnMobile = false
 
     var body: some View {
+        #if os(iOS)
+        if settings.nowPlayingMode == .appleMusic {
+            AppleMusicPlayerView(
+                onOpenDestination: onOpenDestination,
+                onDismiss: { close() }
+            )
+        } else {
+        #endif
         GeometryReader { geo in
             let isCompact = geo.size.width < 720
             ZStack {
@@ -119,6 +127,9 @@ struct NowPlayingView: View {
         #if os(macOS)
         .onExitCommand {
             close()
+        }
+        #endif
+        #if os(iOS)
         }
         #endif
     }

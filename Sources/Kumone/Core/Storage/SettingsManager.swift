@@ -74,6 +74,7 @@ public enum NowPlayingMode: String, CaseIterable, Identifiable {
     case classic
     case immersive
     case minimal
+    case appleMusic
 
     public var id: String { rawValue }
 
@@ -83,6 +84,7 @@ public enum NowPlayingMode: String, CaseIterable, Identifiable {
         case .classic: return String(localized: "经典模式")
         case .immersive: return String(localized: "沉浸模式")
         case .minimal: return String(localized: "简洁模式")
+        case .appleMusic: return "Apple Music"
         }
     }
 }
