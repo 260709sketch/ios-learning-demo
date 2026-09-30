@@ -33,7 +33,7 @@ final class QQMusicAuth: ObservableObject {
         config.timeoutIntervalForRequest = 20
         config.httpShouldSetCookies = false
         config.httpCookieAcceptPolicy = .never
-        session = URLSession(config: config, delegate: redirectBlocker, delegateQueue: nil)
+        session = URLSession(configuration: config, delegate: redirectBlocker, delegateQueue: nil)
         if let saved = defaults.dictionary(forKey: cookieKey) as? [String: String], !saved.isEmpty {
             cookies = saved
             let savedNickname = defaults.string(forKey: nickKey) ?? ""
