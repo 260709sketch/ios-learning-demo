@@ -576,7 +576,7 @@ struct AppleMusicPlayerView: View {
                     .padding(.top, 22)
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 0).frame(height: 24)
         }
         .padding(.horizontal, 32)
     }

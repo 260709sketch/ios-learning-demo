@@ -554,15 +554,20 @@ enum NeteaseAPI {
         try await weapi(SimiArtistResponse.self, "/discovery/simiArtist", ["artistid": id]).artists
     }
 
-    // MARK: - 用户关注歌手
-    struct UserFollowedArtistsResponse: Decodable {
-        let followeds: [ArtistSummary]?
-        let more: Bool?
+    // MARK: - 用户关注歌手（来自 wellmusic: /artist/sublist）
+    struct ArtistSublistData: Decodable {
+        let artistList: [ArtistSummary]?
+        let artists: [ArtistSummary]?
+    }
+
+    struct ArtistSublistResponse: Decodable {
+        let data: ArtistSublistData?
     }
 
     static func userFollowedArtists(uid: Int, limit: Int = 30, offset: Int = 0) async throws -> [ArtistSummary] {
-        try await weapi(UserFollowedArtistsResponse.self, "/user/followeds",
-                        ["uid": uid, "limit": limit, "offset": offset, "order": true]).followeds ?? []
+        let resp = try await weapi(ArtistSublistResponse.self, "/artist/sublist",
+                                    ["limit": limit, "offset": offset, "total": true])
+        return resp.data?.artistList ?? resp.data?.artists ?? []
     }
 
     // MARK: - Search
