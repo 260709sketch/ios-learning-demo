@@ -495,6 +495,31 @@ final class PlayerService: ObservableObject {
         }
     }
 
+    /// 安全删除 queue 中指定索引的歌曲；不允许删除当前正在播放的歌曲。
+    /// 同步移除 shuffledQueue / playNextList 中同 id 的条目，并校正 currentIndex。
+    func removeFromQueue(at index: Int) {
+        guard queue.indices.contains(index) else { return }
+        let track = queue[index]
+        // 不允许删除当前正在播放的歌曲（按 activeQueue 中的实际播放条目判断）
+        if currentIndex >= 0, currentIndex < activeQueue.count,
+           activeQueue[currentIndex].id == track.id { return }
+        queue.remove(at: index)
+        if let shIdx = shuffledQueue.firstIndex(where: { $0.id == track.id }) {
+            shuffledQueue.remove(at: shIdx)
+            if shuffleEnabled, shIdx < currentIndex { currentIndex -= 1 }
+        }
+        playNextList.removeAll { $0.id == track.id }
+        if !shuffleEnabled, index < currentIndex { currentIndex -= 1 }
+    }
+
+    /// 清空整个播放队列（queue / shuffledQueue / playNextList），并重置 currentIndex。
+    func clearQueue() {
+        queue = []
+        shuffledQueue = []
+        playNextList = []
+        currentIndex = -1
+    }
+
     // MARK: - Personal FM
 
     func startFM() {

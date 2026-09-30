@@ -772,37 +772,89 @@ private struct QueueView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(Array(player.queue.enumerated()), id: \.element.id) { index, track in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(track.name)
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(index == player.currentIndex ? Theme.accent : .primary)
-                            Text(track.artistNames)
-                                .font(.system(size: 12))
+            ZStack {
+                if player.queue.isEmpty {
+                    EmptyStateView(icon: "music.note.list", title: "播放队列为空")
+                } else {
+                    List {
+                        Section {
+                            ForEach(Array(player.queue.enumerated()), id: \.element.id) { index, track in
+                                row(track, index: index)
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16))
+                            }
+                            .onDelete { offsets in
+                                // 从大到小删除，避免索引漂移
+                                for index in offsets.sorted(by: >) where player.queue.indices.contains(index) {
+                                    player.removeFromQueue(at: index)
+                                }
+                            }
+                        } header: {
+                            Text("接下来 (\(player.queue.count) 首)")
                                 .foregroundStyle(.secondary)
                         }
-                        Spacer()
-                        if index == player.currentIndex {
-                            Image(systemName: "speaker.wave.2.fill")
-                                .foregroundStyle(Theme.accent)
-                        }
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        player.play(tracks: player.queue, source: .none, startAt: track)
-                        dismiss()
-                    }
+                    .scrollContentBackground(.hidden)
+                    .listStyle(.plain)
                 }
             }
             .navigationTitle("播放队列")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        if !player.queue.isEmpty {
+                            Button(role: .destructive) {
+                                player.clearQueue()
+                            } label: {
+                                Label("清空队列", systemImage: "trash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ track: Track, index: Int) -> some View {
+        let isCurrent = index == player.currentIndex
+        HStack(spacing: 12) {
+            CoverImage(url: URL(string: track.album.picUrl ?? ""), size: 42, cornerRadius: 9)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(track.name)
+                    .font(.system(size: 15, weight: isCurrent ? .semibold : .regular))
+                    .foregroundStyle(isCurrent ? Theme.accent : .primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(track.artistNames)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 0)
+            if isCurrent {
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.accent)
+            } else {
+                Text(Formatters.duration(track.duration))
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            player.play(tracks: player.queue, source: .none, startAt: track)
+            dismiss()
         }
     }
 }
