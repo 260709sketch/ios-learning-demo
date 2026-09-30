@@ -228,9 +228,6 @@ enum KugouAPI {
                     avatar = detail.avatar
                 }
             }
-            if avatar == nil {
-                avatar = "https://singerimg.kugou.com/uploadpic/softhead/400/\(singerID).jpg"
-            }
             if let artist = makeArtist(id: abs(singerID.hashValue), name: singerName, picUrl: avatar, authorID: singerID) {
                 result.append(artist)
             }
