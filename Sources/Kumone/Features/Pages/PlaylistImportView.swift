@@ -270,7 +270,7 @@ struct PlaylistImportView: View {
             return
         }
 
-        let (data, _) = try await URLSession.shared.data(for: url)
+        let (data, _) = try await URLSession.shared.data(for: URLRequest(url: url))
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? [String: Any],
               let list = result["list"] as? [[String: Any]] else {
