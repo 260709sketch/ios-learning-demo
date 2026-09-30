@@ -6,6 +6,7 @@ struct SettingsView: View {
     @State private var audioCacheUsage: String = String(localized: "计算中…")
     @State private var imageCacheUsage: String = String(localized: "计算中…")
     @State private var cacheError: String?
+    @State private var showLayoutAdjustment = false
 
     var body: some View {
         Form {
@@ -232,123 +233,138 @@ struct SettingsView: View {
 
                     // MARK: 播放器组件位置调整
                     Divider()
-                    Text("播放器组件位置调整")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    // 大封面顶部偏移
-                    VStack(alignment: .leading, spacing: 4) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showLayoutAdjustment.toggle()
+                        }
+                    } label: {
                         HStack {
-                            Text("大封面上下位置")
+                            Text("播放器组件位置调整")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
                             Spacer()
-                            Text(settings.playerArtworkTopOffset > 0 ? "+\(settings.playerArtworkTopOffset)" : "\(settings.playerArtworkTopOffset)")
+                            Image(systemName: showLayoutAdjustment ? "chevron.up" : "chevron.down")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerArtworkTopOffset) },
-                            set: { settings.playerArtworkTopOffset = Int($0) }
-                        ), in: -300...300, step: 5)
                     }
+                    .buttonStyle(.plain)
 
-                    // 大封面尺寸
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("大封面尺寸")
-                            Spacer()
-                            Text(String(format: "%.0f%%", settings.playerArtworkScale * 100))
+                    if showLayoutAdjustment {
+                        // 大封面顶部偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("大封面上下位置")
+                                Spacer()
+                                Text(settings.playerArtworkTopOffset > 0 ? "+\(settings.playerArtworkTopOffset)" : "\(settings.playerArtworkTopOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerArtworkTopOffset) },
+                                set: { settings.playerArtworkTopOffset = Int($0) }
+                            ), in: -300...300, step: 5)
+                        }
+
+                        // 大封面尺寸
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("大封面尺寸")
+                                Spacer()
+                                Text(String(format: "%.0f%%", settings.playerArtworkScale * 100))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { settings.playerArtworkScale },
+                                set: { settings.playerArtworkScale = $0 }
+                            ), in: 0.7...1.3, step: 0.05)
+                        }
+
+                        // 歌曲信息与封面间距
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌曲信息与封面间距")
+                                Spacer()
+                                Text("\(settings.playerTrackInfoSpacing)px")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerTrackInfoSpacing) },
+                                set: { settings.playerTrackInfoSpacing = Int($0) }
+                            ), in: 0...60, step: 2)
+                        }
+
+                        // 控制区域底部偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("控制条上下位置")
+                                Spacer()
+                                Text(settings.playerControlsBottomOffset > 0 ? "+\(settings.playerControlsBottomOffset)" : "\(settings.playerControlsBottomOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerControlsBottomOffset) },
+                                set: { settings.playerControlsBottomOffset = Int($0) }
+                            ), in: -200...200, step: 5)
+                        }
+
+                        // 歌曲信息上下偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌曲信息上下位置")
+                                Spacer()
+                                Text(settings.playerTrackInfoTopOffset > 0 ? "+\(settings.playerTrackInfoTopOffset)" : "\(settings.playerTrackInfoTopOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerTrackInfoTopOffset) },
+                                set: { settings.playerTrackInfoTopOffset = Int($0) }
+                            ), in: -300...300, step: 5)
+                        }
+
+                        // 左侧歌曲信息左右偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌曲名/歌手左右位置")
+                                Spacer()
+                                Text(settings.playerTrackInfoLeftOffset > 0 ? "+\(settings.playerTrackInfoLeftOffset)" : "\(settings.playerTrackInfoLeftOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerTrackInfoLeftOffset) },
+                                set: { settings.playerTrackInfoLeftOffset = Int($0) }
+                            ), in: -200...200, step: 5)
+                        }
+
+                        // 右侧按钮左右偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("爱心/更多按钮左右位置")
+                                Spacer()
+                                Text(settings.playerTrackInfoRightOffset > 0 ? "+\(settings.playerTrackInfoRightOffset)" : "\(settings.playerTrackInfoRightOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerTrackInfoRightOffset) },
+                                set: { settings.playerTrackInfoRightOffset = Int($0) }
+                            ), in: -200...200, step: 5)
+                        }
+
+                        // 键盘弹出时迷你播放器位置
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("键盘弹出迷你播放器位置")
+                                Spacer()
+                                Text(settings.keyboardMiniPlayerOffset > 0 ? "+\(settings.keyboardMiniPlayerOffset)" : "\(settings.keyboardMiniPlayerOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.keyboardMiniPlayerOffset) },
+                                set: { settings.keyboardMiniPlayerOffset = Int($0) }
+                            ), in: -300...300, step: 5)
+                            Text("正数上移，负数下移，调到键盘上方合适位置")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: Binding(
-                            get: { settings.playerArtworkScale },
-                            set: { settings.playerArtworkScale = $0 }
-                        ), in: 0.7...1.3, step: 0.05)
-                    }
-
-                    // 歌曲信息与封面间距
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌曲信息与封面间距")
-                            Spacer()
-                            Text("\(settings.playerTrackInfoSpacing)px")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoSpacing) },
-                            set: { settings.playerTrackInfoSpacing = Int($0) }
-                        ), in: 0...60, step: 2)
-                    }
-
-                    // 控制区域底部偏移
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("控制条上下位置")
-                            Spacer()
-                            Text(settings.playerControlsBottomOffset > 0 ? "+\(settings.playerControlsBottomOffset)" : "\(settings.playerControlsBottomOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerControlsBottomOffset) },
-                            set: { settings.playerControlsBottomOffset = Int($0) }
-                        ), in: -200...200, step: 5)
-                    }
-
-                    // 歌曲信息上下偏移
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌曲信息上下位置")
-                            Spacer()
-                            Text(settings.playerTrackInfoTopOffset > 0 ? "+\(settings.playerTrackInfoTopOffset)" : "\(settings.playerTrackInfoTopOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoTopOffset) },
-                            set: { settings.playerTrackInfoTopOffset = Int($0) }
-                        ), in: -300...300, step: 5)
-                    }
-
-                    // 左侧歌曲信息左右偏移
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌曲名/歌手左右位置")
-                            Spacer()
-                            Text(settings.playerTrackInfoLeftOffset > 0 ? "+\(settings.playerTrackInfoLeftOffset)" : "\(settings.playerTrackInfoLeftOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoLeftOffset) },
-                            set: { settings.playerTrackInfoLeftOffset = Int($0) }
-                        ), in: -200...200, step: 5)
-                    }
-
-                    // 右侧按钮左右偏移
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("爱心/更多按钮左右位置")
-                            Spacer()
-                            Text(settings.playerTrackInfoRightOffset > 0 ? "+\(settings.playerTrackInfoRightOffset)" : "\(settings.playerTrackInfoRightOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoRightOffset) },
-                            set: { settings.playerTrackInfoRightOffset = Int($0) }
-                        ), in: -200...200, step: 5)
-                    }
-
-                    // 键盘弹出时迷你播放器位置
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("键盘弹出迷你播放器位置")
-                            Spacer()
-                            Text(settings.keyboardMiniPlayerOffset > 0 ? "+\(settings.keyboardMiniPlayerOffset)" : "\(settings.keyboardMiniPlayerOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.keyboardMiniPlayerOffset) },
-                            set: { settings.keyboardMiniPlayerOffset = Int($0) }
-                        ), in: -300...300, step: 5)
-                        Text("正数上移，负数下移，调到键盘上方合适位置")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
                 Picker("日文歌词读音", selection: $settings.lyricsAnnotation) {
