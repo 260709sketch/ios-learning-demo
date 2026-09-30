@@ -424,7 +424,6 @@ struct SettingsView: View {
                     Label("歌单导入", systemImage: "square.and.arrow.down")
                 }
             }
-            }
 
             Section("账号") {
                 if let profile = account.profile {

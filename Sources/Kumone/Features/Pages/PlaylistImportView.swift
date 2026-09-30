@@ -132,14 +132,17 @@ struct PlaylistImportView: View {
         // 网易云：https://music.163.com/#/playlist?id=123456
         // QQ音乐：https://y.qq.com/n/ryqq/playlist/123456
         // 酷狗：https://www.kugou.com/yy/special/single/123456.html
-        if let idMatch = input.firstMatch(of: /[?&]id=(\d+)/) {
-            return String(idMatch.output.1)
-        }
-        if let idMatch = input.firstMatch(of: /playlist\/(\d+)/) {
-            return String(idMatch.output.1)
-        }
-        if let idMatch = input.firstMatch(of: /single\/(\d+)/) {
-            return String(idMatch.output.1)
+        let patterns = [
+            "[?&]id=(\\d+)",
+            "playlist/(\\d+)",
+            "single/(\\d+)"
+        ]
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               let match = regex.firstMatch(in: input, range: NSRange(input.startIndex..., in: input)),
+               let range = Range(match.range(at: 1), in: input) {
+                return String(input[range])
+            }
         }
         // 纯数字ID
         if input.allSatisfy({ $0.isNumber }) {
