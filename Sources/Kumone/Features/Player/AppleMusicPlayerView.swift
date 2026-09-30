@@ -85,6 +85,7 @@ struct AppleMusicPlayerView: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
+        .ignoresSafeArea()
         .onDisappear { resumeTask?.cancel() }
         .sheet(isPresented: $showQueue) {
             Group {

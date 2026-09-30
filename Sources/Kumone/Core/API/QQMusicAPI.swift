@@ -660,4 +660,60 @@ enum QQMusicAPI {
         }
         return lines.isEmpty ? nil : lines
     }
+
+    // MARK: - 评论
+    struct QQCommentPage {
+        let comments: [SongComment]
+        let total: Int
+    }
+
+    static func comments(songID: Int, limit: Int = 25, pagenum: Int = 0) async throws -> QQCommentPage {
+        guard let url = URL(string: "https://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg?format=json&cid=205360772&reqtype=2") else {
+            throw NSError(domain: "QQMusicAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "URL 无效"])
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.allHTTPHeaderFields = headers.merging(["Content-Type": "application/x-www-form-urlencoded"]) { _, new in new }
+        request.timeoutInterval = 12
+
+        let bodyStr = "biztype=1&topid=\(songID)&LoginUin=0&cmd=8&pagenum=\(max(pagenum, 0))&pagesize=\(min(max(limit, 1), 25))"
+        request.httpBody = bodyStr.data(using: .utf8)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw NSError(domain: "QQMusicAPI", code: -2, userInfo: [NSLocalizedDescriptionKey: "解析失败"])
+        }
+
+        let hot = pagenum == 0 ? (((json["hot_comment"] as? [String: Any])?["commentlist"] as? [[String: Any]]) ?? []) : []
+        let normal = ((json["comment"] as? [String: Any])?["commentlist"] as? [[String: Any]]) ?? []
+        let commentTotal = ((json["comment"] as? [String: Any])?["commenttotal"] as? Int) ?? 0
+
+        var seen = Set<String>()
+        var result: [SongComment] = []
+        for item in hot + normal {
+            let rootID = item["rootcommentid"] as? String ?? ""
+            let commentID = item["commentid"] as? String ?? ""
+            let key = rootID + "_" + commentID
+            guard !key.isEmpty, !seen.contains(key) else { continue }
+            seen.insert(key)
+            var content = item["rootcommentcontent"] as? String ?? ""
+            content = content.replacingOccurrences(of: "\\n", with: "\n")
+            guard !content.isEmpty else { continue }
+            var nick = item["nick"] as? String ?? ""
+            if nick.isEmpty { nick = item["rootcommentnick"] as? String ?? "" }
+            if nick.hasPrefix("@") { nick = String(nick.dropFirst()) }
+            let avatar = item["avatarurl"] as? String ?? ""
+            let time = item["time"] as? TimeInterval ?? 0
+            result.append(SongComment(
+                id: key.hashValue,
+                content: content,
+                nickname: nick,
+                avatarURL: avatar.isEmpty ? nil : URL(string: avatar),
+                time: time > 0 ? Date(timeIntervalSince1970: time) : Date(),
+                likedCount: item["praisenum"] as? Int ?? 0,
+                isHot: true
+            ))
+        }
+        return QQCommentPage(comments: result, total: commentTotal)
+    }
 }

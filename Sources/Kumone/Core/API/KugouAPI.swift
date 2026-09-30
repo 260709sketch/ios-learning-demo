@@ -20,6 +20,23 @@ enum KugouAPI {
 
     private static let browserUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+    // MARK: - 歌手名分割（酷狗多歌手用 / 、 , & 等分隔）
+    private static func splitArtists(_ singerName: String, singerID: Int = 0) -> [ArtistRef] {
+        let trimmed = singerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        // 按常见分隔符分割
+        let separators = CharacterSet(charactersIn: "/、,&，")
+        let parts = trimmed.components(separatedBy: separators).map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        if parts.count <= 1 {
+            return [ArtistRef(id: singerID, name: trimmed, singerMid: String(singerID))]
+        }
+        return parts.enumerated().map { idx, name in
+            ArtistRef(id: singerID + idx, name: name, singerMid: String(singerID + idx))
+        }
+    }
+
     // MARK: - 对象构造辅助
     private static func makeTrack(id: Int, name: String, artists: [ArtistRef], album: AlbumRef, durationMS: Int, hash: String, isExplicit: Bool = false) -> Track? {
         let displayName = isExplicit ? "\(name) (Explicit)" : name
@@ -94,7 +111,7 @@ enum KugouAPI {
             // 歌手
             let singerName = (item["singername"] as? String) ?? (item["SingerName"] as? String) ?? ""
             let singerID = (item["singerid"] as? Int) ?? 0
-            let artists: [ArtistRef] = singerName.isEmpty ? [] : [ArtistRef(id: singerID, name: singerName, singerMid: String(singerID))]
+            let artists = splitArtists(singerName, singerID: singerID)
 
             // 专辑
             let albumName = (item["album_name"] as? String) ?? (item["AlbumName"] as? String) ?? ""
@@ -159,7 +176,7 @@ enum KugouAPI {
             let songID = (item["SongID"] as? Int) ?? abs(hash.hashValue)
 
             let singerName = (item["SingerName"] as? String) ?? ""
-            let artists: [ArtistRef] = singerName.isEmpty ? [] : [ArtistRef(id: abs(singerName.hashValue), name: singerName, singerMid: nil)]
+            let artists = splitArtists(singerName, singerID: abs(singerName.hashValue))
 
             let albumName = (item["AlbumName"] as? String) ?? ""
             let albumID = (item["AlbumID"] as? String) ?? ""
@@ -273,7 +290,7 @@ enum KugouAPI {
             let duration = (item["duration"] as? Int) ?? 0
             let songID = (item["songid"] as? Int) ?? abs(hash.hashValue)
             let singerName = (item["singername"] as? String) ?? ""
-            let artists: [ArtistRef] = singerName.isEmpty ? [] : [ArtistRef(id: abs(singerName.hashValue), name: singerName, singerMid: authorID)]
+            let artists = splitArtists(singerName, singerID: Int(authorID) ?? abs(singerName.hashValue))
             let albumName = (item["album_name"] as? String) ?? ""
             let albumID = (item["album_id"] as? Int) ?? 0
             let albumAblumID = (item["album_audio_id"] as? String) ?? ""
@@ -375,7 +392,7 @@ enum KugouAPI {
             let songID = (item["songid"] as? Int) ?? abs(hash.hashValue)
             let singerName = (item["singername"] as? String) ?? ""
             let singerID = (item["singerid"] as? Int) ?? 0
-            let artists: [ArtistRef] = singerName.isEmpty ? [] : [ArtistRef(id: singerID, name: singerName, singerMid: String(singerID))]
+            let artists = splitArtists(singerName, singerID: singerID)
             let albumName = (item["album_name"] as? String) ?? ""
             let albumAblumID = (item["album_audio_id"] as? String) ?? albumID
             // 封面：多级 fallback
