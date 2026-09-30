@@ -40,7 +40,7 @@ struct AppleMusicPlayerView: View {
     @AppStorage("wellmusic.appleMusic.accentHex") private var accentHex = ""
     @AppStorage("wellmusic.appleMusic.volumeHex") private var volumeHex = ""
     @AppStorage("wellmusic.showSongVIPBadge") private var showSongVIPBadge = true
-    @AppStorage("wellmusic.appleMusic.showLyricPreview") private var showLyricPreview = false
+    @AppStorage("wellmusic.appleMusic.showLyricPreview") private var showLyricPreview = true
     @AppStorage("wellmusic.player.autoSkipOnFailure") private var autoSkipOnFailure = true
     @AppStorage("wellmusic.player.swipeSwitchSong") private var swipeSwitchSong = true
     @AppStorage("wellmusic.player.breath") private var breath = 0.6
