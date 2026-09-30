@@ -51,8 +51,22 @@ final class HomeViewModel: ObservableObject {
 
         // 关注歌手：登录用户显示网易云关注的歌手，未登录显示热门歌手
         if loggedIn, let uid = AccountStore.shared.profile?.userId {
-            if let followed = try? await NeteaseAPI.userFollowedArtists(uid: uid, limit: 30), !followed.isEmpty {
-                topArtists = followed
+            // 分页获取所有关注歌手
+            var allFollowed: [ArtistSummary] = []
+            var offset = 0
+            let pageSize = 30
+            while true {
+                if let page = try? await NeteaseAPI.userFollowedArtists(uid: uid, limit: pageSize, offset: offset), !page.isEmpty {
+                    allFollowed.append(contentsOf: page)
+                    if page.count < pageSize { break }
+                    offset += pageSize
+                    if offset > 500 { break } // 安全上限
+                } else {
+                    break
+                }
+            }
+            if !allFollowed.isEmpty {
+                topArtists = allFollowed
             } else {
                 let artists = try? await NeteaseAPI.topArtists()
                 topArtists = Array((artists ?? []).shuffled().prefix(6))
