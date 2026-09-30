@@ -79,12 +79,12 @@ final class AccountStore: ObservableObject {
             if isInLocal {
                 LocalPlaylistStore.shared.removeTrack(track)
                 if isQQMusic {
-                    ToastCenter.shared.show("已从收藏歌单移除")
+                    ToastCenter.shared.show("已从收藏的音乐移除")
                 }
             } else {
                 LocalPlaylistStore.shared.addTrack(track)
                 if isQQMusic {
-                    ToastCenter.shared.show("已收藏到收藏歌单")
+                    ToastCenter.shared.show("已收藏到收藏的音乐")
                 }
             }
 

@@ -147,33 +147,22 @@ enum KugouAPI {
         }
     }
 
-    // MARK: - 搜索歌手
+    // MARK: - 搜索歌手（从歌曲搜索结果提取，和Beans Music一致）
     static func searchArtists(_ query: String, page: Int = 1, limit: Int = 20) async throws -> [ArtistSummary] {
-        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let urlStr = "https://mobilecdn.kugou.com/api/v1/search/author?format=json&keyword=\(encoded)&page=\(page)&pagesize=\(limit)"
-        guard let url = URL(string: urlStr) else { return [] }
-
-        let json = try await getJSON(url)
-        guard let data = json["data"] as? [String: Any],
-              let info = data["info"] as? [[String: Any]] else {
-            return []
-        }
-
-        return info.compactMap { item -> ArtistSummary? in
-            let authorID = (item["author_id"] as? String) ?? (item["authorid"] as? String) ?? ""
-            let name = (item["author_name"] as? String) ?? (item["singername"] as? String) ?? ""
-            guard !authorID.isEmpty, !name.isEmpty else { return nil }
-
-            let id = abs(authorID.hashValue)
-            var picUrl: String? = nil
-            if let avatar = item["avatar"] as? String, !avatar.isEmpty {
-                picUrl = avatar.replacingOccurrences(of: "{size}", with: "400")
-            } else if let img = item["img"] as? String, !img.isEmpty {
-                picUrl = img.replacingOccurrences(of: "{size}", with: "400")
+        let songs = try await searchSongs(query, page: page, limit: 50)
+        var result: [ArtistSummary] = []
+        var seen = Set<String>()
+        for song in songs {
+            for artist in song.artists {
+                let key = artist.name
+                guard !key.isEmpty, seen.insert(key).inserted else { continue }
+                let authorID = artist.singerMid ?? String(artist.id)
+                result.append(makeArtist(id: artist.id, name: artist.name, picUrl: song.album.picUrl, authorID: authorID)!)
+                if result.count >= limit { break }
             }
-
-            return makeArtist(id: id, name: name, picUrl: picUrl, authorID: authorID)
+            if result.count >= limit { break }
         }
+        return result
     }
 
     // MARK: - 搜索专辑（从歌曲搜索结果提取）

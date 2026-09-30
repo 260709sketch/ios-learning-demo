@@ -48,7 +48,7 @@ struct LocalPlaylistView: View {
                         Text("还没有收藏的歌曲")
                             .font(.headline)
                             .foregroundStyle(.secondary)
-                        Text("收藏歌曲时会自动保存一份到收藏歌单")
+                        Text("收藏歌曲时会自动保存一份到收藏的音乐")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -77,7 +77,7 @@ struct LocalPlaylistView: View {
                         Button(role: .destructive) {
                             localStore.removeAll()
                         } label: {
-                            Label("清空收藏歌单", systemImage: "trash")
+                            Label("清空收藏的音乐", systemImage: "trash")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -114,7 +114,7 @@ struct LocalPlaylistView: View {
                 .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("收藏歌单")
+                    Text("收藏的音乐")
                         .font(.system(size: 16, weight: .bold))
                         .lineLimit(3)
 
@@ -172,11 +172,11 @@ struct LocalPlaylistView: View {
             .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("收藏歌单")
+                Text("收藏的音乐")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                Text("收藏歌单")
+                Text("收藏的音乐")
                     .font(.title.weight(.bold))
                     .lineLimit(2)
 
