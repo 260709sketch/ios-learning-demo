@@ -1070,7 +1070,22 @@ final class PlayerService: ObservableObject {
         // 预加载不重置连续失败计数，不影响当前播放状态
         if !preloadOnly { consecutiveFailures = 0 }
 
-        var asset = AVURLAsset(url: url)
+        // LX音源返回的URL可能需要特定请求头才能播放（如User-Agent、Referer）
+        // 某些CDN（如IP直连地址）会校验请求头，缺少则返回403或空数据
+        var headers: [String: String] = [
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ]
+        // 根据URL域名动态设置Referer
+        let host = url.host?.lowercased() ?? ""
+        if host.contains("kugou") || host.contains("kg") || host.contains("酷狗") {
+            headers["Referer"] = "https://www.kugou.com/"
+        } else if host.contains("qq.com") || host.contains("tencent") || host.contains("isure") {
+            headers["Referer"] = "https://y.qq.com/"
+        } else if host.contains("163") || host.contains("netease") {
+            headers["Referer"] = "https://music.163.com/"
+        }
+        let assetOptions: [String: Any] = ["AVURLAssetHTTPHeaderFieldsKey": headers]
+        var asset = AVURLAsset(url: url, options: assetOptions)
         var resourceLoader: CachingAudioResourceLoader?
         // LX音源返回的URL可能有特殊字符，缓存层处理不了，直接用原始URL播放
         if SettingsManager.shared.enableAudioCache, !isTrial, unblockSource == nil {
