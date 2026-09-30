@@ -142,6 +142,7 @@ struct SearchView: View {
     @StateObject private var model: SearchViewModel
     @State private var searchText: String = ""
     @EnvironmentObject private var player: PlayerService
+    @Environment(\.openDestination) private var openDestination
 
     init(query: String) {
         _model = StateObject(wrappedValue: SearchViewModel(query: query))
@@ -296,8 +297,12 @@ struct SearchView: View {
 
     private func artistCards(_ items: some Collection<ArtistSummary>) -> some View {
         ForEach(Array(items)) { artist in
-            NavigationLink {
-                ArtistDetailView(artistID: artist.id, singerMid: artist.singerMid, initialArtist: artist)
+            Button {
+                if let mid = artist.singerMid, !mid.isEmpty {
+                    openDestination(.artistWithMid(artist.id, mid, artist))
+                } else {
+                    openDestination(.artist(artist.id))
+                }
             } label: {
                 VStack(spacing: 10) {
                     CachedAsyncImage(url: artist.picUrl?.resizedImageURL(256))
@@ -316,8 +321,12 @@ struct SearchView: View {
 
     private func albumCards(_ items: some Collection<AlbumSummary>) -> some View {
         ForEach(Array(items)) { album in
-            NavigationLink {
-                AlbumDetailView(albumID: album.id, albumMid: album.albumMid, initialAlbum: album)
+            Button {
+                if let mid = album.albumMid, !mid.isEmpty {
+                    openDestination(.albumWithMid(album.id, mid, album))
+                } else {
+                    openDestination(.album(album.id))
+                }
             } label: {
                 CoverCardBody(
                     coverURL: album.picUrl?.resizedImageURL(384),
@@ -331,8 +340,8 @@ struct SearchView: View {
 
     private func playlistCards(_ items: some Collection<PlaylistSummary>) -> some View {
         ForEach(Array(items)) { playlist in
-            NavigationLink {
-                PlaylistDetailView(playlistID: playlist.id)
+            Button {
+                openDestination(.playlist(playlist.id))
             } label: {
                 CoverCardBody(
                     coverURL: playlist.coverURL?.resizedImageURL(384),
