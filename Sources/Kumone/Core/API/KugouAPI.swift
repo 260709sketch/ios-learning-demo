@@ -276,7 +276,35 @@ enum KugouAPI {
             let artists: [ArtistRef] = singerName.isEmpty ? [] : [ArtistRef(id: abs(singerName.hashValue), name: singerName, singerMid: authorID)]
             let albumName = (item["album_name"] as? String) ?? ""
             let albumID = (item["album_id"] as? Int) ?? 0
-            let album = AlbumRef(id: albumID, name: albumName, picUrl: nil, albumMid: nil)
+            let albumAblumID = (item["album_audio_id"] as? String) ?? ""
+            // 封面：多级 fallback
+            var picUrl: String? = nil
+            let transParam = item["trans_param"] as? [String: Any]
+            let imgCandidates = [
+                item["Image"] as? String,
+                item["image"] as? String,
+                item["AlbumImage"] as? String,
+                item["img"] as? String,
+                item["imgurl"] as? String,
+                transParam?["union_cover"] as? String,
+                item["album_img"] as? String
+            ]
+            for candidate in imgCandidates {
+                if let img = candidate, !img.isEmpty {
+                    var normalized = img.replacingOccurrences(of: "{size}", with: "400")
+                    if normalized.hasPrefix("//") { normalized = "https:" + normalized }
+                    normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
+                    picUrl = normalized
+                    break
+                }
+            }
+            if picUrl == nil, !albumAblumID.isEmpty {
+                picUrl = "https://imgessl.kugou.com/ymm/400/\(albumAblumID).jpg"
+            }
+            if picUrl == nil, !hash.isEmpty {
+                picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
+            }
+            let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumAblumID)
             return makeTrack(id: songID, name: name, artists: artists, album: album, durationMS: duration * 1000, hash: hash)
         }
         return (tracks, total)
@@ -298,7 +326,30 @@ enum KugouAPI {
             let albumID = (item["album_id"] as? String) ?? (item["albumid"] as? String) ?? ""
             let name = (item["album_name"] as? String) ?? ""
             guard !name.isEmpty else { return nil }
-            let picUrl = (item["img"] as? String)?.replacingOccurrences(of: "{size}", with: "400")
+            // 封面：多级 fallback
+            var picUrl: String? = nil
+            let transParam = item["trans_param"] as? [String: Any]
+            let imgCandidates = [
+                item["Image"] as? String,
+                item["image"] as? String,
+                item["AlbumImage"] as? String,
+                item["img"] as? String,
+                item["imgurl"] as? String,
+                transParam?["union_cover"] as? String,
+                item["album_img"] as? String
+            ]
+            for candidate in imgCandidates {
+                if let img = candidate, !img.isEmpty {
+                    var normalized = img.replacingOccurrences(of: "{size}", with: "400")
+                    if normalized.hasPrefix("//") { normalized = "https:" + normalized }
+                    normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
+                    picUrl = normalized
+                    break
+                }
+            }
+            if picUrl == nil, !albumID.isEmpty {
+                picUrl = "https://imgessl.kugou.com/ymm/400/\(albumID).jpg"
+            }
             let id = abs(albumID.hashValue)
             return makeAlbum(id: id, name: name, picUrl: picUrl, artistName: "", albumID: albumID)
         }
@@ -323,9 +374,38 @@ enum KugouAPI {
             let duration = (item["duration"] as? Int) ?? 0
             let songID = (item["songid"] as? Int) ?? abs(hash.hashValue)
             let singerName = (item["singername"] as? String) ?? ""
-            let artists: [ArtistRef] = singerName.isEmpty ? [] : [ArtistRef(id: abs(singerName.hashValue), name: singerName, singerMid: nil)]
+            let singerID = (item["singerid"] as? Int) ?? 0
+            let artists: [ArtistRef] = singerName.isEmpty ? [] : [ArtistRef(id: singerID, name: singerName, singerMid: String(singerID))]
             let albumName = (item["album_name"] as? String) ?? ""
-            let album = AlbumRef(id: abs(albumID.hashValue), name: albumName, picUrl: nil, albumMid: albumID)
+            let albumAblumID = (item["album_audio_id"] as? String) ?? albumID
+            // 封面：多级 fallback
+            var picUrl: String? = nil
+            let transParam = item["trans_param"] as? [String: Any]
+            let imgCandidates = [
+                item["Image"] as? String,
+                item["image"] as? String,
+                item["AlbumImage"] as? String,
+                item["img"] as? String,
+                item["imgurl"] as? String,
+                transParam?["union_cover"] as? String,
+                item["album_img"] as? String
+            ]
+            for candidate in imgCandidates {
+                if let img = candidate, !img.isEmpty {
+                    var normalized = img.replacingOccurrences(of: "{size}", with: "400")
+                    if normalized.hasPrefix("//") { normalized = "https:" + normalized }
+                    normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
+                    picUrl = normalized
+                    break
+                }
+            }
+            if picUrl == nil, !albumAblumID.isEmpty {
+                picUrl = "https://imgessl.kugou.com/ymm/400/\(albumAblumID).jpg"
+            }
+            if picUrl == nil, !hash.isEmpty {
+                picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
+            }
+            let album = AlbumRef(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, albumMid: albumAblumID)
             return makeTrack(id: songID, name: name, artists: artists, album: album, durationMS: duration * 1000, hash: hash)
         }
     }
