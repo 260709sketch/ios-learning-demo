@@ -114,6 +114,7 @@ struct CommentsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.white)
+        .preferredColorScheme(.light)
         .task { await load() }
     }
 
