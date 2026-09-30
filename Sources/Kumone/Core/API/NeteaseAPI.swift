@@ -328,6 +328,19 @@ enum NeteaseAPI {
         return try await weapi(SongDetailResponse.self, "/v3/song/detail", ["c": c])
     }
 
+    // MARK: - 评论
+
+    struct SongCommentResponse: Decodable {
+        let total: Int
+        let hotComments: [SongComment]?
+        let comments: [SongComment]?
+    }
+
+    static func songComments(id: Int, limit: Int = 30, offset: Int = 0) async throws -> SongCommentResponse {
+        try await weapi(SongCommentResponse.self, "/v1/resource/comments/R_SO_4_\(id)",
+                        ["rid": id, "limit": limit, "offset": offset, "beforeTime": 0])
+    }
+
     struct TopPlaylistResponse: Decodable {
         let playlists: [PlaylistSummary]
         let total: Int?

@@ -503,3 +503,50 @@ extension String {
         return URL(string: s)
     }
 }
+
+// MARK: - 评论
+
+struct SongComment: Identifiable, Hashable, Decodable {
+    let id: Int
+    let content: String
+    let nickname: String
+    let avatarURL: String?
+    let time: Date
+    let likedCount: Int
+    let isHot: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id = "commentId"
+        case content
+        case user
+        case time
+        case likedCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
+        let user = try container.nestedContainer(keyedBy: UserCodingKeys.self, forKey: .user)
+        nickname = try user.decodeIfPresent(String.self, forKey: .nickname) ?? ""
+        avatarURL = try user.decodeIfPresent(String.self, forKey: .avatarUrl)
+        let ms = try container.decodeIfPresent(Int.self, forKey: .time) ?? 0
+        time = Date(timeIntervalSince1970: Double(ms) / 1000.0)
+        likedCount = try container.decodeIfPresent(Int.self, forKey: .likedCount) ?? 0
+        isHot = false
+    }
+
+    private enum UserCodingKeys: String, CodingKey {
+        case nickname, avatarUrl
+    }
+
+    init(id: Int, content: String, nickname: String, avatarURL: String?, time: Date, likedCount: Int, isHot: Bool) {
+        self.id = id
+        self.content = content
+        self.nickname = nickname
+        self.avatarURL = avatarURL
+        self.time = time
+        self.likedCount = likedCount
+        self.isHot = isHot
+    }
+}
