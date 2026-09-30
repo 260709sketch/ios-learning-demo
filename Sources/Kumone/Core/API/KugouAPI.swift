@@ -41,6 +41,17 @@ enum KugouAPI {
         }
     }
 
+    /// 只分割歌手名，返回字符串数组
+    private static func splitArtistsNames(_ singerName: String) -> [String] {
+        let trimmed = singerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let separators = CharacterSet(charactersIn: "/、,&，")
+        let parts = trimmed.components(separatedBy: separators).map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        return parts.isEmpty ? [trimmed] : parts
+    }
+
     // MARK: - 对象构造辅助
     private static func makeTrack(id: Int, name: String, artists: [ArtistRef], album: AlbumRef, durationMS: Int, hash: String, isExplicit: Bool = false) -> Track? {
         let displayName = isExplicit ? "\(name) (Explicit)" : name
@@ -286,58 +297,84 @@ enum KugouAPI {
             let result = filtered.isEmpty ? allSongs : filtered
             return (Array(result.prefix(limit)), result.count)
         }
-        let urlStr = "https://mobilecdn.kugou.com/api/v3/singer/song?format=json&singerid=\(authorID)&page=\(page)&pagesize=\(limit)"
+        // mobilecdn API 已失效，改用移动端网页解析
+        let urlStr = "https://m.kugou.com/singer/info/\(authorID)/"
         guard let url = URL(string: urlStr) else { return ([], 0) }
+        var request = URLRequest(url: url)
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let html = String(data: data, encoding: .utf8) else { return ([], 0) }
 
-        let json = try await getJSON(url)
-        guard let data = json["data"] as? [String: Any],
-              let info = data["info"] as? [[String: Any]] else {
+        // 提取 songs: {...}
+        guard let songsRange = html.range(of: "songs: {") else { return ([], 0) }
+        let jsonStart = html[songsRange.upperBound...].firstIndex(of: "{") ?? songsRange.upperBound
+        var depth = 0
+        var jsonEnd = jsonStart
+        for idx in jsonStart..<html.endIndex {
+            let char = html[idx]
+            if char == "{" { depth += 1 }
+            else if char == "}" {
+                depth -= 1
+                if depth == 0 {
+                    jsonEnd = html.index(after: idx)
+                    break
+                }
+            }
+        }
+        let jsonStr = String(html[jsonStart..<jsonEnd])
+        guard let jsonData = jsonStr.data(using: .utf8),
+              let json = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let list = json["list"] as? [[String: Any]] else {
             return ([], 0)
         }
+        let total = (json["total"] as? Int) ?? list.count
 
-        let total = (data["total"] as? Int) ?? info.count
-        let tracks = info.compactMap { item -> Track? in
-            let hash = (item["hash"] as? String) ?? ""
-            guard !hash.isEmpty else { return nil }
-            let name = (item["songname"] as? String) ?? ""
+        let tracks = list.compactMap { item -> Track? in
+            // hash 在 mvdata[0].hash
+            guard let mvdata = item["mvdata"] as? [[String: Any]],
+                  let firstMv = mvdata.first,
+                  let hash = firstMv["hash"] as? String, !hash.isEmpty else { return nil }
+            let name = (item["audio_name"] as? String) ?? ""
             let duration = (item["duration"] as? Int) ?? 0
-            let songID = (item["songid"] as? Int) ?? abs(hash.hashValue)
-            let singerName = (item["singername"] as? String) ?? ""
-            let artists = splitArtists(singerName, singerID: Int(authorID) ?? abs(singerName.hashValue))
+            let songID = abs(hash.hashValue)
+            // 歌手：authors[].base.author_name
+            var singerNames: [String] = []
+            if let authors = item["authors"] as? [[String: Any]] {
+                for author in authors {
+                    if let base = author["base"] as? [String: Any],
+                       let aname = base["author_name"] as? String, !aname.isEmpty {
+                        singerNames.append(aname)
+                    }
+                }
+            }
+            if singerNames.isEmpty, let aname = item["author_name"] as? String {
+                singerNames = splitArtistsNames(aname)
+            }
+            let artists = singerNames.enumerated().map { (idx, name) -> ArtistRef in
+                let aid = (idx == 0) ? (Int(authorID) ?? abs(name.hashValue)) : abs(name.hashValue)
+                return ArtistRef(id: aid, name: name, singerMid: String(aid))
+            }
             let albumName = (item["album_name"] as? String) ?? ""
             let albumID = (item["album_id"] as? Int) ?? 0
             let albumAblumID = (item["album_audio_id"] as? String) ?? ""
-            // 封面：多级 fallback
+            // 封面
             var picUrl: String? = nil
-            let transParam = item["trans_param"] as? [String: Any]
-            let imgCandidates = [
-                item["Image"] as? String,
-                item["image"] as? String,
-                item["AlbumImage"] as? String,
-                item["img"] as? String,
-                item["imgurl"] as? String,
-                transParam?["union_cover"] as? String,
-                item["album_img"] as? String
-            ]
-            for candidate in imgCandidates {
-                if let img = candidate, !img.isEmpty {
-                    var normalized = img.replacingOccurrences(of: "{size}", with: "400")
-                    if normalized.hasPrefix("//") { normalized = "https:" + normalized }
-                    normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
-                    picUrl = normalized
-                    break
-                }
+            if let cover = item["cover"] as? String, !cover.isEmpty {
+                var normalized = cover.replacingOccurrences(of: "{size}", with: "400")
+                if normalized.hasPrefix("//") { normalized = "https:" + normalized }
+                normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
+                picUrl = normalized
             }
             if picUrl == nil, !albumAblumID.isEmpty {
                 picUrl = "https://imgessl.kugou.com/ymm/400/\(albumAblumID).jpg"
             }
-            if picUrl == nil, !hash.isEmpty {
+            if picUrl == nil {
                 picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
             }
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumAblumID)
-            return makeTrack(id: songID, name: name, artists: artists, album: album, durationMS: duration * 1000, hash: hash)
+            return makeTrack(id: songID, name: name, artists: artists, album: album, durationMS: duration, hash: hash)
         }
-        return (tracks, total)
+        return (Array(tracks.prefix(limit)), total)
     }
 
     // MARK: - 歌手专辑
@@ -361,48 +398,19 @@ enum KugouAPI {
             }
             return (albums, albums.count)
         }
-        let urlStr = "https://mobilecdn.kugou.com/api/v3/singer/album?format=json&singerid=\(authorID)&page=\(page)&pagesize=\(limit)"
-        guard let url = URL(string: urlStr) else { return ([], 0) }
-
-        let json = try await getJSON(url)
-        guard let data = json["data"] as? [String: Any],
-              let info = data["info"] as? [[String: Any]] else {
-            return ([], 0)
-        }
-
-        let total = (data["total"] as? Int) ?? info.count
-        let albums = info.compactMap { item -> AlbumSummary? in
-            let albumID = (item["album_id"] as? String) ?? (item["albumid"] as? String) ?? ""
-            let name = (item["album_name"] as? String) ?? ""
-            guard !name.isEmpty else { return nil }
-            // 封面：多级 fallback
-            var picUrl: String? = nil
-            let transParam = item["trans_param"] as? [String: Any]
-            let imgCandidates = [
-                item["Image"] as? String,
-                item["image"] as? String,
-                item["AlbumImage"] as? String,
-                item["img"] as? String,
-                item["imgurl"] as? String,
-                transParam?["union_cover"] as? String,
-                item["album_img"] as? String
-            ]
-            for candidate in imgCandidates {
-                if let img = candidate, !img.isEmpty {
-                    var normalized = img.replacingOccurrences(of: "{size}", with: "400")
-                    if normalized.hasPrefix("//") { normalized = "https:" + normalized }
-                    normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
-                    picUrl = normalized
-                    break
-                }
+        // mobilecdn API 已失效，从歌手页面歌曲数据中提取专辑
+        let (tracks, _) = try await artistSongs(authorID: authorID, page: 1, limit: 50)
+        var seen = Set<String>()
+        var albums: [AlbumSummary] = []
+        for song in tracks {
+            let key = song.album.name
+            guard !key.isEmpty, seen.insert(key).inserted else { continue }
+            if let album = makeAlbum(id: song.album.id, name: song.album.name, picUrl: song.album.picUrl, artistName: "", albumID: song.album.albumMid ?? String(song.album.id)) {
+                albums.append(album)
             }
-            if picUrl == nil, !albumID.isEmpty {
-                picUrl = "https://imgessl.kugou.com/ymm/400/\(albumID).jpg"
-            }
-            let id = abs(albumID.hashValue)
-            return makeAlbum(id: id, name: name, picUrl: picUrl, artistName: "", albumID: albumID)
+            if albums.count >= limit { break }
         }
-        return (albums, total)
+        return (albums, albums.count)
     }
 
     // MARK: - 专辑歌曲
