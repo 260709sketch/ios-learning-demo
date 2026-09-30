@@ -547,11 +547,22 @@ struct AppleMusicPlayerView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
                         }
-                        Text(subtitle)
-                            .font(.system(size: 13.5, weight: .medium))
-                            .foregroundStyle(secondaryColor)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                        Group {
+                            if let t = track {
+                                NowPlayingTrackDestinationLinks(
+                                    track: t,
+                                    font: .system(size: 13.5, weight: .medium),
+                                    color: secondaryColor,
+                                    onOpenDestination: onOpenDestination
+                                )
+                            } else {
+                                Text(subtitle)
+                                    .font(.system(size: 13.5, weight: .medium))
+                                    .foregroundStyle(secondaryColor)
+                            }
+                        }
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     }
                     Spacer(minLength: 8)
                     compactActionButton(
@@ -1173,18 +1184,19 @@ private struct MiniLyricsPreview: View {
     }
 
     var body: some View {
-        let (_, current, _) = currentLines
+        let (_, current, next) = currentLines
         Button(action: action) {
-            VStack(spacing: 0) {
-                if current == nil {
+            VStack(spacing: 8) {
+                if current == nil && next == nil {
                     Text("暂无歌词")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.54))
                 } else {
                     line(current, emphasized: true)
+                    line(next, emphasized: false)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 40)
+            .frame(maxWidth: .infinity, minHeight: 70)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

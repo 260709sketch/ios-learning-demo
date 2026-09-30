@@ -190,18 +190,18 @@ struct ArtistDetailView: View {
             let songCount = detail?.songCount ?? 0
             let albumCount = detail?.albumCount ?? 0
             artist = ArtistSummary(id: initialArtist?.id ?? abs(authorID.hashValue), name: singerName, picUrl: avatar, albumSize: albumCount, musicSize: songCount, followed: false, alias: [], sourcePlatform: "kg", singerMid: authorID)
-            isLoading = false
 
-            async let songsTask = try? KugouAPI.artistSongs(authorID: authorID, limit: 50)
-            async let albumsTask = try? KugouAPI.artistAlbums(authorID: authorID, limit: 60)
+            // 加载歌曲和专辑
+            let songsResult = try? await KugouAPI.artistSongs(authorID: authorID, limit: 50)
+            let albumsResult = try? await KugouAPI.artistAlbums(authorID: authorID, limit: 60)
 
-            let (songsResult, albumsResult) = await (songsTask, albumsTask)
             hotSongs = songsResult?.tracks ?? []
             // 根据 subType 区分专辑和 EP/单曲
             let allAlbums = albumsResult?.albums ?? []
             albums = allAlbums.filter { ($0.subType ?? "专辑") == "专辑" || $0.subType?.isEmpty == true }
             epsAndSingles = allAlbums.filter { $0.subType == "EP" || $0.subType == "单曲" }
             similar = []
+            isLoading = false
             return
         }
 

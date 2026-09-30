@@ -555,19 +555,33 @@ enum NeteaseAPI {
     }
 
     // MARK: - 用户关注歌手（来自 wellmusic: /artist/sublist）
-    struct ArtistSublistData: Decodable {
-        let artistList: [ArtistSummary]?
-        let artists: [ArtistSummary]?
-    }
-
-    struct ArtistSublistResponse: Decodable {
-        let data: ArtistSublistData?
-    }
-
     static func userFollowedArtists(uid: Int, limit: Int = 30, offset: Int = 0) async throws -> [ArtistSummary] {
-        let resp = try await weapi(ArtistSublistResponse.self, "/artist/sublist",
-                                    ["limit": limit, "offset": offset, "total": true])
-        return resp.data?.artistList ?? resp.data?.artists ?? []
+        let data = try await client.weapi("/artist/sublist", ["limit": limit, "offset": offset, "total": true])
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let code = json["code"] as? Int, code == 200 else {
+            return []
+        }
+        // data.data 可能是数组，也可能是包含 artistList/artists 的对象
+        var artistDicts: [[String: Any]] = []
+        if let dataArr = json["data"] as? [[String: Any]] {
+            artistDicts = dataArr
+        } else if let dataObj = json["data"] as? [String: Any] {
+            if let list = dataObj["artistList"] as? [[String: Any]] {
+                artistDicts = list
+            } else if let list = dataObj["artists"] as? [[String: Any]] {
+                artistDicts = list
+            }
+        }
+        return artistDicts.compactMap { dict -> ArtistSummary? in
+            guard let id = dict["id"] as? Int else { return nil }
+            let name = (dict["name"] as? String) ?? ""
+            let picUrl = (dict["img1v1Url"] as? String) ?? (dict["picUrl"] as? String) ?? (dict["avatar"] as? String)
+            guard !name.isEmpty else { return nil }
+            var resultDict: [String: Any] = ["id": id, "name": name, "albumSize": 0, "musicSize": 0, "alias": [], "followed": true]
+            if let picUrl, !picUrl.isEmpty { resultDict["picUrl"] = picUrl }
+            guard let resultData = try? JSONSerialization.data(withJSONObject: resultDict) else { return nil }
+            return try? JSONDecoder().decode(ArtistSummary.self, from: resultData)
+        }
     }
 
     // MARK: - Search
