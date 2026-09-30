@@ -1,15 +1,10 @@
 import SwiftUI
 
-// MARK: - 相对时间
+// MARK: - 日期格式化
 
-func relativeTime(_ date: Date) -> String {
-    let interval = Date().timeIntervalSince(date)
-    if interval < 60 { return "刚刚" }
-    if interval < 3600 { return "\(Int(interval / 60)) 分钟前" }
-    if interval < 86400 { return "\(Int(interval / 3600)) 小时前" }
-    if interval < 86400 * 30 { return "\(Int(interval / 86400)) 天前" }
+private func commentDate(_ date: Date) -> String {
     let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.dateFormat = "yyyy-MM-dd HH:mm"
     return formatter.string(from: date)
 }
 
@@ -18,191 +13,129 @@ func relativeTime(_ date: Date) -> String {
 struct CommentsView: View {
     let track: Track
 
+    @Environment(\.dismiss) private var dismiss
+
     @State private var hotComments: [SongComment] = []
-    @State private var comments: [SongComment] = []
+    @State private var latestComments: [SongComment] = []
     @State private var total = 0
-    @State private var qqComments: [SongComment] = []
-    @State private var qqTotal = 0
-    @State private var qqPageNum = 0
     @State private var loading = true
     @State private var errorMessage: String?
-    @State private var offset = 0
+    @State private var selectedSegment = 0 // 0=热门, 1=最新
+    @State private var latestPage = 1
 
     private let limit = 30
-    private let qqPageSize = 25
 
     private var isQQ: Bool { track.sourcePlatform == "tx" }
+    private var isKugou: Bool { track.sourcePlatform == "kg" }
 
     var body: some View {
-        ZStack {
-            // 白色背景
-            Color.white
-                .ignoresSafeArea()
+        VStack(spacing: 0) {
+            // 顶部拖动条
+            Capsule()
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 36, height: 5)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
 
-            NavigationStack {
-                Group {
-                    if loading {
-                        ProgressView("加载评论中...")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if let errorMessage {
+            // 标题栏
+            HStack {
+                Spacer()
+                Text("评论")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.black)
+                Spacer()
+            }
+            .overlay(alignment: .trailing) {
+                Button("完成") {
+                    dismiss()
+                }
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(.blue)
+                .padding(.trailing, 16)
+            }
+            .padding(.bottom, 12)
+
+            // 分段控制
+            Picker("", selection: $selectedSegment) {
+                Text("热门评论").tag(0)
+                Text("最新评论").tag(1)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+
+            // 评论列表
+            Group {
+                if loading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let errorMessage {
+                    VStack(spacing: 12) {
+                        Text(errorMessage)
+                            .foregroundStyle(.secondary)
+                        Button("重试") {
+                            Task { await load() }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    let list = selectedSegment == 0 ? hotComments : latestComments
+                    if list.isEmpty {
                         VStack(spacing: 12) {
-                            Image(systemName: "exclamationmark.triangle")
+                            Image(systemName: "bubble.left")
                                 .font(.system(size: 40))
                                 .foregroundStyle(.secondary)
-                            Text(errorMessage)
+                            Text("暂无评论")
                                 .foregroundStyle(.secondary)
-                            Button("重试") {
-                                Task { await load(reset: true) }
-                            }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if isQQ {
-                        qqCommentList
                     } else {
-                        neteaseCommentList
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(list) { comment in
+                                    CommentRow(comment: comment)
+                                    Divider()
+                                        .padding(.leading, 16)
+                                }
+                                if selectedSegment == 1 && latestComments.count >= limit {
+                                    Button("加载更多") {
+                                        Task { await loadMoreLatest() }
+                                    }
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.blue)
+                                    .padding(.vertical, 16)
+                                }
+                            }
+                        }
                     }
                 }
-                .navigationTitle("评论")
-                .navigationBarTitleDisplayMode(.inline)
             }
-            .preferredColorScheme(.light)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .task { await load(reset: true) }
+        .background(Color.white)
+        .task { await load() }
     }
 
-    private var neteaseCommentList: some View {
-        Group {
-            if hotComments.isEmpty && comments.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
-                    Text("暂无评论")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    Section {
-                        Text("《\(track.name)》 · 共 \(total) 条评论")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .listRowBackground(Color.clear)
-
-                    if !hotComments.isEmpty {
-                        Section("精彩评论") {
-                            ForEach(hotComments) { comment in
-                                CommentRow(comment: comment)
-                                    .listRowBackground(Color.clear)
-                            }
-                        }
-                    }
-
-                    if !comments.isEmpty {
-                        Section("最新评论") {
-                            ForEach(comments) { comment in
-                                CommentRow(comment: comment)
-                                    .listRowBackground(Color.clear)
-                            }
-                        }
-                    }
-
-                    if comments.count >= limit {
-                        Section {
-                            Button {
-                                Task { await loadMore() }
-                            } label: {
-                                Text("加载更多")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(.orange)
-                                    .frame(maxWidth: .infinity)
-                            }
-                        }
-                        .listRowBackground(Color.clear)
-                    }
-                }
-                .scrollContentBackground(.hidden)
-            }
-        }
-    }
-
-    private var qqCommentList: some View {
-        Group {
-            if qqComments.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
-                    Text("暂无评论")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    Section {
-                        Text("《\(track.name)》 · QQ音乐 \(qqTotal > 0 ? qqTotal : qqComments.count) 条评论")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .listRowBackground(Color.clear)
-
-                    Section("评论") {
-                        ForEach(qqComments) { comment in
-                            CommentRow(comment: comment)
-                                .listRowBackground(Color.clear)
-                        }
-                    }
-
-                    if qqTotal <= 0 || qqComments.count < qqTotal {
-                        Section {
-                            Button {
-                                Task { await loadQQMore() }
-                            } label: {
-                                Text("加载更多")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(.orange)
-                                    .frame(maxWidth: .infinity)
-                            }
-                        }
-                        .listRowBackground(Color.clear)
-                    }
-                }
-                .scrollContentBackground(.hidden)
-            }
-        }
-    }
-
-    private func load(reset: Bool) async {
-        if reset {
-            offset = 0
-            hotComments = []
-            comments = []
-            total = 0
-            qqComments = []
-            qqTotal = 0
-            qqPageNum = 0
-            loading = true
-        }
+    private func load() async {
+        loading = true
         errorMessage = nil
+        latestPage = 1
         do {
-            if isQQ {
-                let result = try await QQMusicAPI.comments(songID: track.id, limit: qqPageSize, pagenum: qqPageNum)
-                if reset {
-                    qqComments = result.comments
-                } else {
-                    qqComments.append(contentsOf: result.comments)
-                }
-                qqTotal = result.total
+            if isKugou, let hash = track.platformSongId {
+                let result = try await KugouAPI.comments(hash: hash, page: 1, limit: limit)
+                hotComments = result.comments
+                latestComments = result.comments
+                total = result.total
+            } else if isQQ {
+                let result = try await QQMusicAPI.comments(songID: track.id, limit: limit, pagenum: 0)
+                hotComments = result.comments
+                latestComments = result.comments
+                total = result.total
             } else {
-                let result = try await NeteaseAPI.songComments(id: track.id, limit: limit, offset: offset)
-                if reset {
-                    hotComments = result.hotComments ?? []
-                    comments = result.comments ?? []
-                    total = result.total
-                } else {
-                    comments.append(contentsOf: result.comments ?? [])
-                }
+                let result = try await NeteaseAPI.songComments(id: track.id, limit: limit, offset: 0)
+                hotComments = result.hotComments ?? []
+                latestComments = result.comments ?? []
+                total = result.total
             }
             loading = false
         } catch {
@@ -211,83 +144,51 @@ struct CommentsView: View {
         }
     }
 
-    private func loadMore() async {
-        offset += limit
-        await load(reset: false)
-    }
-
-    private func loadQQMore() async {
-        qqPageNum += 1
-        await load(reset: false)
+    private func loadMoreLatest() async {
+        latestPage += 1
+        do {
+            if isKugou, let hash = track.platformSongId {
+                let result = try await KugouAPI.comments(hash: hash, page: latestPage, limit: limit)
+                latestComments.append(contentsOf: result.comments)
+            } else if isQQ {
+                let result = try await QQMusicAPI.comments(songID: track.id, limit: limit, pagenum: latestPage - 1)
+                latestComments.append(contentsOf: result.comments)
+            } else {
+                let result = try await NeteaseAPI.songComments(id: track.id, limit: limit, offset: (latestPage - 1) * limit)
+                latestComments.append(contentsOf: result.comments ?? [])
+            }
+        } catch {
+            // 静默失败
+        }
     }
 }
 
-// MARK: - 评论行
+// MARK: - 评论行（Beans 风格：无头像，用户名+日期+赞数同一行）
 
 struct CommentRow: View {
     let comment: SongComment
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            AsyncImage(url: URL(string: comment.avatarURL ?? "")) { phase in
-                if case .success(let image) = phase {
-                    image.resizable().scaledToFill()
-                } else {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(comment.nickname)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.black)
+                    .lineLimit(1)
+                Text(commentDate(comment.time))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.gray)
+                Spacer()
+                Text("赞 \(comment.likedCount)")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.gray)
             }
-            .frame(width: 36, height: 36)
-            .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 8) {
-                    Text(comment.nickname)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    if comment.isHot {
-                        Text("热评")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(LinearGradient(colors: [.orange, .red], startPoint: .leading, endPoint: .trailing), in: Capsule())
-                    }
-                    Spacer()
-                    Text(relativeTime(comment.time))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary.opacity(0.8))
-                }
-                Text(comment.content)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Spacer()
-                    Label("\(comment.likedCount)", systemImage: "heart")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .labelStyle(.trailingIcon)
-                }
-                .padding(.top, 2)
-            }
+            Text(comment.content)
+                .font(.system(size: 16))
+                .foregroundStyle(.black)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, 4)
-    }
-}
-
-// 图标在文字后面
-extension LabelStyle where Self == TrailingIconLabelStyle {
-    static var trailingIcon: TrailingIconLabelStyle { TrailingIconLabelStyle() }
-}
-
-struct TrailingIconLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 4) {
-            configuration.title
-            configuration.icon
-        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }

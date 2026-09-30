@@ -458,4 +458,104 @@ enum KugouAPI {
             return makeTrack(id: songID, name: name, artists: artists, album: album, durationMS: duration * 1000, hash: hash)
         }
     }
+
+    // MARK: - 评论
+
+    struct KugouCommentPage {
+        let comments: [SongComment]
+        let total: Int
+    }
+
+    /// 通过 hash 获取评论用的 audio_id
+    private static func commentAudioID(hash: String) async throws -> String? {
+        guard !hash.isEmpty else { return nil }
+        var components = URLComponents(string: "https://wwwapi.kugou.com/yy/index.php")!
+        components.queryItems = [
+            URLQueryItem(name: "r", value: "play/getdata"),
+            URLQueryItem(name: "hash", value: hash.uppercased()),
+            URLQueryItem(name: "appid", value: "1014"),
+            URLQueryItem(name: "platid", value: "4"),
+        ]
+        guard let url = components.url else { return nil }
+        let json = try await getJSON(url)
+        let data = (json["data"] as? [String: Any]) ?? json
+        if let audioID = data["audio_id"] as? Int {
+            return "\(audioID)"
+        }
+        if let audioID = data["audio_id"] as? String, !audioID.isEmpty {
+            return audioID
+        }
+        return nil
+    }
+
+    /// 酷狗评论（legacy 接口，无需签名）
+    static func comments(hash: String, page: Int = 1, limit: Int = 30) async throws -> KugouCommentPage {
+        let childrenID: String
+        if let audioID = try await commentAudioID(hash: hash) {
+            childrenID = audioID
+        } else {
+            childrenID = "\(abs(hash.hashValue))"
+        }
+        var components = URLComponents(string: "http://m.comment.service.kugou.com/index.php")!
+        components.queryItems = [
+            URLQueryItem(name: "r", value: "commentsv2/getCommentWithLike"),
+            URLQueryItem(name: "childrenid", value: childrenID),
+            URLQueryItem(name: "code", value: "fc4be23b4e972707f36b8a828a93ba8a"),
+            URLQueryItem(name: "extdata", value: "0"),
+            URLQueryItem(name: "p", value: "\(max(page, 1))"),
+            URLQueryItem(name: "pagesize", value: "\(min(max(limit, 1), 30))"),
+        ]
+        guard let url = components.url else {
+            throw NSError(domain: "KugouAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "URL 无效"])
+        }
+        let json = try await getJSON(url)
+        return parseComments(json: json, page: page)
+    }
+
+    private static func parseComments(json: [String: Any], page: Int) -> KugouCommentPage {
+        let rows: [[String: Any]]
+        if let list = json["list"] as? [[String: Any]] {
+            rows = list
+        } else if let data = json["data"] as? [String: Any],
+                  let list = data["list"] as? [[String: Any]] {
+            rows = list
+        } else if let comments = json["comments"] as? [[String: Any]] {
+            rows = comments
+        } else {
+            rows = []
+        }
+        var seen = Set<Int>()
+        let comments = rows.compactMap { raw -> SongComment? in
+            let rawID = (raw["commentid"] as? String) ?? (raw["comment_id"] as? String) ?? ((raw["id"] as? Int).map { "\($0)" }) ?? ""
+            let content = (raw["content"] as? String) ?? (raw["comment_content"] as? String) ?? ""
+            guard !content.isEmpty else { return nil }
+            let nickname = (raw["nick"] as? String) ?? (raw["nickname"] as? String) ?? (raw["username"] as? String) ?? "酷狗用户"
+            let avatar = (raw["avatarurl"] as? String) ?? (raw["avatar_url"] as? String) ?? (raw["avatar"] as? String) ?? ""
+            let timestamp: Double
+            if let addtime = raw["addtime"] as? Double {
+                timestamp = addtime
+            } else if let addtime = raw["addtime"] as? Int {
+                timestamp = Double(addtime)
+            } else if let time = raw["time"] as? Double {
+                timestamp = time
+            } else {
+                timestamp = 0
+            }
+            let seconds = timestamp > 10_000_000_000 ? timestamp / 1000 : timestamp
+            let id = rawID.isEmpty ? abs(content.hashValue) : abs(rawID.hashValue)
+            guard seen.insert(id).inserted else { return nil }
+            let likedCount = (raw["praisenum"] as? Int) ?? (raw["like_count"] as? Int) ?? 0
+            return SongComment(
+                id: id,
+                content: content,
+                nickname: nickname.isEmpty ? "酷狗用户" : nickname,
+                avatarURL: avatar.isEmpty ? nil : avatar,
+                time: seconds > 0 ? Date(timeIntervalSince1970: seconds) : Date(),
+                likedCount: likedCount,
+                isHot: page == 1
+            )
+        }
+        let total = (json["total"] as? Int) ?? ((json["data"] as? [String: Any])?["total"] as? Int) ?? comments.count
+        return KugouCommentPage(comments: comments, total: total)
+    }
 }
