@@ -188,175 +188,10 @@ struct AppleMusicPlayerView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    // 播放设置卡片
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("播放")
-                            .font(.system(size: 17, weight: .semibold))
-                        Toggle("播放失败自动下一首", isOn: $autoSkipOnFailure)
-                            .font(.system(size: 15))
-                        Divider().opacity(0.5)
-                        Toggle("左右滑动切歌", isOn: $swipeSwitchSong)
-                            .font(.system(size: 15))
-                        Divider().opacity(0.5)
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("背景光晕强度")
-                                    .font(.system(size: 15))
-                                Spacer()
-                                Text("\(Int((breath * 100).rounded()))%")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Slider(value: $breath, in: 0...1, step: 0.05)
-                        }
-                        Divider().opacity(0.5)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("进度条样式")
-                                .font(.system(size: 15))
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                                ForEach([(0, "流光", "rays"), (1, "辉光", "sun.max"), (2, "极光", "sparkles"), (3, "波浪", "waveform")], id: \.0) { idx, name, icon in
-                                    Button {
-                                        progressBarStyle = idx
-                                    } label: {
-                                        VStack(spacing: 5) {
-                                            Image(systemName: icon)
-                                                .font(.system(size: 15, weight: .medium))
-                                            Text(name)
-                                                .font(.system(size: 11))
-                                        }
-                                        .foregroundStyle(progressBarStyle == idx ? .accentColor : .primary)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
-                                        .background(
-                                            (progressBarStyle == idx ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.05)),
-                                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(.systemGray6))
-                    }
-
-                    // Apple Music 样式卡片
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Apple Music 样式")
-                            .font(.system(size: 17, weight: .semibold))
-                        Toggle("显示封面页歌词预览", isOn: $showLyricPreview)
-                            .font(.system(size: 15))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(.systemGray6))
-                    }
-
-                    // 歌词显示卡片
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("歌词显示")
-                            .font(.system(size: 17, weight: .semibold))
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("歌词字号")
-                                    .font(.system(size: 15))
-                                Spacer()
-                                Text("\(Int(lyricFontSize))")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Slider(value: $lyricFontSize, in: 12...28, step: 1)
-                        }
-                        Divider().opacity(0.5)
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("歌词行距")
-                                    .font(.system(size: 15))
-                                Spacer()
-                                Text("\(Int(lyricLineSpacing))")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Slider(value: $lyricLineSpacing, in: 14...40, step: 1)
-                        }
-                        Divider().opacity(0.5)
-                        Toggle("显示翻译", isOn: $lyricTranslation)
-                            .font(.system(size: 15))
-                        Divider().opacity(0.5)
-                        Picker("歌词发光", selection: $lyricGlowLevel) {
-                            Text("关闭").tag(0)
-                            Text("弱").tag(1)
-                            Text("中").tag(2)
-                            Text("强").tag(3)
-                        }
-                        .pickerStyle(.segmented)
-                        Divider().opacity(0.5)
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("歌词偏移")
-                                    .font(.system(size: 15))
-                                Spacer()
-                                Text(lyricOffset == 0 ? "同步" : (lyricOffset > 0 ? "提前 \(String(format: "%.1f", lyricOffset))s" : "延后 \(String(format: "%.1f", -lyricOffset))s"))
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Slider(value: $lyricOffset, in: -5...5, step: 0.1)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(.systemGray6))
-                    }
-
-                    // 封面卡片（播放器风格选择）
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("封面")
-                                .font(.system(size: 17, weight: .semibold))
-                            Spacer()
-                        }
-                        Text("播放器风格")
-                            .font(.system(size: 15))
-
-                        playerStyleOption(
-                            icon: "square",
-                            title: "经典封面",
-                            subtitle: "封面、歌名和预览歌词分层显示",
-                            mode: .classic
-                        )
-
-                        playerStyleOption(
-                            icon: "music.note",
-                            title: "Apple Music",
-                            subtitle: "大封面、细进度条和简洁播放控制",
-                            mode: .appleMusic
-                        )
-
-                        playerStyleOption(
-                            icon: "circle.circle",
-                            title: "唱片模式",
-                            subtitle: "参考唱片界面、歌词、队列和播放控制",
-                            mode: .vinyl
-                        )
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(.systemGray6))
-                    }
+                    playingSettingsCard
+                    appleMusicSettingsCard
+                    lyricDisplaySettingsCard
+                    coverSettingsCard
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 16)
@@ -374,6 +209,171 @@ struct AppleMusicPlayerView: View {
             }
         }
         .presentationDetentsSafe()
+    }
+
+    private var playingSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("播放")
+                .font(.system(size: 17, weight: .semibold))
+            Toggle("播放失败自动下一首", isOn: $autoSkipOnFailure)
+                .font(.system(size: 15))
+            Divider().opacity(0.5)
+            Toggle("左右滑动切歌", isOn: $swipeSwitchSong)
+                .font(.system(size: 15))
+            Divider().opacity(0.5)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("背景光晕强度")
+                        .font(.system(size: 15))
+                    Spacer()
+                    Text("\(Int((breath * 100).rounded()))%")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $breath, in: 0...1, step: 0.05)
+            }
+            Divider().opacity(0.5)
+            progressStyleGrid
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.systemGray6))
+        }
+    }
+
+    private var progressStyleGrid: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("进度条样式")
+                .font(.system(size: 15))
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                ForEach([(0, "流光", "rays"), (1, "辉光", "sun.max"), (2, "极光", "sparkles"), (3, "波浪", "waveform")], id: \.0) { idx, name, icon in
+                    Button {
+                        progressBarStyle = idx
+                    } label: {
+                        VStack(spacing: 5) {
+                            Image(systemName: icon)
+                                .font(.system(size: 15, weight: .medium))
+                            Text(name)
+                                .font(.system(size: 11))
+                        }
+                        .foregroundStyle(progressBarStyle == idx ? .accentColor : .primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            (progressBarStyle == idx ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.05)),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var appleMusicSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Apple Music 样式")
+                .font(.system(size: 17, weight: .semibold))
+            Toggle("显示封面页歌词预览", isOn: $showLyricPreview)
+                .font(.system(size: 15))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.systemGray6))
+        }
+    }
+
+    private var lyricDisplaySettingsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("歌词显示")
+                .font(.system(size: 17, weight: .semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("歌词字号")
+                        .font(.system(size: 15))
+                    Spacer()
+                    Text("\(Int(lyricFontSize))")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $lyricFontSize, in: 12...28, step: 1)
+            }
+            Divider().opacity(0.5)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("歌词行距")
+                        .font(.system(size: 15))
+                    Spacer()
+                    Text("\(Int(lyricLineSpacing))")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $lyricLineSpacing, in: 14...40, step: 1)
+            }
+            Divider().opacity(0.5)
+            Toggle("显示翻译", isOn: $lyricTranslation)
+                .font(.system(size: 15))
+            Divider().opacity(0.5)
+            Picker("歌词发光", selection: $lyricGlowLevel) {
+                Text("关闭").tag(0)
+                Text("弱").tag(1)
+                Text("中").tag(2)
+                Text("强").tag(3)
+            }
+            .pickerStyle(.segmented)
+            Divider().opacity(0.5)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("歌词偏移")
+                        .font(.system(size: 15))
+                    Spacer()
+                    Text(lyricOffsetText)
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $lyricOffset, in: -5...5, step: 0.1)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.systemGray6))
+        }
+    }
+
+    private var lyricOffsetText: String {
+        if lyricOffset == 0 { return "同步" }
+        return lyricOffset > 0 ? "提前 \(String(format: "%.1f", lyricOffset))s" : "延后 \(String(format: "%.1f", -lyricOffset))s"
+    }
+
+    private var coverSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("封面")
+                    .font(.system(size: 17, weight: .semibold))
+                Spacer()
+            }
+            Text("播放器风格")
+                .font(.system(size: 15))
+            playerStyleOption(icon: "square", title: "经典封面", subtitle: "封面、歌名和预览歌词分层显示", mode: .classic)
+            playerStyleOption(icon: "music.note", title: "Apple Music", subtitle: "大封面、细进度条和简洁播放控制", mode: .appleMusic)
+            playerStyleOption(icon: "circle.circle", title: "唱片模式", subtitle: "参考唱片界面、歌词、队列和播放控制", mode: .vinyl)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.systemGray6))
+        }
     }
 
     private func playerStyleOption(icon: String, title: String, subtitle: String, mode: NowPlayingMode) -> some View {
