@@ -267,7 +267,8 @@ enum KugouAPI {
         let jsonStart = html[songsRange.upperBound...].firstIndex(of: "{") ?? songsRange.upperBound
         var depth = 0
         var jsonEnd = jsonStart
-        for idx in jsonStart..<html.endIndex {
+        var idx = jsonStart
+        while idx < html.endIndex {
             let char = html[idx]
             if char == "{" { depth += 1 }
             else if char == "}" {
@@ -277,6 +278,7 @@ enum KugouAPI {
                     break
                 }
             }
+            idx = html.index(after: idx)
         }
         let jsonStr = String(html[jsonStart..<jsonEnd])
         guard let jsonData = jsonStr.data(using: .utf8),
