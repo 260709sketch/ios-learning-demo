@@ -198,10 +198,6 @@ public struct IOSMainWindow: View {
                     .environmentObject(settings)
                     .appDestinations()
             }
-            // 透明封面（.presentationBackground(.clear)）下，导航栈必须自身占满
-            // 整个屏幕（含状态栏 / Home Indicator），否则内容被安全区域限制、
-            // 上半屏透明透出背后的搜索页。push 进去的页面自带导航栏，仍会处理自己的 safe area。
-            .ignoresSafeArea()
             // 播放器关闭时清空内部导航路径
             .onDisappear { playerNavPath.removeAll() }
         }

@@ -21,6 +21,7 @@ struct AppleMusicPlayerView: View {
     let onDismiss: () -> Void
 
     @EnvironmentObject private var player: PlayerService
+    @EnvironmentObject private var settings: SettingsManager
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var account = AccountStore.shared
     @ObservedObject private var clock = PlayerService.shared.clock

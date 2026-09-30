@@ -155,10 +155,6 @@ struct IOSNowPlayingPresentation<Content: View>: View {
                     dismissDragAction(usesCustomDrag: usesCustomDrag)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // 封面背景是透明的（.presentationBackground(.clear)），播放器内容
-                // 必须自己铺满整个屏幕（状态栏 / Home Indicator 区域）。根 ZStack
-                // 仍保留 safe area，使下拉指示条停在状态栏下方而不是钻进状态栏里。
-                .ignoresSafeArea()
 
             if isInteractive {
                 dragIndicator
