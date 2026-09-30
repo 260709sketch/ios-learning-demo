@@ -178,15 +178,10 @@ struct AppleMusicPlayerView: View {
     private var playerSettingsSheet: some View {
         NavigationStack {
             Form {
-                Section {
-                    Toggle("显示音量控制", isOn: $showVolumeControl)
-                    Stepper(value: $lyricOffset, in: -5...5, step: 0.1) {
-                        HStack {
-                            Text("歌词偏移")
-                            Spacer()
-                            Text(String(format: "%+.1fs", lyricOffset))
-                                .font(.system(.subheadline, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                Section("播放") {
+                    Picker("播放器模式", selection: $settings.nowPlayingMode) {
+                        ForEach(NowPlayingMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
                         }
                     }
                     Button {
@@ -202,6 +197,92 @@ struct AppleMusicPlayerView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                    }
+                    Toggle("显示音量控制", isOn: $showVolumeControl)
+                    Stepper(value: $lyricOffset, in: -5...5, step: 0.1) {
+                        HStack {
+                            Text("歌词偏移")
+                            Spacer()
+                            Text(String(format: "%+.1fs", lyricOffset))
+                                .font(.system(.subheadline, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Section("显示") {
+                    Toggle("显示歌词预览", isOn: $showLyricPreview)
+                    Toggle("显示 VIP 徽章", isOn: $showSongVIPBadge)
+                    Toggle("AMLL 沉浸歌词", isOn: $settings.useAMLLImmersive)
+                    Picker("歌词字体", selection: $settings.amllFontFamily) {
+                        Text("系统默认").tag("")
+                        Text("黑体").tag("PingFang SC")
+                        Text("SF粗体").tag("SF Pro Display")
+                        if !settings.amllFontFamily.isEmpty,
+                           settings.amllFontFamily != "PingFang SC",
+                           settings.amllFontFamily != "SF Pro Display" {
+                            Text("自定义").tag(settings.amllFontFamily)
+                        }
+                    }
+                }
+
+                Section("封面与控件位置") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("大封面尺寸")
+                            Spacer()
+                            Text(String(format: "%.0f%%", settings.playerArtworkScale * 100))
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $settings.playerArtworkScale, in: 0.7...1.3, step: 0.05)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("大封面上下位置")
+                            Spacer()
+                            Text(settings.playerArtworkTopOffset > 0 ? "+\(settings.playerArtworkTopOffset)" : "\(settings.playerArtworkTopOffset)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerArtworkTopOffset) },
+                            set: { settings.playerArtworkTopOffset = Int($0) }
+                        ), in: -300...300, step: 5)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("控制条上下位置")
+                            Spacer()
+                            Text(settings.playerControlsBottomOffset > 0 ? "+\(settings.playerControlsBottomOffset)" : "\(settings.playerControlsBottomOffset)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerControlsBottomOffset) },
+                            set: { settings.playerControlsBottomOffset = Int($0) }
+                        ), in: -200...200, step: 5)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("歌曲信息上下位置")
+                            Spacer()
+                            Text(settings.playerTrackInfoTopOffset > 0 ? "+\(settings.playerTrackInfoTopOffset)" : "\(settings.playerTrackInfoTopOffset)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerTrackInfoTopOffset) },
+                            set: { settings.playerTrackInfoTopOffset = Int($0) }
+                        ), in: -300...300, step: 5)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("歌曲信息与封面间距")
+                            Spacer()
+                            Text("\(settings.playerTrackInfoSpacing)px")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.playerTrackInfoSpacing) },
+                            set: { settings.playerTrackInfoSpacing = Int($0) }
+                        ), in: 0...60, step: 2)
                     }
                 }
             }
