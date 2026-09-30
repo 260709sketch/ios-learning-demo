@@ -178,122 +178,85 @@ struct AppleMusicPlayerView: View {
     private var playerSettingsSheet: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(spacing: 12) {
-                    // Apple Music 样式卡片
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Apple Music 样式")
-                            .font(.system(size: 14, weight: .bold))
+                LazyVStack(spacing: 16) {
+                    // 自定义布局卡片
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("自定义布局")
+                            .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.primary)
-                        Toggle("显示封面页歌词预览", isOn: $showLyricPreview)
-                            .tint(.red)
-                        Toggle("显示 VIP 徽章", isOn: $showSongVIPBadge)
-                            .tint(.red)
-                        Toggle("AMLL 沉浸歌词", isOn: $settings.useAMLLImmersive)
-                            .tint(.red)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("歌词字体")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.primary)
-                            Picker("歌词字体", selection: $settings.amllFontFamily) {
-                                Text("系统默认").tag("")
-                                Text("黑体").tag("PingFang SC")
-                                Text("SF粗体").tag("SF Pro Display")
-                                if !settings.amllFontFamily.isEmpty,
-                                   settings.amllFontFamily != "PingFang SC",
-                                   settings.amllFontFamily != "SF Pro Display" {
-                                    Text("自定义").tag(settings.amllFontFamily)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                    }
-
-                    // 播放设置卡片
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("播放")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.primary)
-                        Picker("播放器模式", selection: $settings.nowPlayingMode) {
-                            ForEach(NowPlayingMode.allCases) { mode in
-                                Text(mode.displayName).tag(mode)
-                            }
-                        }
                         Button {
-                            player.cyclePlaybackMode()
+                            // 打开播放器布局编辑器
                         } label: {
                             HStack {
-                                Text("播放模式")
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(.primary)
+                                Text("打开播放器布局编辑器")
+                                    .font(.system(size: 16))
                                     .foregroundStyle(.primary)
                                 Spacer()
-                                HStack(spacing: 6) {
-                                    Image(systemName: playbackModeIcon)
-                                        .foregroundStyle(accentColor)
-                                    Text(playbackModeText)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        Toggle("显示音量控制", isOn: $showVolumeControl)
-                            .tint(.red)
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("歌词偏移")
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                Text(String(format: "%+.1fs", lyricOffset))
-                                    .font(.system(.subheadline, design: .monospaced))
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(.secondary)
                             }
-                            Slider(value: $lyricOffset, in: -5...5, step: 0.1)
-                                .tint(.red)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color(.systemGray5))
+                            }
                         }
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(.ultraThinMaterial)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(.systemGray6))
                     }
 
-                    // 布局调整卡片
+                    // 封面卡片（播放器风格选择）
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("布局调整")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.primary)
-                        layoutSlider("大封面尺寸", value: $settings.playerArtworkScale, range: 0.7...1.3, step: 0.05, format: "%.0f%%") { val in
-                            String(format: "%.0f%%", val * 100)
+                        HStack {
+                            Text("封面")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.primary)
+                            Spacer()
                         }
-                        layoutSliderInt("大封面上下位置", value: Binding(
-                            get: { Double(settings.playerArtworkTopOffset) },
-                            set: { settings.playerArtworkTopOffset = Int($0) }
-                        ), range: -300...300, step: 5)
-                        layoutSliderInt("控制条上下位置", value: Binding(
-                            get: { Double(settings.playerControlsBottomOffset) },
-                            set: { settings.playerControlsBottomOffset = Int($0) }
-                        ), range: -200...200, step: 5)
-                        layoutSliderInt("歌曲信息上下位置", value: Binding(
-                            get: { Double(settings.playerTrackInfoTopOffset) },
-                            set: { settings.playerTrackInfoTopOffset = Int($0) }
-                        ), range: -300...300, step: 5)
-                        layoutSliderInt("歌曲信息与封面间距", value: Binding(
-                            get: { Double(settings.playerTrackInfoSpacing) },
-                            set: { settings.playerTrackInfoSpacing = Int($0) }
-                        ), range: 0...60, step: 2, suffix: "px")
+                        Text("播放器风格")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.primary)
+
+                        // 经典封面
+                        playerStyleOption(
+                            icon: "square",
+                            title: "经典封面",
+                            subtitle: "封面、歌名和预览歌词分层显示",
+                            mode: .classic
+                        )
+
+                        // Apple Music
+                        playerStyleOption(
+                            icon: "music.note",
+                            title: "Apple Music",
+                            subtitle: "大封面、细进度条和简洁播放控制",
+                            mode: .appleMusic
+                        )
+
+                        // 唱片模式
+                        playerStyleOption(
+                            icon: "circle.circle",
+                            title: "唱片模式",
+                            subtitle: "参考唱片界面、歌词、队列和播放控制",
+                            mode: .vinyl
+                        )
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(.ultraThinMaterial)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(.systemGray6))
                     }
                 }
                 .padding(.horizontal, 16)
@@ -302,8 +265,59 @@ struct AppleMusicPlayerView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("播放器设置")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        showPlayerSettings = false
+                    }
+                    .foregroundStyle(.blue)
+                }
+            }
         }
         .presentationDetentsSafe()
+    }
+
+    private func playerStyleOption(icon: String, title: String, subtitle: String, mode: NowPlayingMode) -> some View {
+        Button {
+            settings.nowPlayingMode = mode
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(settings.nowPlayingMode == mode ? Color.red.opacity(0.15) : Color(.systemGray5))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(settings.nowPlayingMode == mode ? .red : .primary)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if settings.nowPlayingMode == mode {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(settings.nowPlayingMode == mode ? Color.red.opacity(0.08) : Color(.systemGray5))
+            }
+            .overlay {
+                if settings.nowPlayingMode == mode {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.red.opacity(0.5), lineWidth: 1)
+                }
+            }
+        }
     }
 
     private func layoutSlider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double, format: String, display: @escaping (Double) -> String) -> some View {
