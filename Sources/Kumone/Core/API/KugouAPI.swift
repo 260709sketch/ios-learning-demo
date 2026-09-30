@@ -263,8 +263,9 @@ enum KugouAPI {
         guard let html = String(data: data, encoding: .utf8) else { return ([], 0) }
 
         // 提取 songs: {...}
-        guard let songsRange = html.range(of: "songs: {") else { return ([], 0) }
-        let jsonStart = html[songsRange.upperBound...].firstIndex(of: "{") ?? songsRange.upperBound
+        guard let songsMarker = html.range(of: "songs:") else { return ([], 0) }
+        let afterMarker = html[songsMarker.upperBound...]
+        guard let jsonStart = afterMarker.firstIndex(of: "{") else { return ([], 0) }
         var depth = 0
         var jsonEnd = jsonStart
         var idx = jsonStart
@@ -373,57 +374,16 @@ enum KugouAPI {
     }
 
     // MARK: - 专辑歌曲
-    static func albumInfo(albumID: String) async throws -> [Track] {
-        let urlStr = "https://mobilecdn.kugou.com/api/v3/album/song?format=json&albumid=\(albumID)&page=1&pagesize=100"
-        guard let url = URL(string: urlStr) else { return [] }
-
-        let json = try await getJSON(url)
-        guard let data = json["data"] as? [String: Any],
-              let info = data["info"] as? [[String: Any]] else {
-            return []
+    static func albumInfo(albumID: String, albumName: String = "") async throws -> [Track] {
+        // mobilecdn API 已失效，改用搜索方式：搜索专辑名获取歌曲
+        let keyword = albumName.isEmpty ? albumID : albumName
+        let allSongs = try await searchSongs(keyword, page: 1, limit: 50)
+        // 过滤出同名专辑的歌曲
+        if !albumName.isEmpty {
+            let filtered = allSongs.filter { $0.album.name.lowercased() == albumName.lowercased() }
+            return filtered.isEmpty ? allSongs : filtered
         }
-
-        return info.compactMap { item -> Track? in
-            let hash = (item["hash"] as? String) ?? ""
-            guard !hash.isEmpty else { return nil }
-            let name = (item["songname"] as? String) ?? ""
-            let duration = (item["duration"] as? Int) ?? 0
-            let songID = (item["songid"] as? Int) ?? abs(hash.hashValue)
-            let singerName = (item["singername"] as? String) ?? ""
-            let singerID = (item["singerid"] as? Int) ?? 0
-            let artists = splitArtists(singerName, singerID: singerID)
-            let albumName = (item["album_name"] as? String) ?? ""
-            let albumAblumID = (item["album_audio_id"] as? String) ?? albumID
-            // 封面：多级 fallback
-            var picUrl: String? = nil
-            let transParam = item["trans_param"] as? [String: Any]
-            let imgCandidates = [
-                item["Image"] as? String,
-                item["image"] as? String,
-                item["AlbumImage"] as? String,
-                item["img"] as? String,
-                item["imgurl"] as? String,
-                transParam?["union_cover"] as? String,
-                item["album_img"] as? String
-            ]
-            for candidate in imgCandidates {
-                if let img = candidate, !img.isEmpty {
-                    var normalized = img.replacingOccurrences(of: "{size}", with: "400")
-                    if normalized.hasPrefix("//") { normalized = "https:" + normalized }
-                    normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
-                    picUrl = normalized
-                    break
-                }
-            }
-            if picUrl == nil, !albumAblumID.isEmpty {
-                picUrl = "https://imgessl.kugou.com/ymm/400/\(albumAblumID).jpg"
-            }
-            if picUrl == nil, !hash.isEmpty {
-                picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
-            }
-            let album = AlbumRef(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, albumMid: albumAblumID)
-            return makeTrack(id: songID, name: name, artists: artists, album: album, durationMS: duration * 1000, hash: hash)
-        }
+        return allSongs
     }
 
     // MARK: - 评论
