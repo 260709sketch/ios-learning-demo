@@ -449,13 +449,26 @@ struct SettingsView: View {
 
             Section("账号") {
                 if let profile = account.profile {
-                    LabeledContent("当前账号", value: profile.nickname)
-                    Button("退出登录", role: .destructive) {
+                    LabeledContent("网易云账号", value: profile.nickname)
+                    Button("退出网易云登录", role: .destructive) {
                         Task { await AccountStore.shared.logout() }
                     }
                 } else {
-                    Text("未登录")
+                    Text("网易云未登录")
                         .foregroundStyle(.secondary)
+                }
+                NavigationLink {
+                    QQLoginView()
+                } label: {
+                    HStack {
+                        Label("QQ 音乐登录", systemImage: "music.note")
+                        Spacer()
+                        if QQMusicAuth.shared.isLoggedIn {
+                            Text(QQMusicAuth.shared.nickname)
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                    }
                 }
             }
 
