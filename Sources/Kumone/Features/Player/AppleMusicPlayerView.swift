@@ -587,7 +587,7 @@ struct AppleMusicPlayerView: View {
 
     private var lyricsPage: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: 55)
+            Color.clear.frame(height: 90)
 
             lyricsHeader
                 .padding(.horizontal, 24)
