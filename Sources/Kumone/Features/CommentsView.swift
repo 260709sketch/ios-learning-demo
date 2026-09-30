@@ -61,15 +61,6 @@ struct CommentsView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if isQQ {
                         qqCommentList
-                    } else if hotComments.isEmpty && comments.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "bubble.left")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.secondary)
-                            Text("暂无评论")
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         neteaseCommentList
                     }
@@ -82,47 +73,60 @@ struct CommentsView: View {
     }
 
     private var neteaseCommentList: some View {
-        List {
-            Section {
-                Text("《\(track.name)》 · 共 \(total) 条评论")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .listRowBackground(Color.clear)
+        Group {
+            if hotComments.isEmpty && comments.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.secondary)
+                    Text("暂无评论")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    Section {
+                        Text("《\(track.name)》 · 共 \(total) 条评论")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .listRowBackground(Color.clear)
 
-            if !hotComments.isEmpty {
-                Section("精彩评论") {
-                    ForEach(hotComments) { comment in
-                        CommentRow(comment: comment)
-                            .listRowBackground(Color.clear)
+                    if !hotComments.isEmpty {
+                        Section("精彩评论") {
+                            ForEach(hotComments) { comment in
+                                CommentRow(comment: comment)
+                                    .listRowBackground(Color.clear)
+                            }
+                        }
+                    }
+
+                    if !comments.isEmpty {
+                        Section("最新评论") {
+                            ForEach(comments) { comment in
+                                CommentRow(comment: comment)
+                                    .listRowBackground(Color.clear)
+                            }
+                        }
+                    }
+
+                    if comments.count >= limit {
+                        Section {
+                            Button {
+                                Task { await loadMore() }
+                            } label: {
+                                Text("加载更多")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.orange)
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .listRowBackground(Color.clear)
                     }
                 }
-            }
-
-            if !comments.isEmpty {
-                Section("最新评论") {
-                    ForEach(comments) { comment in
-                        CommentRow(comment: comment)
-                            .listRowBackground(Color.clear)
-                    }
-                }
-            }
-
-            if comments.count >= limit {
-                Section {
-                    Button {
-                        Task { await loadMore() }
-                    } label: {
-                        Text("加载更多")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.orange)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .listRowBackground(Color.clear)
+                .scrollContentBackground(.hidden)
             }
         }
-        .scrollContentBackground(.hidden)
     }
 
     private var qqCommentList: some View {
