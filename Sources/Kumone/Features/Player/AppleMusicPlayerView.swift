@@ -96,14 +96,6 @@ struct AppleMusicPlayerView: View {
 
                     playbackControls(bottomInset: geometry.safeAreaInsets.bottom)
                 }
-
-                if layoutMode {
-                    appleMusicLayoutToolbar
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 60)
-                        .transition(.opacity)
-                        .zIndex(100)
-                }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
