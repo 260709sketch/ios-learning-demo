@@ -766,7 +766,7 @@ struct AppleMusicPlayerView: View {
         }
         .padding(.horizontal, 24)
         .padding(.top, 10)
-        .padding(.bottom, max(4, bottomInset - 16))
+        .padding(.bottom, 20)
         .gesture(commentsGesture)
     }
 
