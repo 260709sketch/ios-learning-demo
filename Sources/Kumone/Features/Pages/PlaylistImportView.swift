@@ -288,12 +288,26 @@ struct PlaylistImportView: View {
                 return
             }
             // 提取 window.$output = {...};
-            guard let startRange = html.range(of: "window.$output = "),
-                  let endRange = html.range(of: "};", range: startRange.upperBound..<html.endIndex) else {
+            guard let startRange = html.range(of: "window.$output = ") else {
                 errorMessage = "解析酷狗歌单失败"
                 return
             }
-            let jsonStr = String(html[startRange.upperBound..<endRange.upperBound]).dropLast() // 去掉末尾;
+            // 从第一个 { 开始，用括号匹配找到对应的 }
+            let jsonStart = html[startRange.upperBound...].firstIndex(of: "{") ?? startRange.upperBound
+            var depth = 0
+            var jsonEnd = jsonStart
+            for idx in jsonStart..<html.endIndex {
+                let char = html[idx]
+                if char == "{" { depth += 1 }
+                else if char == "}" {
+                    depth -= 1
+                    if depth == 0 {
+                        jsonEnd = html.index(after: idx)
+                        break
+                    }
+                }
+            }
+            let jsonStr = String(html[jsonStart..<jsonEnd])
             guard let jsonData = jsonStr.data(using: .utf8),
                   let json = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
                   let info = json["info"] as? [String: Any],
