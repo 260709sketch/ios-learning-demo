@@ -141,11 +141,11 @@ struct AlbumDetailView: View {
             let firstArtist = loadedTracks.first?.artists.first
             let artistSingerMid = firstArtist?.singerMid
             let artistID = firstArtist?.id ?? 0
-            let artistName = firstArtist?.name ?? initialAlbum?.artistName ?? ""
+            let resolvedArtistName = firstArtist?.name ?? initialAlbum?.artistName ?? ""
 
             if let initAlbum = initialAlbum {
                 var artistDict: [String: Any] = [
-                    "id": artistID, "name": artistName,
+                    "id": artistID, "name": resolvedArtistName,
                     "albumSize": 0, "musicSize": 0, "followed": false, "alias": [],
                     "sourcePlatform": "kg"
                 ]
