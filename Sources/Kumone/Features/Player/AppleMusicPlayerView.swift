@@ -533,7 +533,7 @@ struct AppleMusicPlayerView: View {
                 .padding(.top, 22)
                 .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.title)))
 
-                MiniLyricsPreview(lines: previewLyrics, primary: primaryColor, secondary: secondaryColor) {
+                MiniLyricsPreview {
                     guard !lyrics.isEmpty else { return }
                     WellHaptics.tap()
                     showLyrics = true
@@ -848,14 +848,6 @@ struct AppleMusicPlayerView: View {
         }
     }
 
-    private var previewLyrics: [LyricLine] {
-        guard !lyrics.isEmpty else { return [] }
-        let current = currentPlaybackLyricIndex ?? 0
-        let start = max(current - 1, 0)
-        let end = min(start + 3, lyrics.count)
-        return Array(lyrics[start..<end])
-    }
-
     private var currentPlaybackLyricIndex: Int? {
         guard !lyrics.isEmpty else { return nil }
         let progress = LyricTiming.effectiveProgress(clock.progress, userOffset: lyricOffset)
@@ -1128,7 +1120,7 @@ private struct ReferenceSystemVolumeView: UIViewRepresentable {
     }
 }
 
-// MARK: - 迷你歌词预览
+// MARK: - 迷你歌词预览（沉浸模式样式）
 
 private struct MiniLyricsPreview: View {
     let lines: [LyricLine]
@@ -1136,27 +1128,53 @@ private struct MiniLyricsPreview: View {
     let secondary: Color
     let action: () -> Void
 
+    @EnvironmentObject private var player: PlayerService
+    @ObservedObject private var lyricsCursor = PlayerService.shared.lyricsCursor
+
+    private var currentLines: (previous: LyricLine?, current: LyricLine?, next: LyricLine?) {
+        guard let lyrics = player.lyrics, !lyrics.isEmpty else { return (nil, nil, nil) }
+        guard let index = lyricsCursor.activeIndex else {
+            return (nil, nil, lyrics.lines.first)
+        }
+        let all = lyrics.lines
+        return (
+            index > 0 ? all[index - 1] : nil,
+            all[index],
+            index + 1 < all.count ? all[index + 1] : nil
+        )
+    }
+
     var body: some View {
+        let (previous, current, next) = currentLines
         Button(action: action) {
-            VStack(spacing: 8) {
-                if lines.isEmpty {
+            VStack(spacing: 12) {
+                if current == nil && next == nil {
                     Text("暂无歌词")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(secondary.opacity(0.54))
+                        .foregroundStyle(.white.opacity(0.54))
                 } else {
-                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
-                        Text(line.text.isEmpty ? " " : line.text)
-                            .font(.system(size: index == 1 ? 17 : 15, weight: index == 1 ? .semibold : .medium))
-                            .foregroundStyle((index == 1 ? primary : secondary).opacity(index == 1 ? 0.86 : 0.5))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                    }
+                    line(previous, emphasized: false)
+                    line(current, emphasized: true)
+                    line(next, emphasized: false)
                 }
             }
-            .frame(maxWidth: 420, minHeight: 92)
+            .frame(maxWidth: .infinity, minHeight: 92)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: current?.id)
+    }
+
+    @ViewBuilder
+    private func line(_ line: LyricLine?, emphasized: Bool) -> some View {
+        Text(line?.text.isEmpty == false ? line!.text : " ")
+            .font(.system(size: emphasized ? 17 : 14, weight: emphasized ? .bold : .medium))
+            .foregroundStyle(.white.opacity(emphasized ? 1 : 0.45))
+            .lineLimit(1)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 28)
+            .id(line?.id)
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 }
 
