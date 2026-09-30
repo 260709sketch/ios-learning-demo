@@ -35,12 +35,9 @@ struct CommentsView: View {
 
     var body: some View {
         ZStack {
-            // 毛玻璃背景（不是透明）
-            LinearGradient(
-                colors: [Color(red: 0.12, green: 0.12, blue: 0.14), Color(red: 0.08, green: 0.08, blue: 0.10)],
-                startPoint: .top, endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            // 白色背景
+            Color.white
+                .ignoresSafeArea()
 
             NavigationStack {
                 Group {
@@ -68,6 +65,7 @@ struct CommentsView: View {
                 .navigationTitle("评论")
                 .navigationBarTitleDisplayMode(.inline)
             }
+            .preferredColorScheme(.light)
         }
         .task { await load(reset: true) }
     }
