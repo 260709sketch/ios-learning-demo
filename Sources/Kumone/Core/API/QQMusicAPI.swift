@@ -708,7 +708,7 @@ enum QQMusicAPI {
                 id: key.hashValue,
                 content: content,
                 nickname: nick,
-                avatarURL: avatar.isEmpty ? nil : URL(string: avatar),
+                avatarURL: avatar.isEmpty ? nil : avatar,
                 time: time > 0 ? Date(timeIntervalSince1970: time) : Date(),
                 likedCount: item["praisenum"] as? Int ?? 0,
                 isHot: true
