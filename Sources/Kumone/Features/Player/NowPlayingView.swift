@@ -272,6 +272,8 @@ struct NowPlayingView: View {
                 immersiveCompactLayout(size: size)
             case .minimal:
                 minimalCompactLayout(size: size)
+            case .appleMusic:
+                classicCompactLayout(size: size)
             }
         }
         #else
