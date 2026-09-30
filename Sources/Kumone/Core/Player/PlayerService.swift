@@ -1193,8 +1193,12 @@ final class PlayerService: ObservableObject {
         }
 
         let item = AVPlayerItem(asset: asset)
-        if let assetTrack,
-           let mix = AudioSpectrum.shared.makeAudioMix(for: assetTrack) {
+        if Equalizer.shared.isEnabled,
+           let assetTrack,
+           let eqMix = Equalizer.shared.makeAudioMix(for: assetTrack) {
+            item.audioMix = eqMix
+        } else if let assetTrack,
+                  let mix = AudioSpectrum.shared.makeAudioMix(for: assetTrack) {
             item.audioMix = mix
         } else {
             AudioSpectrum.shared.markUntappable()

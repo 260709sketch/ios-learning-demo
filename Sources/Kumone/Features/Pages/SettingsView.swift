@@ -20,6 +20,11 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 NavigationLink {
+                    EqualizerView()
+                } label: {
+                    Label("均衡器", systemImage: "slider.horizontal.3")
+                }
+                NavigationLink {
                     LXSourceManageView()
                 } label: {
                     Text("自定义音源")
