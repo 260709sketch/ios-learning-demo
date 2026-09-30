@@ -100,10 +100,16 @@ enum KugouAPI {
             let albumName = (item["album_name"] as? String) ?? (item["AlbumName"] as? String) ?? ""
             let albumID = (item["album_id"] as? Int) ?? 0
             let albumAblumID = (item["album_audio_id"] as? String) ?? ""
-            // 酷狗封面：用 album_id 构造，或从 img 字段
+            // 酷狗封面：多级 fallback
             var picUrl: String? = nil
             if let img = item["img"] as? String, !img.isEmpty {
                 picUrl = img.replacingOccurrences(of: "{size}", with: "400")
+            } else if let albumImg = item["album_img"] as? String, !albumImg.isEmpty {
+                picUrl = albumImg.replacingOccurrences(of: "{size}", with: "400")
+            } else if !albumAblumID.isEmpty {
+                picUrl = "https://imgessl.kugou.com/ymm/400/\(albumAblumID).jpg"
+            } else if !hash.isEmpty {
+                picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
             } else if albumID > 0 {
                 picUrl = "https://imgessl.kugou.com/ymm/\(albumID).jpg"
             }
@@ -140,7 +146,10 @@ enum KugouAPI {
 
             let albumName = (item["AlbumName"] as? String) ?? ""
             let albumID = (item["AlbumID"] as? String) ?? ""
-            let picUrl = (item["Img"] as? String)?.replacingOccurrences(of: "{size}", with: "400")
+            var picUrl = (item["Img"] as? String)?.replacingOccurrences(of: "{size}", with: "400")
+            if (picUrl?.isEmpty ?? true), !hash.isEmpty {
+                picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
+            }
             let album = AlbumRef(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, albumMid: albumID)
 
             return makeTrack(id: songID, name: name, artists: artists, album: album, durationMS: duration * 1000, hash: hash)
