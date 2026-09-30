@@ -8,6 +8,13 @@ private func commentDate(_ date: Date) -> String {
     return formatter.string(from: date)
 }
 
+private func formattedCount(_ count: Int) -> String {
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    formatter.groupingSeparator = ","
+    return formatter.string(from: NSNumber(value: count)) ?? "\(count)"
+}
+
 // MARK: - 评论区（Beans Music 风格半屏 sheet）
 
 struct CommentsView: View {
@@ -179,7 +186,7 @@ struct CommentRow: View {
                     .font(.system(size: 13))
                     .foregroundStyle(.gray)
                 Spacer()
-                Text("赞 \(comment.likedCount)")
+                Text("赞 \(formattedCount(comment.likedCount))")
                     .font(.system(size: 13))
                     .foregroundStyle(.gray)
             }
