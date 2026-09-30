@@ -183,12 +183,13 @@ struct ArtistDetailView: View {
         }
 
         if isKugou, let authorID = singerMid {
-            // 酷狗歌手：用初始信息，加载歌曲和专辑
-            if var base = initialArtist {
-                artist = ArtistSummary(id: base.id, name: base.name, picUrl: base.picUrl, albumSize: base.albumSize, musicSize: base.musicSize, followed: base.followed, alias: base.alias, sourcePlatform: "kg", singerMid: authorID)
-            } else {
-                artist = ArtistSummary(id: artistID, name: "歌手", picUrl: nil, albumSize: 0, musicSize: 0, followed: false, alias: [], sourcePlatform: "kg", singerMid: authorID)
-            }
+            // 酷狗歌手：先获取详情（头像、歌曲数、专辑数），再加载歌曲和专辑
+            let detail = try? await KugouAPI.artistDetail(authorID: authorID)
+            let singerName = detail?.name ?? initialArtist?.name ?? "歌手"
+            let avatar = detail?.avatar ?? initialArtist?.picUrl
+            let songCount = detail?.songCount ?? 0
+            let albumCount = detail?.albumCount ?? 0
+            artist = ArtistSummary(id: initialArtist?.id ?? abs(authorID.hashValue), name: singerName, picUrl: avatar, albumSize: albumCount, musicSize: songCount, followed: false, alias: [], sourcePlatform: "kg", singerMid: authorID)
             isLoading = false
 
             async let songsTask = try? KugouAPI.artistSongs(authorID: authorID, limit: 50)
@@ -196,13 +197,10 @@ struct ArtistDetailView: View {
 
             let (songsResult, albumsResult) = await (songsTask, albumsTask)
             hotSongs = songsResult?.tracks ?? []
-            let songCount = songsResult?.total ?? (songsResult?.tracks.count ?? 0)
-            let albumCount = albumsResult?.total ?? (albumsResult?.albums.count ?? 0)
-            if let current = artist {
-                artist = ArtistSummary(id: current.id, name: current.name, picUrl: current.picUrl, albumSize: albumCount, musicSize: songCount, followed: current.followed, alias: current.alias, sourcePlatform: "kg", singerMid: authorID)
-            }
-            albums = albumsResult?.albums ?? []
-            epsAndSingles = []
+            // 根据 subType 区分专辑和 EP/单曲
+            let allAlbums = albumsResult?.albums ?? []
+            albums = allAlbums.filter { ($0.subType ?? "专辑") == "专辑" || $0.subType?.isEmpty == true }
+            epsAndSingles = allAlbums.filter { $0.subType == "EP" || $0.subType == "单曲" }
             similar = []
             return
         }
