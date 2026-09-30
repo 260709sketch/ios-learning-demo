@@ -39,6 +39,31 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("账号") {
+                if let profile = account.profile {
+                    LabeledContent("网易云账号", value: profile.nickname)
+                    Button("退出网易云登录", role: .destructive) {
+                        Task { await AccountStore.shared.logout() }
+                    }
+                } else {
+                    Text("网易云未登录")
+                        .foregroundStyle(.secondary)
+                }
+                NavigationLink {
+                    QQWebLoginView(onSuccess: {})
+                } label: {
+                    HStack {
+                        Label("QQ 音乐登录", systemImage: "music.note")
+                        Spacer()
+                        if QQMusicAuth.shared.isLoggedIn {
+                            Text(QQMusicAuth.shared.nickname)
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+
             Section("导入外部歌单") {
                 NavigationLink {
                     PlaylistImportView()
@@ -444,31 +469,6 @@ struct SettingsView: View {
                     DataBackupView()
                 } label: {
                     Label("数据备份", systemImage: "externaldrive.connected.to.line.below")
-                }
-            }
-
-            Section("账号") {
-                if let profile = account.profile {
-                    LabeledContent("网易云账号", value: profile.nickname)
-                    Button("退出网易云登录", role: .destructive) {
-                        Task { await AccountStore.shared.logout() }
-                    }
-                } else {
-                    Text("网易云未登录")
-                        .foregroundStyle(.secondary)
-                }
-                NavigationLink {
-                    QQWebLoginView(onSuccess: {})
-                } label: {
-                    HStack {
-                        Label("QQ 音乐登录", systemImage: "music.note")
-                        Spacer()
-                        if QQMusicAuth.shared.isLoggedIn {
-                            Text(QQMusicAuth.shared.nickname)
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
-                        }
-                    }
                 }
             }
 
