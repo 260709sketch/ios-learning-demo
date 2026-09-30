@@ -83,29 +83,41 @@ struct EqualizerView: View {
                 }
 
                 Section("频段调节") {
-                    VStack(spacing: 12) {
-                        HStack(alignment: .bottom, spacing: 4) {
-                            ForEach(Array(Equalizer.bandFrequencies.enumerated()), id: \.offset) { index, frequency in
-                                VStack(spacing: 8) {
-                                    Text(String(format: "%.1f", equalizer.bandGains[index]))
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .frame(height: 20)
-                                    Slider(value: Binding(
-                                        get: { equalizer.bandGains[index] },
-                                        set: { equalizer.setBandGain(at: index, to: $0) }
-                                    ), in: -Equalizer.maximumGain...Equalizer.maximumGain, step: 0.5)
-                                    .rotationEffect(.degrees(-90))
-                                    .frame(width: 40, height: 120)
+                    VStack(spacing: 0) {
+                        ForEach(Array(Equalizer.bandFrequencies.enumerated()), id: \.offset) { index, frequency in
+                            VStack(spacing: 6) {
+                                HStack {
                                     Text(frequencyLabel(frequency))
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 40)
+                                        .font(.system(size: 13, weight: .medium))
+                                    Spacer()
+                                    Text(String(format: "%+.1f dB", equalizer.bandGains[index]))
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(abs(equalizer.bandGains[index]) > 0.01 ? Color.accentColor : Color.secondary)
+                                        .monospacedDigit()
                                 }
+                                Slider(value: Binding(
+                                    get: { equalizer.bandGains[index] },
+                                    set: { equalizer.setBandGain(at: index, to: $0) }
+                                ), in: -Equalizer.maximumGain...Equalizer.maximumGain, step: 0.5)
+                                .tint(Color.accentColor)
+                                .transaction { $0.animation = nil }
+                                HStack {
+                                    Text("-12")
+                                    Spacer()
+                                    Text("0")
+                                    Spacer()
+                                    Text("+12")
+                                }
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.secondary.opacity(0.75))
+                            }
+                            .padding(.vertical, 8)
+                            if index < Equalizer.bandFrequencies.count - 1 {
+                                Divider()
                             }
                         }
-                        .padding(.vertical, 8)
                     }
+                    .padding(.vertical, 4)
                 }
 
                 Section {
