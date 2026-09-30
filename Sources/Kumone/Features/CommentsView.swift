@@ -37,13 +37,6 @@ struct CommentsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部拖动条
-            Capsule()
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 36, height: 5)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
-
             // 标题栏
             HStack {
                 Spacer()
@@ -60,6 +53,7 @@ struct CommentsView: View {
                 .foregroundStyle(.blue)
                 .padding(.trailing, 16)
             }
+            .padding(.top, 12)
             .padding(.bottom, 12)
 
             // 分段控制
@@ -176,24 +170,48 @@ struct CommentRow: View {
     let comment: SongComment
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text(comment.nickname)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.black)
-                    .lineLimit(1)
-                Text(commentDate(comment.time))
-                    .font(.system(size: 13))
-                    .foregroundStyle(.gray)
-                Spacer()
-                Text("赞 \(formattedCount(comment.likedCount))")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.gray)
+        HStack(alignment: .top, spacing: 10) {
+            // 头像
+            Group {
+                if let avatarURL = comment.avatarURL, let url = URL(string: avatarURL) {
+                    AsyncImage(url: url) { image in
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Circle().fill(Color.gray.opacity(0.2))
+                    }
+                    .frame(width: 36, height: 36)
+                    .clipShape(Circle())
+                } else {
+                    Circle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 36, height: 36)
+                        .overlay {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.gray)
+                        }
+                }
             }
-            Text(comment.content)
-                .font(.system(size: 16))
-                .foregroundStyle(.black)
-                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(comment.nickname)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.black)
+                        .lineLimit(1)
+                    Text(commentDate(comment.time))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Text("赞 \(formattedCount(comment.likedCount))")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.gray)
+                }
+                Text(comment.content)
+                    .font(.system(size: 15))
+                    .foregroundStyle(.black)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
