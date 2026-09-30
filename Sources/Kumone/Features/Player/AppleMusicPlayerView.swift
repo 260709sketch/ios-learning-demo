@@ -1,385 +1,770 @@
 import SwiftUI
+import MediaPlayer
+import UIKit
 
-/// Apple Music 风格播放器：封面模糊背景 + 大封面 + 歌词页 + 底部控制栏
+private struct ReferenceLyricCenterKey: PreferenceKey {
+    static var defaultValue: [Int: CGFloat] = [:]
+
+    static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
+private struct ReferencePlaybackPresentationMetrics {
+    static let headerTopSpacing: CGFloat = 20
+}
+
+/// Apple Music 风格全屏播放页：封面模糊背景 + 大封面/歌词页切换 + 底部控制栏。
+/// 移植自 Beans Music 的 ReferencePlaybackView，数据接入当前项目的 PlayerService / Track / AccountStore。
 struct AppleMusicPlayerView: View {
     let onOpenDestination: (Destination) -> Void
     let onDismiss: () -> Void
 
     @EnvironmentObject private var player: PlayerService
-    @EnvironmentObject private var settings: SettingsManager
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var account = AccountStore.shared
+    @ObservedObject private var clock = PlayerService.shared.clock
+    @ObservedObject private var appleLayout = AppleMusicLayoutStore.shared
 
     @State private var showLyrics = false
     @State private var showQueue = false
-    @State private var showMore = false
-    @State private var isDraggingProgress = false
-    @State private var dragProgress: Double = 0
-    @State private var loadedArtwork: PlatformImage?
+    @AppStorage("wellmusic.lyricOffset") private var lyricOffset = 0.0
+    @AppStorage("wellmusic.appleMusic.showVolume") private var showVolumeControl = false
+    @AppStorage("wellmusic.appleMusic.primaryHex") private var primaryHex = ""
+    @AppStorage("wellmusic.appleMusic.secondaryHex") private var secondaryHex = ""
+    @AppStorage("wellmusic.appleMusic.accentHex") private var accentHex = ""
+    @AppStorage("wellmusic.appleMusic.volumeHex") private var volumeHex = ""
+    @AppStorage("wellmusic.showSongVIPBadge") private var showSongVIPBadge = true
+    @AppStorage("wellmusic.appleMusic.showLyricPreview") private var showLyricPreview = true
 
-    private var currentTrack: Track? { player.currentTrack }
-    private var isPlaying: Bool { player.isPlaying }
-    private var currentTime: TimeInterval { player.progress }
-    private var duration: TimeInterval { player.duration }
+    @State private var lyricCenters: [Int: CGFloat] = [:]
+    @State private var focusedLyricID: Int?
+    @State private var lyricsViewportHeight: CGFloat = 0
+    @State private var isDraggingLyrics = false
+    @State private var resumeTask: Task<Void, Never>?
+
+    private var track: Track? { player.currentTrack }
     private var lyrics: [LyricLine] { player.lyrics?.lines ?? [] }
+    private var coverURL: URL? {
+        guard let pic = track?.album.picUrl else { return nil }
+        return URL(string: pic)
+    }
+
+    private func layoutEntry(_ part: AppleMusicLayoutPart) -> PlayerLayoutEntry {
+        appleLayout.entry(for: part)
+    }
 
     var body: some View {
-        GeometryReader { geo in
+        GeometryReader { geometry in
             ZStack {
-                // 背景：封面模糊
-                background
-                    .ignoresSafeArea()
+                playerBackground
 
                 VStack(spacing: 0) {
-                    // 顶部栏
-                    topBar
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
+                    Color.clear.frame(height: ReferencePlaybackPresentationMetrics.headerTopSpacing)
 
-                    Spacer(minLength: 0)
-
-                    // 封面 / 歌词
                     ZStack {
                         if showLyrics {
-                            lyricsView
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            lyricsPage
+                                .transition(.asymmetric(
+                                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                                    removal: .move(edge: .top).combined(with: .opacity)
+                                ))
                         } else {
-                            coverView(size: geo.size)
-                                .transition(.move(edge: .top).combined(with: .opacity))
+                            coverPage(size: geometry.size)
+                                .transition(.asymmetric(
+                                    insertion: .move(edge: .top).combined(with: .opacity),
+                                    removal: .move(edge: .top).combined(with: .opacity)
+                                ))
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .animation(.easeInOut(duration: 0.25), value: showLyrics)
+                    .animation(.easeInOut(duration: 0.22), value: showLyrics)
 
-                    Spacer(minLength: 0)
-
-                    // 底部控制
-                    bottomControls(bottomInset: geo.safeAreaInsets.bottom)
+                    playbackControls(bottomInset: geometry.safeAreaInsets.bottom)
                 }
             }
-            .frame(width: geo.size.width, height: geo.size.height)
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .onAppear { loadArtwork() }
-        .onChange(of: currentTrack?.id) { _ in loadArtwork() }
+        .onDisappear { resumeTask?.cancel() }
         .sheet(isPresented: $showQueue) {
-            if #available(iOS 16.0, *) {
-                QueueView()
-                    .environmentObject(player)
-                    .presentationDetents([.medium, .large])
-            } else {
-                QueueView().environmentObject(player)
+            Group {
+                if #available(iOS 16.0, *) {
+                    QueueView()
+                        .environmentObject(player)
+                        .presentationDetents([.medium, .large])
+                } else {
+                    QueueView()
+                        .environmentObject(player)
+                }
             }
         }
     }
 
     // MARK: - 背景
+
     @ViewBuilder
-    private var background: some View {
+    private var playerBackground: some View {
         ZStack {
-            Color.black
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
 
-            if let img = loadedArtwork {
-                Image(platformImage: img)
-                    .resizable()
-                    .scaledToFill()
-                    .blur(radius: 60)
-                    .opacity(0.7)
-            } else if let url = currentTrack?.album.picUrl, let imageURL = URL(string: url) {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill().blur(radius: 60).opacity(0.7)
-                    default:
-                        Color.black
-                    }
-                }
-            }
+            CoverBlurBackground(url: coverURL, scheme: colorScheme)
+                .overlay(Color.black.opacity(colorScheme == .dark ? 0.48 : 0.14))
+                .ignoresSafeArea()
+        }
+    }
 
-            // 暗色遮罩
-            LinearGradient(
-                colors: [.black.opacity(0.3), .black.opacity(0.5), .black.opacity(0.7)],
-                startPoint: .top,
-                endPoint: .bottom
+    // MARK: - 封面页
+
+    private func coverPage(size: CGSize) -> some View {
+        let contentWidth = max(size.width - 64, 0)
+        let artworkSize = min(contentWidth, min(size.height * 0.50, 390))
+
+        return VStack(spacing: 0) {
+            Spacer(minLength: 8)
+
+            CoverImage(
+                url: coverURL,
+                size: artworkSize,
+                cornerRadius: 18,
+                emptyHint: player.isBuffering ? "等待开始播放…" : nil
             )
-        }
-    }
+            .frame(width: artworkSize, height: artworkSize)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: .black.opacity(0.46), radius: 36, y: 18)
+            .scaleEffect(player.isPlaying ? 1 : 0.965)
+            .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.cover)))
+            .animation(.spring(response: 0.36, dampingFraction: 0.84), value: player.isPlaying)
 
-    private func loadArtwork() {
-        guard let urlStr = currentTrack?.album.picUrl, let url = URL(string: urlStr) else {
-            loadedArtwork = nil
-            return
-        }
-        Task {
-            if let (data, _) = try? await URLSession.shared.data(from: url),
-               let img = PlatformImage(data: data) {
-                await MainActor.run { loadedArtwork = img }
-            }
-        }
-    }
-
-    // MARK: - 顶部栏
-    private var topBar: some View {
-        HStack {
-            Button {
-                onDismiss()
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .frame(width: 40, height: 40)
-                    .background(.white.opacity(0.15), in: Circle())
-            }
-            .buttonStyle(.pressable)
-
-            Spacer()
-
-            VStack(spacing: 2) {
-                Text("正在播放")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
-                Text(currentTrack?.name ?? "未播放")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Button {
-                showMore.toggle()
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .frame(width: 40, height: 40)
-                    .background(.white.opacity(0.15), in: Circle())
-            }
-            .buttonStyle(.pressable)
-            .confirmationDialog("更多操作", isPresented: $showMore, titleVisibility: .visible) {
-                Button("播放队列") { showQueue = true }
-                Button("收藏歌曲") {
-                    if let track = currentTrack {
-                        Task { await AccountStore.shared.toggleLike(trackID: track.id, track: track) }
-                    }
-                }
-                Button("取消", role: .cancel) {}
-            }
-        }
-    }
-
-    // MARK: - 封面
-    private func coverView(size: CGSize) -> some View {
-        VStack(spacing: 20) {
-            let coverSize = min(size.width - 80, size.height * 0.42)
-            ZStack {
-                if let img = loadedArtwork {
-                    Image(platformImage: img)
-                        .resizable()
-                        .scaledToFill()
-                } else if let url = currentTrack?.album.picUrl, let imageURL = URL(string: url) {
-                    AsyncImage(url: imageURL) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFill()
-                        default:
-                            Rectangle().fill(Color.gray.opacity(0.3))
+            if showLyricPreview {
+                VStack(spacing: 5) {
+                    HStack(spacing: 9) {
+                        Text(track?.name ?? "未在播放")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(primaryColor)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        if showSongVIPBadge, isVIP {
+                            Text("VIP")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color(red: 0.93, green: 0.25, blue: 0.22), in: Capsule())
                         }
                     }
-                } else {
-                    Rectangle().fill(Color.gray.opacity(0.3))
+                    Text(subtitle)
+                        .font(.system(size: 13.5, weight: .medium))
+                        .foregroundStyle(secondaryColor)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
-            }
-            .frame(width: coverSize, height: coverSize)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
+                .frame(maxWidth: 420)
+                .padding(.top, 22)
+                .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.title)))
 
-            VStack(spacing: 6) {
-                Text(currentTrack?.name ?? "")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
+                MiniLyricsPreview(lines: previewLyrics, primary: primaryColor, secondary: secondaryColor) {
+                    guard !lyrics.isEmpty else { return }
+                    WellHaptics.tap()
+                    showLyrics = true
+                }
+                .padding(.top, 18)
+                .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.previewLyric)))
+            } else {
+                compactTrackHeader
+                    .padding(.top, 22)
+            }
 
-                Text(currentTrack?.artists.map { $0.name }.joined(separator: " / ") ?? "")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.horizontal, 30)
+            Spacer(minLength: 0)
         }
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                showLyrics = true
-            }
-        }
+        .padding(.horizontal, 32)
     }
 
-    // MARK: - 歌词
-    private var lyricsView: some View {
-        VStack {
+    private var compactTrackHeader: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(track?.name ?? "未在播放")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(primaryColor)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(secondaryColor)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            compactActionButton(
+                icon: isLiked ? "heart.fill" : "heart",
+                active: isLiked
+            ) { onFavorite() }
+        }
+        .frame(maxWidth: 420)
+    }
+
+    // MARK: - 歌词页
+
+    private var lyricsPage: some View {
+        VStack(spacing: 0) {
+            lyricsHeader
+                .padding(.horizontal, 24)
+                .padding(.bottom, 10)
+
             if lyrics.isEmpty {
-                Text("暂无歌词")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
+                emptyLyricsView
             } else {
                 ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: false) {
-                        LazyVStack(spacing: 24) {
-                            ForEach(Array(lyrics.enumerated()), id: \.element.id) { index, line in
-                                let isActive = player.lyricsCursor.activeIndex == index
-                                Text(line.text)
-                                    .font(.system(size: isActive ? 20 : 17, weight: isActive ? .bold : .medium))
-                                    .foregroundStyle(isActive ? .white : .white.opacity(0.45))
-                                    .multilineTextAlignment(.center)
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(alignment: .leading, spacing: 26) {
+                            Color.clear.frame(height: max(88, lyricsViewportHeight * 0.30))
+                            ForEach(lyrics) { line in
+                                lyricLine(line, isFocused: line.id == currentVisualLyricID)
                                     .id(line.id)
-                                    .onTapGesture {
-                                        player.seek(to: line.time)
+                                    .background {
+                                        GeometryReader { rowGeometry in
+                                            Color.clear.preference(
+                                                key: ReferenceLyricCenterKey.self,
+                                                value: [line.id: rowGeometry.frame(in: .named("referenceLyricsViewport")).midY]
+                                            )
+                                        }
                                     }
                             }
+                            Color.clear.frame(height: max(110, lyricsViewportHeight * 0.34))
                         }
-                        .padding(.horizontal, 30)
-                        .padding(.top, 40)
-                        .padding(.bottom, 40)
+                        .padding(.horizontal, 28)
                     }
-                    .onChange(of: player.lyricsCursor.activeIndex) { newIndex in
-                        guard let idx = newIndex, idx >= 0, idx < lyrics.count else { return }
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            proxy.scrollTo(lyrics[idx].id, anchor: .center)
+                    .coordinateSpace(name: "referenceLyricsViewport")
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0.0),
+                                .init(color: .black, location: 0.12),
+                                .init(color: .black, location: 0.84),
+                                .init(color: .clear, location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .background {
+                        GeometryReader { viewport in
+                            Color.clear
+                                .onAppear { lyricsViewportHeight = viewport.size.height }
+                                .onChange(of: viewport.size.height) { lyricsViewportHeight = $0 }
                         }
+                    }
+                    .onPreferenceChange(ReferenceLyricCenterKey.self) { centers in
+                        lyricCenters = centers
+                        updateFocusedLyric(from: centers)
+                    }
+                    .simultaneousGesture(lyricsDragGesture(proxy: proxy))
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                            scrollToPlaybackLyric(proxy: proxy, animated: false)
+                        }
+                    }
+                    .onChange(of: currentPlaybackLyricID) { _ in
+                        guard !isDraggingLyrics else { return }
+                        scrollToPlaybackLyric(proxy: proxy, animated: true)
                     }
                 }
             }
         }
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.25)) {
+    }
+
+    private var lyricsHeader: some View {
+        HStack(spacing: 12) {
+            Button {
+                WellHaptics.tap()
                 showLyrics = false
+            } label: {
+                CoverImage(url: coverURL, size: 48, cornerRadius: 10)
+                    .shadow(color: .black.opacity(0.26), radius: 9, y: 4)
             }
+            .buttonStyle(GlassPressButtonStyle(scale: 0.94))
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 7) {
+                    Text(track?.name ?? "未在播放")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(primaryColor)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(secondaryColor)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 0)
+            compactActionButton(
+                icon: isLiked ? "heart.fill" : "heart",
+                active: isLiked
+            ) { onFavorite() }
         }
     }
 
-    // MARK: - 底部控制
-    private func bottomControls(bottomInset: CGFloat) -> some View {
-        VStack(spacing: 14) {
-            // 进度条
-            progressBar
+    // MARK: - 播放控制栏
 
-            // 时间
-            HStack {
-                Text(formatTime(currentTime))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
-                Spacer()
-                Text("-\(formatTime(max(0, duration - currentTime)))")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
+    private func playbackControls(bottomInset: CGFloat) -> some View {
+        VStack(spacing: 15) {
+            ReferenceScrubber()
+                .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.progress)))
 
-            // 播放控制
-            HStack(spacing: 40) {
+            HStack(spacing: 28) {
                 Button {
+                    WellHaptics.tap()
                     player.previous()
                 } label: {
                     Image(systemName: "backward.fill")
-                        .font(.system(size: 28, weight: .regular))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 25, weight: .semibold))
                 }
-                .buttonStyle(.pressable)
+                .buttonStyle(.plain)
+                .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.previous)))
 
                 Button {
+                    WellHaptics.tap()
                     player.togglePlayPause()
                 } label: {
-                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 36, weight: .regular))
-                        .foregroundStyle(.white)
+                    PlayPauseMorphIcon(isPlaying: player.isPlaying, size: 24)
+                        .frame(width: 66, height: 66)
+                        .foregroundStyle(primaryColor)
                 }
-                .buttonStyle(.pressable)
+                .buttonStyle(GlassPressButtonStyle(scale: 0.92))
+                .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.play)))
 
                 Button {
+                    WellHaptics.tap()
                     player.next()
                 } label: {
                     Image(systemName: "forward.fill")
-                        .font(.system(size: 28, weight: .regular))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 25, weight: .semibold))
                 }
-                .buttonStyle(.pressable)
+                .buttonStyle(.plain)
+                .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.next)))
+            }
+            .foregroundStyle(primaryColor)
+            .frame(maxWidth: 320)
+
+            if showVolumeControl {
+                ReferenceVolumeControl(accent: volumeColor, secondary: secondaryColor)
+                    .frame(maxWidth: 420)
+                    .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.volume)))
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            // 音量 + 队列
-            HStack(spacing: 20) {
-                Image(systemName: "speaker.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.6))
-
-                Slider(value: Binding(
-                    get: { Double(player.volume) },
-                    set: { player.volume = Float($0) }
-                ), in: 0...1)
-                .tint(.white.opacity(0.8))
-
-                Image(systemName: "speaker.wave.3.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.6))
-
-                Button {
+            HStack(spacing: 48) {
+                referenceActionButton(icon: "quote.bubble", active: showLyrics) {
+                    guard !lyrics.isEmpty else { return }
+                    showLyrics.toggle()
+                }
+                referenceActionButton(icon: playbackModeIcon, active: player.shuffleEnabled) {
+                    player.cyclePlaybackMode()
+                }
+                referenceActionButton(icon: "list.bullet") {
                     showQueue = true
-                } label: {
-                    Image(systemName: "list.bullet")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .frame(width: 36, height: 36)
                 }
-                .buttonStyle(.pressable)
             }
+            .frame(maxWidth: 420)
+            .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.actions)))
         }
         .padding(.horizontal, 24)
-        .padding(.bottom, bottomInset + 16)
+        .padding(.top, 10)
+        .padding(.bottom, max(14, bottomInset + 4))
+        .gesture(commentsGesture)
     }
 
-    // MARK: - 进度条
-    private var progressBar: some View {
-        GeometryReader { geo in
-            let progress = duration > 0 ? min(1, max(0, currentTime / duration)) : 0
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(.white.opacity(0.25))
-                    .frame(height: 5)
-
-                Capsule()
-                    .fill(.white)
-                    .frame(width: geo.size.width * progress, height: 5)
-
-                Circle()
-                    .fill(.white)
-                    .frame(width: 14, height: 14)
-                    .offset(x: geo.size.width * progress - 7)
-                    .shadow(color: .black.opacity(0.3), radius: 4)
-            }
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        isDraggingProgress = true
-                        let p = min(1, max(0, Double(value.location.x / geo.size.width)))
-                        dragProgress = p
-                    }
-                    .onEnded { value in
-                        let p = min(1, max(0, Double(value.location.x / geo.size.width)))
-                        player.seek(to: p * duration)
-                        isDraggingProgress = false
-                    }
-            )
+    private func referenceActionButton(icon: String, active: Bool = false, tint: Color = .white, action: @escaping () -> Void) -> some View {
+        Button {
+            WellHaptics.tap()
+            action()
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(active ? accentColor : primaryColor.opacity(0.78))
+                .frame(width: 58, height: 58)
+                .background { Circle().fill(.ultraThinMaterial) }
+                .contentShape(Rectangle())
         }
-        .frame(height: 20)
+        .buttonStyle(.plain)
     }
 
-    private func formatTime(_ time: TimeInterval) -> String {
-        let m = Int(time) / 60
-        let s = Int(time) % 60
-        return String(format: "%d:%02d", m, s)
+    private func compactActionButton(icon: String, active: Bool = false, action: @escaping () -> Void) -> some View {
+        Button {
+            WellHaptics.tap()
+            action()
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(active ? accentColor : primaryColor.opacity(0.78))
+                .frame(width: 38, height: 38)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var emptyLyricsView: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "quote.bubble")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(.white.opacity(0.42))
+            Text("暂无歌词")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.86))
+            Text("点击封面区域返回歌曲页面")
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.46))
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            WellHaptics.tap()
+            showLyrics = false
+        }
+    }
+
+    // MARK: - 派生数据
+
+    private var isVIP: Bool {
+        guard let t = track else { return false }
+        return t.fee == 1 || t.fee == 4
+    }
+
+    private var isLiked: Bool {
+        guard let t = track else { return false }
+        return account.isLiked(track: t)
+    }
+
+    private func onFavorite() {
+        guard let t = track else { return }
+        Task { await AccountStore.shared.toggleLike(trackID: t.id, track: t) }
+    }
+
+    /// 播放模式图标：当前项目 repeatMode + shuffleEnabled 分离。
+    private var playbackModeIcon: String {
+        if player.shuffleEnabled { return "shuffle" }
+        switch player.repeatMode {
+        case .one: return "repeat.1"
+        case .all: return "repeat"
+        case .off: return "repeat"
+        }
+    }
+
+    private var previewLyrics: [LyricLine] {
+        guard !lyrics.isEmpty else { return [] }
+        let current = currentPlaybackLyricIndex ?? 0
+        let start = max(current - 1, 0)
+        let end = min(start + 3, lyrics.count)
+        return Array(lyrics[start..<end])
+    }
+
+    private var currentPlaybackLyricIndex: Int? {
+        guard !lyrics.isEmpty else { return nil }
+        let progress = LyricTiming.effectiveProgress(clock.progress, userOffset: lyricOffset)
+        var low = 0
+        var high = lyrics.count - 1
+        var answer: Int?
+        while low <= high {
+            let mid = (low + high) / 2
+            if lyrics[mid].time <= progress {
+                answer = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return answer
+    }
+
+    private var currentPlaybackLyricID: Int? {
+        guard let index = currentPlaybackLyricIndex, lyrics.indices.contains(index) else { return nil }
+        return lyrics[index].id
+    }
+
+    private var currentVisualLyricID: Int? {
+        isDraggingLyrics ? focusedLyricID : (focusedLyricID ?? currentPlaybackLyricID)
+    }
+
+    private var subtitle: String {
+        guard let t = track else { return "" }
+        let parts = [t.artistNames, t.album.name].filter { !$0.isEmpty }
+        return parts.isEmpty ? "未知歌曲" : parts.joined(separator: " · ")
+    }
+
+    private func lyricLine(_ line: LyricLine, isFocused: Bool) -> some View {
+        Button {
+            WellHaptics.tap()
+            player.seek(to: LyricTiming.seekTime(for: line, userOffset: lyricOffset))
+        } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(line.text.isEmpty ? " " : line.text)
+                        .font(.system(size: isFocused ? 27 : 23, weight: isFocused ? .bold : .semibold))
+                        .foregroundStyle(primaryColor.opacity(isFocused ? 1 : 0.36))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if isFocused && isDraggingLyrics {
+                        Spacer(minLength: 8)
+                        Text(beansTimeString(line.time))
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(secondaryColor.opacity(0.82))
+                    }
+                }
+                if isFocused, let translation = line.translation, !translation.isEmpty {
+                    Text(translation)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(secondaryColor.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .scaleEffect(isFocused ? 1.06 : 0.84, anchor: .leading)
+            .blur(radius: isFocused ? 0 : 0.7)
+        }
+        .buttonStyle(.plain)
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: isFocused)
+    }
+
+    private func updateFocusedLyric(from centers: [Int: CGFloat]) {
+        guard lyricsViewportHeight > 0, !centers.isEmpty else { return }
+        let center = lyricsViewportHeight / 2
+        focusedLyricID = centers.min { abs($0.value - center) < abs($1.value - center) }?.key
+    }
+
+    private func scrollToPlaybackLyric(proxy: ScrollViewProxy, animated: Bool) {
+        guard let id = currentPlaybackLyricID else { return }
+        let action = { proxy.scrollTo(id, anchor: .center) }
+        if animated {
+            withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.38)) { action() }
+        } else {
+            action()
+        }
+    }
+
+    private func lyricsDragGesture(proxy: ScrollViewProxy) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { _ in
+                isDraggingLyrics = true
+                resumeTask?.cancel()
+                updateFocusedLyric(from: lyricCenters)
+            }
+            .onEnded { _ in
+                resumeTask?.cancel()
+                if let id = focusedLyricID {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                }
+                resumeTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                    guard !Task.isCancelled else { return }
+                    isDraggingLyrics = false
+                }
+            }
+    }
+
+    private var commentsGesture: some Gesture {
+        DragGesture(minimumDistance: 25)
+            .onEnded { value in
+                guard value.translation.height < -54, abs(value.translation.height) > abs(value.translation.width) else { return }
+                WellHaptics.medium()
+                // 评论区是另一个任务，暂时为空操作
+            }
+    }
+
+    // MARK: - 颜色
+
+    private var primaryColor: Color {
+        if primaryHex.hasPrefix("#"), let color = Color(hex: primaryHex) { return color }
+        return .white
+    }
+
+    private var secondaryColor: Color {
+        if secondaryHex.hasPrefix("#"), let color = Color(hex: secondaryHex) { return color }
+        return .white.opacity(0.58)
+    }
+
+    private var accentColor: Color {
+        if accentHex.hasPrefix("#"), let color = Color(hex: accentHex) { return color }
+        return Color(red: 1.0, green: 0.28, blue: 0.36)
+    }
+
+    private var volumeColor: Color {
+        if volumeHex.hasPrefix("#"), let color = Color(hex: volumeHex) { return color }
+        return primaryColor
+    }
+}
+
+// MARK: - 进度条
+
+private struct ReferenceScrubber: View {
+    @EnvironmentObject private var player: PlayerService
+    @ObservedObject private var clock = PlayerService.shared.clock
+    @State private var scrubbing = false
+    @State private var scrubValue: Double = 0
+
+    var body: some View {
+        VStack(spacing: 4) {
+            GeometryReader { geometry in
+                let total = max(max(player.duration, player.currentTrack?.duration ?? 0), 1)
+                let progress = min(max((scrubbing ? scrubValue : clock.progress) / total, 0), 1)
+                let width = geometry.size.width
+
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.white.opacity(0.18))
+                        .frame(height: 4)
+                    Capsule()
+                        .fill(.white.opacity(0.88))
+                        .frame(width: width * progress, height: 4)
+                    Circle()
+                        .fill(.white)
+                        .frame(width: scrubbing ? 18 : 12, height: scrubbing ? 18 : 12)
+                        .shadow(color: .white.opacity(scrubbing ? 0.55 : 0.28), radius: scrubbing ? 10 : 3)
+                        .offset(x: max(0, min(width - (scrubbing ? 18 : 12), width * progress - (scrubbing ? 9 : 6))))
+                }
+                .frame(height: 30)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if !scrubbing {
+                                scrubValue = clock.progress
+                                WellHaptics.medium()
+                            }
+                            scrubbing = true
+                            scrubValue = min(max(value.location.x / max(width, 1), 0), 1) * total
+                        }
+                        .onEnded { _ in
+                            player.seek(to: scrubValue)
+                            scrubbing = false
+                            WellHaptics.tap()
+                        }
+                )
+                .overlay(alignment: .topLeading) {
+                    if scrubbing {
+                        Text(beansTimeString(scrubValue))
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(.black.opacity(0.44), in: Capsule())
+                            .offset(x: max(0, min(width - 62, width * progress - 31)), y: -28)
+                            .transition(.scale(scale: 0.92).combined(with: .opacity))
+                    }
+                }
+            }
+            .frame(height: 30)
+
+            HStack {
+                Text(beansTimeString(scrubbing ? scrubValue : clock.progress))
+                Spacer()
+                Text(beansTimeString(max(player.duration, player.currentTrack?.duration ?? 0)))
+            }
+            .font(.system(size: 11, weight: .regular, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.52))
+        }
+        .frame(maxWidth: 420)
+        .animation(.spring(response: 0.24, dampingFraction: 0.82), value: scrubbing)
+    }
+}
+
+// MARK: - 音量
+
+private struct ReferenceVolumeControl: View {
+    let accent: Color
+    let secondary: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "speaker.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(secondary.opacity(0.84))
+            ReferenceSystemVolumeView(accent: accent, secondary: secondary)
+                .frame(height: 32)
+            Image(systemName: "speaker.wave.2.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(secondary.opacity(0.84))
+        }
+        .frame(height: 34)
+    }
+}
+
+private struct ReferenceSystemVolumeView: UIViewRepresentable {
+    let accent: Color
+    let secondary: Color
+
+    func makeUIView(context: Context) -> MPVolumeView {
+        let view = MPVolumeView(frame: .zero)
+        view.showsRouteButton = false
+        styleVolumeSlider(in: view)
+        return view
+    }
+
+    func updateUIView(_ uiView: MPVolumeView, context: Context) {
+        styleVolumeSlider(in: uiView)
+    }
+
+    private func styleVolumeSlider(in view: MPVolumeView) {
+        let applyStyle = {
+            let sliders = allSubviews(in: view).compactMap { $0 as? UISlider }
+            sliders.forEach { slider in
+                slider.minimumTrackTintColor = UIColor(accent.opacity(0.88))
+                slider.maximumTrackTintColor = UIColor(secondary.opacity(0.32))
+                slider.thumbTintColor = UIColor(accent)
+            }
+        }
+
+        applyStyle()
+        DispatchQueue.main.async {
+            applyStyle()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                applyStyle()
+            }
+        }
+    }
+
+    private func allSubviews(in view: UIView) -> [UIView] {
+        view.subviews + view.subviews.flatMap { allSubviews(in: $0) }
+    }
+}
+
+// MARK: - 迷你歌词预览
+
+private struct MiniLyricsPreview: View {
+    let lines: [LyricLine]
+    let primary: Color
+    let secondary: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                if lines.isEmpty {
+                    Text("暂无歌词")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(secondary.opacity(0.54))
+                } else {
+                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        Text(line.text.isEmpty ? " " : line.text)
+                            .font(.system(size: index == 1 ? 17 : 15, weight: index == 1 ? .semibold : .medium))
+                            .foregroundStyle((index == 1 ? primary : secondary).opacity(index == 1 ? 0.86 : 0.5))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                }
+            }
+            .frame(maxWidth: 420, minHeight: 92)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
 // MARK: - QueueView
+
 private struct QueueView: View {
     @EnvironmentObject private var player: PlayerService
     @Environment(\.dismiss) private var dismiss
@@ -393,7 +778,7 @@ private struct QueueView: View {
                             Text(track.name)
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundStyle(index == player.currentIndex ? Theme.accent : .primary)
-                            Text(track.artists.map { $0.name }.joined(separator: " / "))
+                            Text(track.artistNames)
                                 .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
                         }
