@@ -131,11 +131,13 @@ struct PlaylistImportView: View {
     private func extractPlaylistID(from input: String) -> String {
         // 网易云：https://music.163.com/#/playlist?id=123456
         // QQ音乐：https://y.qq.com/n/ryqq/playlist/123456
-        // 酷狗：https://www.kugou.com/yy/special/single/123456.html
+        // 酷狗PC：https://www.kugou.com/yy/special/single/123456.html
+        // 酷狗移动端：https://m.kugou.com/songlist/gcid_3z1a6y44pz2z0bd/
         let patterns = [
             "[?&]id=(\\d+)",
             "playlist/(\\d+)",
-            "single/(\\d+)"
+            "single/(\\d+)",
+            "(gcid_[a-zA-Z0-9]+)"
         ]
         for pattern in patterns {
             if let regex = try? NSRegularExpression(pattern: pattern),
@@ -146,6 +148,10 @@ struct PlaylistImportView: View {
         }
         // 纯数字ID
         if input.allSatisfy({ $0.isNumber }) {
+            return input
+        }
+        // gcid 格式
+        if input.hasPrefix("gcid_") {
             return input
         }
         return input
@@ -263,53 +269,121 @@ struct PlaylistImportView: View {
 
     // MARK: - 酷狗歌单导入
     private func importKugouPlaylist(id: String) async throws {
-        // 酷狗歌单详情API
-        let urlStr = "https://mobilecdn.kugou.com/api/v3/special/song?format=json&specialid=\(id)&page=1&pagesize=500"
-        guard let url = URL(string: urlStr) else {
-            errorMessage = "无效的酷狗歌单ID"
-            return
-        }
-
-        let (data, _) = try await URLSession.shared.data(for: URLRequest(url: url))
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let result = json["result"] as? [String: Any],
-              let list = result["list"] as? [[String: Any]] else {
-            errorMessage = "解析酷狗歌单失败"
-            return
-        }
-
         var tracks: [Track] = []
-        for item in list {
-            let hash = (item["hash"] as? String) ?? ""
-            guard !hash.isEmpty else { continue }
-            let name = (item["songname"] as? String) ?? ""
-            let duration = (item["duration"] as? Int) ?? 0
-            let songID = (item["songid"] as? Int) ?? abs(hash.hashValue)
+        var name = ""
+        var coverURL: String?
 
-            let singerName = (item["singername"] as? String) ?? ""
-            let artists: [ArtistRef] = singerName.isEmpty ? [] : [ArtistRef(id: abs(singerName.hashValue), name: singerName, singerMid: nil)]
+        if id.hasPrefix("gcid_") {
+            // 酷狗移动端歌单：解析网页内嵌的 window.$output JSON
+            let urlStr = "https://m.kugou.com/songlist/\(id)/"
+            guard let url = URL(string: urlStr) else {
+                errorMessage = "无效的酷狗歌单链接"
+                return
+            }
+            var request = URLRequest(url: url)
+            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+            let (data, _) = try await URLSession.shared.data(for: request)
+            guard let html = String(data: data, encoding: .utf8) else {
+                errorMessage = "解析酷狗歌单失败"
+                return
+            }
+            // 提取 window.$output = {...};
+            guard let startRange = html.range(of: "window.$output = "),
+                  let endRange = html.range(of: "};", range: startRange.upperBound..<html.endIndex) else {
+                errorMessage = "解析酷狗歌单失败"
+                return
+            }
+            let jsonStr = String(html[startRange.upperBound..<endRange.upperBound]).dropLast() // 去掉末尾;
+            guard let jsonData = jsonStr.data(using: .utf8),
+                  let json = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                  let info = json["info"] as? [String: Any],
+                  let listinfo = info["listinfo"] as? [String: Any],
+                  let songs = json["songs"] as? [[String: Any]] else {
+                errorMessage = "解析酷狗歌单失败"
+                return
+            }
+            name = (listinfo["name"] as? String) ?? ""
+            if let pic = listinfo["pic"] as? String {
+                coverURL = pic.replacingOccurrences(of: "{size}", with: "400")
+            }
+            for item in songs {
+                let hash = (item["hash"] as? String) ?? ""
+                guard !hash.isEmpty else { continue }
+                let songName = (item["name"] as? String) ?? ""
+                let duration = ((item["timelen"] as? Int) ?? 0) / 1000
+                let songID = (item["audio_id"] as? Int) ?? abs(hash.hashValue)
 
-            let albumName = (item["album_name"] as? String) ?? ""
-            let albumID = (item["album_id"] as? Int) ?? 0
-            let album = AlbumRef(id: albumID, name: albumName, picUrl: nil, albumMid: nil)
+                var singerNames: [String] = []
+                if let singerinfo = item["singerinfo"] as? [[String: Any]] {
+                    singerNames = singerinfo.compactMap { $0["name"] as? String }
+                }
+                let singerName = singerNames.joined(separator: "、")
+                let artists: [ArtistRef] = singerNames.isEmpty ? [] : singerNames.enumerated().map { idx, name in
+                    ArtistRef(id: abs(name.hashValue) + idx, name: name, singerMid: idx == 0 ? nil : name)
+                }
 
-            let dict: [String: Any] = [
-                "id": songID, "name": name,
-                "ar": artists.map { ["id": $0.id, "name": $0.name, "singerMid": $0.singerMid ?? ""] },
-                "al": ["id": album.id, "name": album.name, "picUrl": "", "albumMid": ""],
-                "dt": duration * 1000, "alia": [], "tns": [], "fee": 0, "mv": 0, "no": 0,
-                "sourcePlatform": "kg", "platformSongId": hash
-            ]
-            if let data = try? JSONSerialization.data(withJSONObject: dict),
-               let track = try? JSONDecoder().decode(Track.self, from: data) {
-                tracks.append(track)
+                let albumName = ((item["albuminfo"] as? [String: Any])?["name"] as? String) ?? ""
+                let albumID = ((item["albuminfo"] as? [String: Any])?["id"] as? Int) ?? 0
+                var albumPic: String?
+                if let cover = item["cover"] as? String {
+                    albumPic = cover.replacingOccurrences(of: "{size}", with: "400")
+                }
+                let album = AlbumRef(id: albumID, name: albumName, picUrl: albumPic, albumMid: nil)
+
+                let dict: [String: Any] = [
+                    "id": songID, "name": songName,
+                    "ar": artists.map { ["id": $0.id, "name": $0.name, "singerMid": $0.singerMid ?? ""] },
+                    "al": ["id": album.id, "name": album.name, "picUrl": album.picUrl ?? "", "albumMid": ""],
+                    "dt": duration * 1000, "alia": [], "tns": [], "fee": 0, "mv": 0, "no": 0,
+                    "sourcePlatform": "kg", "platformSongId": hash
+                ]
+                if let data = try? JSONSerialization.data(withJSONObject: dict),
+                   let track = try? JSONDecoder().decode(Track.self, from: data) {
+                    tracks.append(track)
+                }
+            }
+        } else {
+            // 酷狗PC歌单：数字 specialid
+            let urlStr = "https://mobilecdn.kugou.com/api/v3/special/song?format=json&specialid=\(id)&page=1&pagesize=500"
+            guard let url = URL(string: urlStr) else {
+                errorMessage = "无效的酷狗歌单ID"
+                return
+            }
+            let (data, _) = try await URLSession.shared.data(for: URLRequest(url: url))
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let result = json["result"] as? [String: Any],
+                  let list = result["list"] as? [[String: Any]] else {
+                errorMessage = "解析酷狗歌单失败"
+                return
+            }
+            for item in list {
+                let hash = (item["hash"] as? String) ?? ""
+                guard !hash.isEmpty else { continue }
+                let songName = (item["songname"] as? String) ?? ""
+                let duration = (item["duration"] as? Int) ?? 0
+                let songID = (item["songid"] as? Int) ?? abs(hash.hashValue)
+                let singerName = (item["singername"] as? String) ?? ""
+                let artists: [ArtistRef] = singerName.isEmpty ? [] : [ArtistRef(id: abs(singerName.hashValue), name: singerName, singerMid: nil)]
+                let albumName = (item["album_name"] as? String) ?? ""
+                let albumID = (item["album_id"] as? Int) ?? 0
+                let album = AlbumRef(id: albumID, name: albumName, picUrl: nil, albumMid: nil)
+                let dict: [String: Any] = [
+                    "id": songID, "name": songName,
+                    "ar": artists.map { ["id": $0.id, "name": $0.name, "singerMid": $0.singerMid ?? ""] },
+                    "al": ["id": album.id, "name": album.name, "picUrl": "", "albumMid": ""],
+                    "dt": duration * 1000, "alia": [], "tns": [], "fee": 0, "mv": 0, "no": 0,
+                    "sourcePlatform": "kg", "platformSongId": hash
+                ]
+                if let data = try? JSONSerialization.data(withJSONObject: dict),
+                   let track = try? JSONDecoder().decode(Track.self, from: data) {
+                    tracks.append(track)
+                }
             }
         }
 
         await MainActor.run {
-            let coverURL = tracks.first?.album.picUrl
             _ = ExternalPlaylistStore.shared.addPlaylist(
-                name: playlistName.isEmpty ? "导入的酷狗歌单" : playlistName,
+                name: name.isEmpty ? "导入的酷狗歌单" : name,
                 sourcePlatform: "kg",
                 coverURL: coverURL,
                 tracks: tracks
