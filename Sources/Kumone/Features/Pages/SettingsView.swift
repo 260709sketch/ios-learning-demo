@@ -24,7 +24,7 @@ struct SettingsView: View {
                 NavigationLink {
                     EqualizerView()
                 } label: {
-                    Label("均衡器", systemImage: "slider.horizontal.3")
+                    Text("均衡器")
                 }
                 NavigationLink {
                     LXSourceManageView()
@@ -55,7 +55,7 @@ struct SettingsView: View {
                     QQWebLoginView(onSuccess: {})
                 } label: {
                     HStack {
-                        Label("QQ 音乐登录", systemImage: "music.note")
+                        Text("QQ 音乐登录")
                         Spacer()
                         if QQMusicAuth.shared.isLoggedIn {
                             Text(QQMusicAuth.shared.nickname)
@@ -70,7 +70,7 @@ struct SettingsView: View {
                 NavigationLink {
                     PlaylistImportView()
                 } label: {
-                    Label("歌单导入", systemImage: "square.and.arrow.down")
+                    Text("歌单导入")
                 }
             }
 
@@ -432,11 +432,16 @@ struct SettingsView: View {
                 NavigationLink {
                     BottomBarSettingsView()
                 } label: {
-                    Label("底部栏页面显示", systemImage: "rectangle.bottomthird.inset.filled")
+                    Text("底部栏页面显示")
                 }
             }
 
             Section("存储") {
+                NavigationLink {
+                    DataBackupView()
+                } label: {
+                    Text("数据备份")
+                }
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle(
                         "歌曲缓存",
@@ -499,11 +504,6 @@ struct SettingsView: View {
                     Text(cacheError)
                         .font(.caption)
                         .foregroundStyle(.red)
-                }
-                NavigationLink {
-                    DataBackupView()
-                } label: {
-                    Label("数据备份", systemImage: "externaldrive.connected.to.line.below")
                 }
             }
 
