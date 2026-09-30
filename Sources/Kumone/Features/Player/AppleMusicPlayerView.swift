@@ -259,7 +259,7 @@ struct AppleMusicPlayerView: View {
                             Text(name)
                                 .font(.system(size: 11))
                         }
-                        .foregroundStyle(progressBarStyle == idx ? .accentColor : .primary)
+                        .foregroundStyle(progressBarStyle == idx ? Color.accentColor : Color.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(
