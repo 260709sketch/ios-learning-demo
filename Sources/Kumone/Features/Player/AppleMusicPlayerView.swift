@@ -1123,9 +1123,6 @@ private struct ReferenceSystemVolumeView: UIViewRepresentable {
 // MARK: - 迷你歌词预览（沉浸模式样式）
 
 private struct MiniLyricsPreview: View {
-    let lines: [LyricLine]
-    let primary: Color
-    let secondary: Color
     let action: () -> Void
 
     @EnvironmentObject private var player: PlayerService
