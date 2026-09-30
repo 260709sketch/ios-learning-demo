@@ -162,8 +162,8 @@ enum KugouAPI {
                     break
                 }
             }
-            if picUrl == nil, !hash.isEmpty {
-                picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
+            if picUrl == nil, !albumID.isEmpty {
+                picUrl = "https://imge.kugou.com/stdmusic/400/album/\(albumID).jpg"
             }
             let albumMid = albumID
             let album = AlbumRef(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, albumMid: albumMid)
@@ -351,19 +351,16 @@ enum KugouAPI {
             let albumName = (item["album_name"] as? String) ?? ""
             let albumID = (item["album_id"] as? String) ?? (item["album_id"] as? Int).map { String($0) } ?? ""
             let albumAudioID = (item["album_audio_id"] as? String) ?? (item["album_audio_id"] as? Int).map { String($0) } ?? ""
-            // 封面：优先用 trans_param.union_cover，然后 album_audio_id，最后 album_id
+            // 封面：优先用 trans_param.union_cover，然后 album_id
             var picUrl: String? = nil
             if let trans = item["trans_param"] as? [String: Any], let unionCover = trans["union_cover"] as? String, !unionCover.isEmpty {
                 picUrl = unionCover.replacingOccurrences(of: "{size}", with: "400").replacingOccurrences(of: "http://", with: "https://")
-            }
-            if picUrl == nil, !albumAudioID.isEmpty {
-                picUrl = "https://imge.kugou.com/stdmusic/400/\(albumAudioID).jpg"
             }
             if picUrl == nil, !albumID.isEmpty {
                 picUrl = "https://imge.kugou.com/stdmusic/400/album/\(albumID).jpg"
             }
             let artists = splitArtists(artistName, singerID: Int(id) ?? abs(artistName.hashValue))
-            let album = AlbumRef(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, albumMid: albumAudioID.isEmpty ? albumID : albumAudioID)
+            let album = AlbumRef(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, albumMid: albumID)
             return makeTrack(id: songID, name: songName, artists: artists, album: album, durationMS: duration * 1000, hash: hash)
         }
         return (Array(tracks.prefix(limit)), total)
@@ -461,20 +458,16 @@ enum KugouAPI {
             let duration = (item["duration"] as? Int) ?? 0
             let songID = abs(hash.hashValue)
             let albumNameParsed = (item["album_name"] as? String) ?? albumName
-            let albumAudioID = (item["album_audio_id"] as? String) ?? (item["album_audio_id"] as? Int).map { String($0) } ?? ""
-            // 封面：优先用 trans_param.union_cover，然后 album_audio_id，最后 album_id
+            // 封面：优先用专辑封面，然后 trans_param.union_cover，最后 album_id
             var picUrl = albumCover
             if picUrl == nil, let trans = item["trans_param"] as? [String: Any], let unionCover = trans["union_cover"] as? String, !unionCover.isEmpty {
                 picUrl = unionCover.replacingOccurrences(of: "{size}", with: "400").replacingOccurrences(of: "http://", with: "https://")
-            }
-            if picUrl == nil, !albumAudioID.isEmpty {
-                picUrl = "https://imge.kugou.com/stdmusic/400/\(albumAudioID).jpg"
             }
             if picUrl == nil, !id.isEmpty {
                 picUrl = "https://imge.kugou.com/stdmusic/400/album/\(id).jpg"
             }
             let artists = splitArtists(artistNameParsed, singerID: abs(artistNameParsed.hashValue))
-            let album = AlbumRef(id: abs(id.hashValue), name: albumNameParsed, picUrl: picUrl, albumMid: albumAudioID.isEmpty ? id : albumAudioID)
+            let album = AlbumRef(id: abs(id.hashValue), name: albumNameParsed, picUrl: picUrl, albumMid: id)
             return makeTrack(id: songID, name: songName, artists: artists, album: album, durationMS: duration * 1000, hash: hash)
         }
     }

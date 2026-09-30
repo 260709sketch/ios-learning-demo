@@ -168,29 +168,8 @@ struct AppleMusicPlayerView: View {
 
             Divider()
 
-            // 定时关闭（嵌套子菜单）
-            Menu {
-                ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in
-                    Button("\(minutes) 分钟") {
-                        WellHaptics.tap()
-                        player.sleepTimer.schedule(afterMinutes: minutes)
-                    }
-                }
-                Button {
-                    WellHaptics.tap()
-                    player.sleepTimer.scheduleAtEndOfCurrentTrack()
-                } label: {
-                    Label("当前歌曲结束时停止", systemImage: "music.note")
-                }
-                if player.sleepTimer.state.isActive {
-                    Divider()
-                    Button("取消定时", role: .destructive) {
-                        player.sleepTimer.cancel()
-                    }
-                }
-            } label: {
-                Label("睡眠定时", systemImage: "timer")
-            }
+            // 睡眠定时（用独立组件，避免嵌套Menu自动关闭）
+            SleepTimerMenu(player: player)
 
             Divider()
 
@@ -1323,7 +1302,7 @@ private struct CommentsSheetDetents: ViewModifier {
             if #available(iOS 16.4, *) {
                 content
                     .presentationDetents([.medium, .large])
-                    .presentationBackground(.clear)
+                    .presentationBackground(.white)
             } else if #available(iOS 16.0, *) {
                 content
                     .presentationDetents([.medium, .large])
