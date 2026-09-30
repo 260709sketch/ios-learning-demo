@@ -1314,7 +1314,18 @@ final class PlayerService: ObservableObject {
         if track.sourcePlatform == "tx", let songmid = track.platformSongId {
             response = try? await QQMusicAPI.lyric(songmid: songmid)
         } else if track.sourcePlatform == "kg", let hash = track.platformSongId {
-            // 酷狗歌词
+            // 酷狗歌词：优先用QQ音乐同名同歌手同专辑歌词替换（QQ音乐有逐字歌词）
+            if let qqLyrics = await fetchQQLyricsForKugou(track: track) {
+                guard generation == resolveGeneration else { return }
+                lyrics = qqLyrics
+                updateLyricsCursor(at: progress)
+                // 酷狗歌曲保底：无封面时向网易云搜索匹配
+                if (track.album.picUrl ?? "").isEmpty {
+                    await matchCoverFromNetEase(for: track, generation: generation)
+                }
+                return
+            }
+            // 兜底：酷狗原生歌词
             let lrcText = await KugouAPI.lyric(hash: hash, duration: TimeInterval(track.durationMS) / 1000)
             if !lrcText.isEmpty {
                 guard generation == resolveGeneration else { return }
@@ -1387,6 +1398,57 @@ final class PlayerService: ObservableObject {
                 currentTrack = newTrack
             }
         }
+    }
+
+    // MARK: - 酷狗歌词用QQ音乐歌词替换
+    private func fetchQQLyricsForKugou(track: Track) async -> ParsedLyrics? {
+        // 构造搜索关键词：歌名 + 第一个歌手名
+        let artistName = track.artists.first?.name ?? ""
+        let keyword = "\(track.name) \(artistName)".trimmingCharacters(in: .whitespaces)
+        guard !keyword.isEmpty else { return nil }
+
+        // 搜索QQ音乐
+        guard let qqSongs = try? await QQMusicAPI.searchSongs(keyword, limit: 10),
+              !qqSongs.isEmpty else { return nil }
+
+        // 精准匹配：歌名相同 + 至少一个歌手名相同 + 专辑名相同（优先）
+        let targetArtistNames = Set(track.artists.map { $0.name })
+        let targetAlbumName = track.album.name
+
+        // 先尝试精确匹配（歌名+歌手+专辑）
+        let exactMatch = qqSongs.first { candidate in
+            let candidateArtists = Set(candidate.artists.map { $0.name })
+            let nameMatch = candidate.name == track.name || candidate.name.contains(track.name) || track.name.contains(candidate.name)
+            let artistMatch = !targetArtistNames.isDisjoint(with: candidateArtists)
+            let albumMatch = candidate.album.name == targetAlbumName || candidate.album.name.contains(targetAlbumName) || targetAlbumName.contains(candidate.album.name)
+            return nameMatch && artistMatch && albumMatch
+        }
+
+        // 再尝试宽松匹配（歌名+歌手）
+        let looseMatch = qqSongs.first { candidate in
+            let candidateArtists = Set(candidate.artists.map { $0.name })
+            let nameMatch = candidate.name == track.name || candidate.name.contains(track.name) || track.name.contains(candidate.name)
+            let artistMatch = !targetArtistNames.isDisjoint(with: candidateArtists)
+            return nameMatch && artistMatch
+        }
+
+        guard let matched = exactMatch ?? looseMatch ?? qqSongs.first,
+              let songmid = matched.platformSongId,
+              !songmid.isEmpty else { return nil }
+
+        // 优先获取QRC逐字歌词
+        if let qrcLines = await QQMusicAPI.wordLyric(songmid: songmid), !qrcLines.isEmpty {
+            var parsed = ParsedLyrics()
+            parsed.lines = qrcLines
+            return parsed
+        }
+
+        // 兜底：LRC歌词
+        if let response = try? await QQMusicAPI.lyric(songmid: songmid) {
+            return LyricsParser.parse(response)
+        }
+
+        return nil
     }
 
     // MARK: - Scrobble
