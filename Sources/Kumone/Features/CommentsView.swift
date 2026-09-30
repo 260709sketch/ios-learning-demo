@@ -138,14 +138,10 @@ struct CommentRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             if let avatar = comment.avatarURL, let url = URL(string: avatar) {
-                CachedAsyncImage(url: url, animated: false) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else {
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 36))
-                            .foregroundStyle(.secondary)
-                    }
+                CachedAsyncImage(url: url, animated: false) {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.secondary)
                 }
                 .frame(width: 36, height: 36)
                 .clipShape(Circle())

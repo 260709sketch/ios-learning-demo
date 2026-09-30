@@ -96,7 +96,7 @@ struct ExternalPlaylistView: View {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
                     if let firstTrack = playlistTracks.first, let coverUrl = firstTrack.album.picUrl ?? playlist.coverURL {
-                        CachedAsyncImage(url: URL(string: coverUrl)?.resizedImageURL(384), animated: false)
+                        CachedAsyncImage(url: coverUrl.resizedImageURL(384), animated: false)
                             .aspectRatio(contentMode: .fill)
                     } else {
                         RoundedRectangle(cornerRadius: Theme.Radius.standard, style: .continuous)
@@ -153,7 +153,7 @@ struct ExternalPlaylistView: View {
         HStack(alignment: .bottom, spacing: 24) {
             ZStack {
                 if let firstTrack = playlistTracks.first, let coverUrl = firstTrack.album.picUrl ?? playlist.coverURL {
-                    CachedAsyncImage(url: URL(string: coverUrl)?.resizedImageURL(512), animated: false)
+                    CachedAsyncImage(url: coverUrl.resizedImageURL(512), animated: false)
                         .aspectRatio(contentMode: .fill)
                 } else {
                     RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous)

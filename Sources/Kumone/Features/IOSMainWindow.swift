@@ -760,8 +760,8 @@ struct IOSLibraryView: View {
                     ForEach(externalPlaylists.playlists) { playlist in
                         NavigationLink(value: Destination.externalPlaylist(playlist)) {
                             HStack(spacing: 10) {
-                                if let coverURL = playlist.coverURL, let url = URL(string: coverURL) {
-                                    CachedAsyncImage(url: url.resizedImageURL(80), animated: false)
+                                if let coverURL = playlist.coverURL {
+                                    CachedAsyncImage(url: coverURL.resizedImageURL(80), animated: false)
                                         .frame(width: 32, height: 32)
                                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                                 } else if let firstTrack = externalPlaylists.getTracks(for: playlist.id).first, let coverUrl = firstTrack.album.picUrl {
