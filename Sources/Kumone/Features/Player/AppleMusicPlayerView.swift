@@ -91,11 +91,15 @@ struct AppleMusicPlayerView: View {
         .onDisappear { resumeTask?.cancel() }
         .sheet(isPresented: $showQueue) {
             Group {
-                if #available(iOS 16.0, *) {
+                if #available(iOS 16.4, *) {
                     QueueView()
                         .environmentObject(player)
                         .presentationDetents([.medium, .large])
                         .presentationBackground(.ultraThinMaterial)
+                } else if #available(iOS 16.0, *) {
+                    QueueView()
+                        .environmentObject(player)
+                        .presentationDetents([.medium, .large])
                 } else {
                     QueueView()
                         .environmentObject(player)
@@ -1003,14 +1007,17 @@ private struct QueueView: View {
 
 // MARK: - Sheet 辅助修饰器
 
-/// 评论区 sheet：iOS 16+ 使用半屏 detents + 透明背景（CommentsView 自绘背景）。
+/// 评论区 sheet：iOS 16.4+ 使用半屏 detents + 透明背景（CommentsView 自绘背景）。
 private struct CommentsSheetDetents: ViewModifier {
     func body(content: Content) -> some View {
         Group {
-            if #available(iOS 16.0, *) {
+            if #available(iOS 16.4, *) {
                 content
                     .presentationDetents([.medium, .large])
                     .presentationBackground(.clear)
+            } else if #available(iOS 16.0, *) {
+                content
+                    .presentationDetents([.medium, .large])
             } else {
                 content
             }

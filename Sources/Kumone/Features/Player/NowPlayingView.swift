@@ -1486,9 +1486,18 @@ private struct CompactTrackHeader: View {
         }
         .sheet(isPresented: $showComments) {
             if let track = player.currentTrack {
-                CommentsView(track: track)
-                    .presentationDetents([.medium, .large])
-                    .presentationBackground(.clear)
+                Group {
+                    if #available(iOS 16.4, *) {
+                        CommentsView(track: track)
+                            .presentationDetents([.medium, .large])
+                            .presentationBackground(.clear)
+                    } else if #available(iOS 16.0, *) {
+                        CommentsView(track: track)
+                            .presentationDetents([.medium, .large])
+                    } else {
+                        CommentsView(track: track)
+                    }
+                }
             }
         }
     }
@@ -2201,9 +2210,18 @@ private struct MinimalTrackInfoRow: View {
         }
         .sheet(isPresented: $showComments) {
             if let track = player.currentTrack {
-                CommentsView(track: track)
-                    .presentationDetents([.medium, .large])
-                    .presentationBackground(.clear)
+                Group {
+                    if #available(iOS 16.4, *) {
+                        CommentsView(track: track)
+                            .presentationDetents([.medium, .large])
+                            .presentationBackground(.clear)
+                    } else if #available(iOS 16.0, *) {
+                        CommentsView(track: track)
+                            .presentationDetents([.medium, .large])
+                    } else {
+                        CommentsView(track: track)
+                    }
+                }
             }
         }
     }
