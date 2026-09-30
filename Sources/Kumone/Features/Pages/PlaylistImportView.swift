@@ -57,7 +57,7 @@ struct PlaylistImportView: View {
             }
 
             if !importedTracks.isEmpty {
-                Section("已导入 \(importedTracks.count) 首到收藏歌单") {
+                Section("已导入 \(importedTracks.count) 首到外部歌单") {
                     ForEach(Array(importedTracks.prefix(20).enumerated()), id: \.element.id) { idx, track in
                         HStack(spacing: 10) {
                             Text("\(idx + 1)")
@@ -173,15 +173,16 @@ struct PlaylistImportView: View {
         }
 
         await MainActor.run {
-            for track in tracks {
-                LocalPlaylistStore.shared.addTrack(track)
-            }
+            let coverURL = tracks.first?.album.picUrl
+            _ = ExternalPlaylistStore.shared.addPlaylist(
+                name: playlistName.isEmpty ? "导入的歌单" : playlistName,
+                sourcePlatform: "wy",
+                coverURL: coverURL,
+                tracks: tracks
+            )
             importedTracks = tracks
             showSuccess = true
         }
-    }
-
-    // MARK: - QQ音乐歌单导入
     private func importQQPlaylist(id: String) async throws {
         // QQ音乐歌单详情API
         let urlStr = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&disstid=\(id)&format=json"
@@ -242,9 +243,13 @@ struct PlaylistImportView: View {
         }
 
         await MainActor.run {
-            for track in tracks {
-                LocalPlaylistStore.shared.addTrack(track)
-            }
+            let coverURL = tracks.first?.album.picUrl
+            _ = ExternalPlaylistStore.shared.addPlaylist(
+                name: playlistName.isEmpty ? "导入的QQ音乐歌单" : playlistName,
+                sourcePlatform: "tx",
+                coverURL: coverURL,
+                tracks: tracks
+            )
             importedTracks = tracks
             showSuccess = true
         }
@@ -296,9 +301,13 @@ struct PlaylistImportView: View {
         }
 
         await MainActor.run {
-            for track in tracks {
-                LocalPlaylistStore.shared.addTrack(track)
-            }
+            let coverURL = tracks.first?.album.picUrl
+            _ = ExternalPlaylistStore.shared.addPlaylist(
+                name: playlistName.isEmpty ? "导入的酷狗歌单" : playlistName,
+                sourcePlatform: "kg",
+                coverURL: coverURL,
+                tracks: tracks
+            )
             importedTracks = tracks
             showSuccess = true
         }

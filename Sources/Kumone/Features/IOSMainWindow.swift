@@ -9,6 +9,7 @@ public struct IOSMainWindow: View {
     @StateObject private var updater = IOSUpdater.shared
     @StateObject private var artworkStore = NowPlayingArtworkStore()
     @StateObject private var localPlaylist = LocalPlaylistStore.shared
+    @StateObject private var externalPlaylists = ExternalPlaylistStore.shared
     @Namespace private var nowPlayingTransition
     @Environment(\.colorScheme) private var systemColorScheme
 
@@ -660,6 +661,7 @@ struct IOSLibraryView: View {
     @Binding var showLogin: Bool
     @EnvironmentObject private var account: AccountStore
     @StateObject private var localPlaylist = LocalPlaylistStore.shared
+    @StateObject private var externalPlaylists = ExternalPlaylistStore.shared
     @State private var showSettings = false
     @State private var showNewPlaylist = false
     @State private var newPlaylistName = ""
@@ -752,6 +754,35 @@ struct IOSLibraryView: View {
                                 Text("\(localPlaylist.count) 首")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    ForEach(externalPlaylists.playlists) { playlist in
+                        NavigationLink(value: Destination.externalPlaylist(playlist)) {
+                            HStack(spacing: 10) {
+                                if let coverURL = playlist.coverURL, let url = URL(string: coverURL) {
+                                    CachedAsyncImage(url: url.resizedImageURL(80), animated: false)
+                                        .frame(width: 32, height: 32)
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                } else if let firstTrack = externalPlaylists.getTracks(for: playlist.id).first, let coverUrl = firstTrack.album.picUrl {
+                                    CachedAsyncImage(url: coverUrl.resizedImageURL(80), animated: false)
+                                        .frame(width: 32, height: 32)
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                } else {
+                                    Image(systemName: "music.note.list")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 32, height: 32)
+                                        .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                }
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(playlist.name)
+                                        .font(.system(size: 14))
+                                        .lineLimit(1)
+                                    Text("\(externalPlaylists.getTracks(for: playlist.id).count) 首")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
