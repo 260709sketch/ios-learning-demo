@@ -100,17 +100,34 @@ enum KugouAPI {
             let albumName = (item["album_name"] as? String) ?? (item["AlbumName"] as? String) ?? ""
             let albumID = (item["album_id"] as? Int) ?? 0
             let albumAblumID = (item["album_audio_id"] as? String) ?? ""
-            // 酷狗封面：多级 fallback
+            // 酷狗封面：多级 fallback（和Moumusic一致）
             var picUrl: String? = nil
-            if let img = item["img"] as? String, !img.isEmpty {
-                picUrl = img.replacingOccurrences(of: "{size}", with: "400")
-            } else if let albumImg = item["album_img"] as? String, !albumImg.isEmpty {
-                picUrl = albumImg.replacingOccurrences(of: "{size}", with: "400")
-            } else if !albumAblumID.isEmpty {
+            let transParam = item["trans_param"] as? [String: Any]
+            let imgCandidates = [
+                item["Image"] as? String,
+                item["image"] as? String,
+                item["AlbumImage"] as? String,
+                item["img"] as? String,
+                item["imgurl"] as? String,
+                transParam?["union_cover"] as? String,
+                item["album_img"] as? String
+            ]
+            for candidate in imgCandidates {
+                if let img = candidate, !img.isEmpty {
+                    var normalized = img.replacingOccurrences(of: "{size}", with: "400")
+                    if normalized.hasPrefix("//") { normalized = "https:" + normalized }
+                    normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
+                    picUrl = normalized
+                    break
+                }
+            }
+            if picUrl == nil, !albumAblumID.isEmpty {
                 picUrl = "https://imgessl.kugou.com/ymm/400/\(albumAblumID).jpg"
-            } else if !hash.isEmpty {
+            }
+            if picUrl == nil, !hash.isEmpty {
                 picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
-            } else if albumID > 0 {
+            }
+            if picUrl == nil, albumID > 0 {
                 picUrl = "https://imgessl.kugou.com/ymm/\(albumID).jpg"
             }
             let album = AlbumRef(id: albumID, name: albumName, picUrl: picUrl, albumMid: albumAblumID)
@@ -146,8 +163,28 @@ enum KugouAPI {
 
             let albumName = (item["AlbumName"] as? String) ?? ""
             let albumID = (item["AlbumID"] as? String) ?? ""
-            var picUrl = (item["Img"] as? String)?.replacingOccurrences(of: "{size}", with: "400")
-            if (picUrl?.isEmpty ?? true), !hash.isEmpty {
+            // 酷狗封面：多级 fallback（和Moumusic一致）
+            var picUrl: String? = nil
+            let transParam = item["trans_param"] as? [String: Any]
+            let imgCandidates = [
+                item["Image"] as? String,
+                item["image"] as? String,
+                item["AlbumImage"] as? String,
+                item["Img"] as? String,
+                item["img"] as? String,
+                item["imgurl"] as? String,
+                transParam?["union_cover"] as? String
+            ]
+            for candidate in imgCandidates {
+                if let img = candidate, !img.isEmpty {
+                    var normalized = img.replacingOccurrences(of: "{size}", with: "400")
+                    if normalized.hasPrefix("//") { normalized = "https:" + normalized }
+                    normalized = normalized.replacingOccurrences(of: "http://", with: "https://")
+                    picUrl = normalized
+                    break
+                }
+            }
+            if picUrl == nil, !hash.isEmpty {
                 picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
             }
             let album = AlbumRef(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, albumMid: albumID)

@@ -35,7 +35,15 @@ struct NowPlayingView: View {
                 onDismiss: { close() }
             )
         } else {
+            standardPlayerBody
+        }
+        #else
+        standardPlayerBody
         #endif
+    }
+
+    @ViewBuilder
+    private var standardPlayerBody: some View {
         GeometryReader { geo in
             let isCompact = geo.size.width < 720
             ZStack {
@@ -127,9 +135,6 @@ struct NowPlayingView: View {
         #if os(macOS)
         .onExitCommand {
             close()
-        }
-        #endif
-        #if os(iOS)
         }
         #endif
     }
