@@ -34,6 +34,14 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("导入外部歌单") {
+                NavigationLink {
+                    PlaylistImportView()
+                } label: {
+                    Label("歌单导入", systemImage: "square.and.arrow.down")
+                }
+            }
+
             Section("外观") {
                 Picker("主题", selection: $settings.appearance) {
                     ForEach(AppAppearance.allCases) { appearance in
@@ -431,14 +439,6 @@ struct SettingsView: View {
                     DataBackupView()
                 } label: {
                     Label("数据备份", systemImage: "externaldrive.connected.to.line.below")
-                }
-            }
-
-            Section("导入外部歌单") {
-                NavigationLink {
-                    PlaylistImportView()
-                } label: {
-                    Label("歌单导入", systemImage: "square.and.arrow.down")
                 }
             }
 
