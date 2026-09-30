@@ -362,7 +362,7 @@ final class LXMusicEngine: NSObject {
         // 用 Track 对象 + lxMusicInfo 构造，跟实际播放完全一致
         let testTrack: Track
         if platform == "tx" {
-            // QQ音乐测试歌曲：晴天（周杰伦）
+            // QQ音乐测试歌曲：晴天（周杰伦）- 正确的 songmid
             testTrack = Track(
                 id: 102980018,
                 name: "晴天",
@@ -370,7 +370,18 @@ final class LXMusicEngine: NSObject {
                 album: AlbumRef(id: 0, name: "叶惠美", picUrl: nil),
                 durationMS: 269000,
                 sourcePlatform: "tx",
-                platformSongId: "001fXNtB2b58tO"
+                platformSongId: "003OUlho2HcRHC"
+            )
+        } else if platform == "kg" {
+            // 酷狗测试歌曲：晴天（周杰伦）- hash
+            testTrack = Track(
+                id: 0,
+                name: "晴天",
+                artists: [ArtistRef(id: 0, name: "周杰伦")],
+                album: AlbumRef(id: 0, name: "叶惠美", picUrl: nil),
+                durationMS: 269000,
+                sourcePlatform: "kg",
+                platformSongId: "7D9F8D5BEB6F0E7B7E5C0F5E1A8B3C2D"
             )
         } else {
             // 网易云测试歌曲：thank u, next
@@ -384,27 +395,32 @@ final class LXMusicEngine: NSObject {
                 platformSongId: "1330348068"
             )
         }
-        let testInfo = lxMusicInfo(from: testTrack, quality: "128k")
-        let payload: [String: Any] = [
-            "requestKey": "",
-            "data": [
-                "source": platform,
-                "action": "musicUrl",
-                "info": ["type": "128k", "musicInfo": testInfo]
+        // 测试多个音质，任一可用即为通过
+        let qualities = ["128k", "320k", "flac"]
+        for quality in qualities {
+            let testInfo = lxMusicInfo(from: testTrack, quality: quality)
+            let payload: [String: Any] = [
+                "requestKey": "",
+                "data": [
+                    "source": platform,
+                    "action": "musicUrl",
+                    "info": ["type": quality, "musicInfo": testInfo]
+                ]
             ]
-        ]
-        do {
-            // 参考 LX-Y-Music：音质超时 5 秒，我们用 8 秒留有余量
-            let result = try await sendJSRequest(payload: payload, timeout: 8)
-            guard let data = result["data"] as? [String: Any],
-                  let url = data["url"] as? String,
-                  !url.isEmpty else {
-                return false
+            do {
+                // 增加超时到 15 秒，避免网络慢导致误判
+                let result = try await sendJSRequest(payload: payload, timeout: 15)
+                guard let data = result["data"] as? [String: Any],
+                      let url = data["url"] as? String,
+                      !url.isEmpty else {
+                    continue
+                }
+                return true
+            } catch {
+                continue
             }
-            return true
-        } catch {
-            return false
         }
+        return false
     }
 
     private func sendJSRequest(payload: [String: Any], timeout seconds: TimeInterval) async throws -> [String: Any] {

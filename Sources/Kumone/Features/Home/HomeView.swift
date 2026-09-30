@@ -41,7 +41,6 @@ final class HomeViewModel: ObservableObject {
         async let playlistsTask = fetchRecommendPlaylists(loggedIn: loggedIn)
         async let toplistsTask = try? NeteaseAPI.toplists()
         async let albumsTask = try? NeteaseAPI.newAlbums(limit: 20)
-        async let artistsTask = try? NeteaseAPI.topArtists()
 
         let playlists = await playlistsTask
         recommendPlaylists = playlists
@@ -49,8 +48,19 @@ final class HomeViewModel: ObservableObject {
             [19_723_756, 3_779_629, 2_884_035, 3_778_678, 60198].contains($0.id)
         }
         newAlbums = await albumsTask ?? []
-        let artists = await artistsTask ?? []
-        topArtists = Array(artists.shuffled().prefix(6))
+
+        // 关注歌手：登录用户显示网易云关注的歌手，未登录显示热门歌手
+        if loggedIn, let uid = AccountStore.shared.profile?.userId {
+            if let followed = try? await NeteaseAPI.userFollowedArtists(uid: uid, limit: 30), !followed.isEmpty {
+                topArtists = followed
+            } else {
+                let artists = try? await NeteaseAPI.topArtists()
+                topArtists = Array((artists ?? []).shuffled().prefix(6))
+            }
+        } else {
+            let artists = try? await NeteaseAPI.topArtists()
+            topArtists = Array((artists ?? []).shuffled().prefix(6))
+        }
 
         if loggedIn {
             if let daily = try? await NeteaseAPI.dailyRecommendSongs() {
@@ -198,7 +208,7 @@ struct HomeView: View {
             }
 
             if !model.topArtists.isEmpty {
-                Shelf(title: "推荐歌手", rowHeight: Theme.Layout.artistShelfHeight) {
+                Shelf(title: "关注歌手", rowHeight: Theme.Layout.artistShelfHeight) {
                     ForEach(model.topArtists) { artist in
                         artistCard(artist)
                     }
