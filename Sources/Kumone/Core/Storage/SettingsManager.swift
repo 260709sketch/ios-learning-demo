@@ -236,6 +236,7 @@ final class SettingsManager: ObservableObject {
         static let playerTrackInfoTopOffset = "settings.playerTrackInfoTopOffset"
         static let playerTrackInfoLeftOffset = "settings.playerTrackInfoLeftOffset"
         static let playerTrackInfoRightOffset = "settings.playerTrackInfoRightOffset"
+        static let keyboardMiniPlayerOffset = "settings.keyboardMiniPlayerOffset"
         static let volume = "settings.volume"
         static let fmMode = "settings.fmMode"
         static let unblock = "settings.enableUnblock"
@@ -467,6 +468,10 @@ final class SettingsManager: ObservableObject {
     @Published var playerTrackInfoRightOffset: Int {
         didSet { UserDefaults.standard.set(playerTrackInfoRightOffset, forKey: Keys.playerTrackInfoRightOffset) }
     }
+    /// 键盘弹出时迷你播放器上下偏移（正数上移，负数下移）
+    @Published var keyboardMiniPlayerOffset: Int {
+        didSet { UserDefaults.standard.set(keyboardMiniPlayerOffset, forKey: Keys.keyboardMiniPlayerOffset) }
+    }
 
     /// Resolve gray tracks from third-party sources (UnblockNeteaseMusic-style).
     @Published var enableUnblock: Bool {
@@ -573,6 +578,7 @@ final class SettingsManager: ObservableObject {
         playerTrackInfoTopOffset = defaults.object(forKey: Keys.playerTrackInfoTopOffset) as? Int ?? 0
         playerTrackInfoLeftOffset = defaults.object(forKey: Keys.playerTrackInfoLeftOffset) as? Int ?? -5
         playerTrackInfoRightOffset = defaults.object(forKey: Keys.playerTrackInfoRightOffset) as? Int ?? -10
+        keyboardMiniPlayerOffset = defaults.object(forKey: Keys.keyboardMiniPlayerOffset) as? Int ?? 0
         enableUnblock = defaults.object(forKey: Keys.unblock) as? Bool ?? true
         if let rawSourceIDs = defaults.stringArray(forKey: Keys.unblockSources) {
             enabledAudioSourceIDs = Set(rawSourceIDs.compactMap(AudioSourceID.init))

@@ -295,6 +295,23 @@ struct SettingsView: View {
                             set: { settings.playerTrackInfoRightOffset = Int($0) }
                         ), in: -200...200, step: 5)
                     }
+
+                    // 键盘弹出时迷你播放器位置
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("键盘弹出迷你播放器位置")
+                            Spacer()
+                            Text(settings.keyboardMiniPlayerOffset > 0 ? "+\(settings.keyboardMiniPlayerOffset)" : "\(settings.keyboardMiniPlayerOffset)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(settings.keyboardMiniPlayerOffset) },
+                            set: { settings.keyboardMiniPlayerOffset = Int($0) }
+                        ), in: -300...300, step: 5)
+                        Text("正数上移，负数下移，调到键盘上方合适位置")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Picker("日文歌词读音", selection: $settings.lyricsAnnotation) {
                     ForEach(LyricsAnnotation.allCases) { annotation in

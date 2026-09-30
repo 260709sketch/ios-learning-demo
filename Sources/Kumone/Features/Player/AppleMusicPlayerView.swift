@@ -338,27 +338,35 @@ struct AppleMusicPlayerView: View {
             .animation(.spring(response: 0.36, dampingFraction: 0.84), value: player.isPlaying)
 
             if showLyricPreview {
-                VStack(spacing: 5) {
-                    HStack(spacing: 9) {
-                        Text(track?.name ?? "未在播放")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(primaryColor)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        if showSongVIPBadge, isVIP {
-                            Text("VIP")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(Color(red: 0.93, green: 0.25, blue: 0.22), in: Capsule())
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 9) {
+                            Text(track?.name ?? "未在播放")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(primaryColor)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            if showSongVIPBadge, isVIP {
+                                Text("VIP")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Color(red: 0.93, green: 0.25, blue: 0.22), in: Capsule())
+                            }
                         }
+                        Text(subtitle)
+                            .font(.system(size: 13.5, weight: .medium))
+                            .foregroundStyle(secondaryColor)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
-                    Text(subtitle)
-                        .font(.system(size: 13.5, weight: .medium))
-                        .foregroundStyle(secondaryColor)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    Spacer(minLength: 8)
+                    compactActionButton(
+                        icon: isLiked ? "heart.fill" : "heart",
+                        active: isLiked
+                    ) { onFavorite() }
+                    moreMenu
                 }
                 .frame(maxWidth: 420)
                 .padding(.top, 22)
