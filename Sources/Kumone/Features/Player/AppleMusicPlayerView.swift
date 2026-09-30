@@ -30,6 +30,7 @@ struct AppleMusicPlayerView: View {
     @State private var showLyrics = false
     @State private var showQueue = false
     @State private var showComments = false
+    @State private var showAddToPlaylist = false
     @State private var showPlayerSettings = false
     @State private var layoutMode = false
     @State private var appleLayoutPart: AppleMusicLayoutPart = .cover
@@ -126,6 +127,11 @@ struct AppleMusicPlayerView: View {
             }
             .modifier(CommentsSheetDetents())
         }
+        .sheet(isPresented: $showAddToPlaylist) {
+            if let t = track {
+                AddToPlaylistSheet(track: t)
+            }
+        }
         .sheet(isPresented: $showPlayerSettings) {
             playerSettingsSheet
         }
@@ -136,6 +142,32 @@ struct AppleMusicPlayerView: View {
     @ViewBuilder
     private var moreMenu: some View {
         Menu {
+            // 评论
+            Button {
+                showComments = true
+            } label: {
+                Label("评论", systemImage: "bubble.left")
+            }
+
+            // 下一首播放
+            Button {
+                if let t = track {
+                    player.addToPlayNext(t)
+                    ToastCenter.shared.show("已添加到下一首播放")
+                }
+            } label: {
+                Label("下一首播放", systemImage: "text.line.first.and.arrowtriangle.forward")
+            }
+
+            // 加入歌单
+            Button {
+                showAddToPlaylist = true
+            } label: {
+                Label("加入歌单…", systemImage: "music.note.list")
+            }
+
+            Divider()
+
             // 定时关闭（嵌套子菜单）
             Menu {
                 ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in
@@ -157,21 +189,28 @@ struct AppleMusicPlayerView: View {
                     }
                 }
             } label: {
-                Label("定时关闭", systemImage: "timer")
+                Label("睡眠定时", systemImage: "timer")
             }
 
-            Button {
-                guard let t = track else { return }
-                LocalPlaylistStore.shared.addTrack(t)
-                ToastCenter.shared.show("已添加到收藏")
-            } label: {
-                Label("添加到本地歌单", systemImage: "plus")
-            }
+            Divider()
 
+            // 复制链接
             Button {
-                ToastCenter.shared.show("下载功能开发中")
+                if let t = track {
+                    let link: String
+                    switch t.sourcePlatform {
+                    case "tx":
+                        link = "https://y.qq.com/n/ryqq/songDetail/\(t.platformSongId ?? "")"
+                    case "kg":
+                        link = "https://www.kugou.com/song/#hash=\(t.platformSongId ?? "")"
+                    default:
+                        link = "https://music.163.com/#/song?id=\(t.id)"
+                    }
+                    Platform.copyToPasteboard(string: link)
+                    ToastCenter.shared.show("链接已复制")
+                }
             } label: {
-                Label("下载歌曲", systemImage: "arrow.down.circle")
+                Label("复制链接", systemImage: "link")
             }
 
             Button {
@@ -507,14 +546,6 @@ struct AppleMusicPlayerView: View {
                                 .foregroundStyle(primaryColor)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
-                            if showSongVIPBadge, isVIP {
-                                Text("VIP")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 2)
-                                    .background(Color(red: 0.93, green: 0.25, blue: 0.22), in: Capsule())
-                            }
                         }
                         Text(subtitle)
                             .font(.system(size: 13.5, weight: .medium))
@@ -1142,20 +1173,18 @@ private struct MiniLyricsPreview: View {
     }
 
     var body: some View {
-        let (previous, current, next) = currentLines
+        let (_, current, _) = currentLines
         Button(action: action) {
-            VStack(spacing: 12) {
-                if current == nil && next == nil {
+            VStack(spacing: 0) {
+                if current == nil {
                     Text("暂无歌词")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.54))
                 } else {
-                    line(previous, emphasized: false)
                     line(current, emphasized: true)
-                    line(next, emphasized: false)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 92)
+            .frame(maxWidth: .infinity, minHeight: 40)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

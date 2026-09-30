@@ -165,7 +165,7 @@ enum KugouAPI {
             if picUrl == nil, !hash.isEmpty {
                 picUrl = "https://imgessl.kugou.com/stdmusic/400/\(hash).jpg"
             }
-            let albumMid = albumAudioId.isEmpty ? albumID : albumAudioId
+            let albumMid = albumID
             let album = AlbumRef(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, albumMid: albumMid)
 
             return makeTrack(id: songID, name: name, artists: artists, album: album, durationMS: duration * 1000, hash: hash)
@@ -239,22 +239,33 @@ enum KugouAPI {
         return result
     }
 
-    // MARK: - 搜索专辑（从歌曲搜索结果提取）
+    // MARK: - 搜索专辑（来自 wellmusic: searchKugouAlbum，用专门的 search/album API）
     static func searchAlbums(_ query: String, page: Int = 1, limit: Int = 20) async throws -> [AlbumSummary] {
-        let songs = try await searchSongs(query, page: page, limit: 50)
-        var result: [AlbumSummary] = []
-        var seen = Set<String>()
-        for song in songs {
-            let albumName = song.album.name
-            guard !albumName.isEmpty else { continue }
-            let artistName = song.artists.first?.name ?? ""
-            let key = "\(albumName)|\(artistName)"
-            guard seen.insert(key).inserted else { continue }
-            let albumID = song.album.albumMid ?? String(song.album.id)
-            result.append(makeAlbum(id: song.album.id, name: albumName, picUrl: song.album.picUrl, artistName: artistName, albumID: albumID)!)
-            if result.count >= limit { break }
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        guard let url = URL(string: "http://mobilecdn.kugou.com/api/v3/search/album?format=json&keyword=\(encoded)&page=\(page)&pagesize=\(limit)") else { return [] }
+        var request = URLRequest(url: url)
+        request.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataDict = json["data"] as? [String: Any],
+              let list = dataDict["info"] as? [[String: Any]] else {
+            return []
         }
-        return result
+
+        return list.compactMap { item -> AlbumSummary? in
+            let albumID = (item["albumid"] as? String) ?? (item["album_id"] as? String) ?? (item["albumid"] as? Int).map { String($0) } ?? (item["album_id"] as? Int).map { String($0) } ?? ""
+            let albumName = (item["albumname"] as? String) ?? (item["album_name"] as? String) ?? ""
+            let singerName = (item["singername"] as? String) ?? ""
+            guard !albumName.isEmpty, !albumID.isEmpty else { return nil }
+            var picUrl: String? = nil
+            if let img = item["imgurl"] as? String, !img.isEmpty {
+                picUrl = img.replacingOccurrences(of: "{size}", with: "400").replacingOccurrences(of: "http://", with: "https://")
+            }
+            if picUrl == nil {
+                picUrl = "https://imge.kugou.com/stdmusic/400/album/\(albumID).jpg"
+            }
+            return makeAlbum(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, artistName: singerName, albumID: albumID)
+        }
     }
 
     // MARK: - 歌词
@@ -374,9 +385,9 @@ enum KugouAPI {
         let singerName = (try? await artistDetail(authorID: authorID))?.name ?? ""
 
         let albums = list.compactMap { item -> AlbumSummary? in
-            let albumID = (item["albumid"] as? String) ?? (item["album_id"] as? String) ?? ""
+            let albumID = (item["albumid"] as? String) ?? (item["album_id"] as? String) ?? (item["albumid"] as? Int).map { String($0) } ?? (item["album_id"] as? Int).map { String($0) } ?? ""
             let albumName = (item["albumname"] as? String) ?? (item["album_name"] as? String) ?? ""
-            guard !albumName.isEmpty else { return nil }
+            guard !albumName.isEmpty, !albumID.isEmpty else { return nil }
             var picUrl: String? = nil
             if let img = item["imgurl"] as? String, !img.isEmpty {
                 picUrl = img.replacingOccurrences(of: "{size}", with: "400").replacingOccurrences(of: "http://", with: "https://")
