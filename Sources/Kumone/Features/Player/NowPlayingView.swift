@@ -28,18 +28,21 @@ struct NowPlayingView: View {
     @State private var showQueueOnMobile = false
 
     var body: some View {
-        #if os(iOS)
-        if settings.nowPlayingMode == .appleMusic {
-            AppleMusicPlayerView(
-                onOpenDestination: onOpenDestination,
-                onDismiss: { close() }
-            )
-        } else {
+        Group {
+            #if os(iOS)
+            if settings.nowPlayingMode == .appleMusic {
+                AppleMusicPlayerView(
+                    onOpenDestination: onOpenDestination,
+                    onDismiss: { close() }
+                )
+            } else {
+                standardPlayerBody
+            }
+            #else
             standardPlayerBody
+            #endif
         }
-        #else
-        standardPlayerBody
-        #endif
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
