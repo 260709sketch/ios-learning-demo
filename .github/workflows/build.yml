@@ -1,0 +1,180 @@
+name: Build iOS
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  # ─── iOS 真机 generic 构建（验证编译通过，不需要证书/模拟器 runtime）───
+  ios-build:
+    name: iOS Build
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          ls /Applications/ | grep -i xcode
+          # 项目需要 Xcode 26（iOS 26 SDK）
+          sudo xcode-select -s /Applications/Xcode_26.app 2>/dev/null \
+            || sudo xcode-select -s /Applications/Xcode_26.0.app 2>/dev/null \
+            || sudo xcode-select -s /Applications/Xcode_26.1.app 2>/dev/null \
+            || true
+          xcodebuild -version
+
+      - name: Build KumoneIOS for iOS Simulator
+        run: |
+          # 清理 SwiftPM 缓存，避免 binary target 缓存冲突
+          rm -rf ~/Library/Caches/org.swift.swiftpm/artifacts
+          cd ios
+          xcodebuild \
+            -project KumoneIOS.xcodeproj \
+            -scheme KumoneIOS \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Build Unsigned Device IPA
+        run: |
+          cd ios
+          xcodebuild \
+            -project KumoneIOS.xcodeproj \
+            -scheme KumoneIOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build-device \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS=""
+          # 打包成 IPA（Payload/xxx.app）
+          APP_PATH=$(find build-device -name "KumoneIOS.app" -type d | head -1)
+          echo "App found at: $APP_PATH"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r KumoneIOS-unsigned.ipa Payload
+          ls -lh KumoneIOS-unsigned.ipa
+
+      - name: Upload Unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: KumoneIOS-unsigned.ipa
+          path: ios/KumoneIOS-unsigned.ipa
+          if-no-files-found: error
+
+  # ─── iOS 真机 IPA 构建（需要配置证书 Secrets，手动触发）───
+  # 需要在 GitHub Secrets 中配置：
+  #   P12_CERTIFICATE_BASE64  - p12 证书文件的 base64 编码
+  #   P12_PASSWORD             - p12 证书密码
+  #   IOS_TEAM_ID              - 开发者团队 ID（10位，如 ABCDE12345）
+  #   IOS_CODE_SIGN_IDENTITY   - 签名身份，如 "Apple Development: 你的名字 (XXXX)"
+  #   IOS_PROFILE_BASE64       - 描述文件 .mobileprovision 的 base64 编码
+  #   IOS_EXPORT_METHOD        - 导出方式：development（开发证书）或 ad-hoc（发布证书），默认 development
+  ios-ipa-build:
+    name: iOS IPA Build
+    runs-on: macos-15
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.0.app || sudo xcode-select -s /Applications/Xcode_26.app || true
+          xcodebuild -version
+
+      - name: Import Code-Signing Certificate
+        env:
+          P12_CERTIFICATE_BASE64: ${{ secrets.P12_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        run: |
+          if [ -z "$P12_CERTIFICATE_BASE64" ]; then
+            echo "::error::P12_CERTIFICATE_BASE64 secret not configured"
+            exit 1
+          fi
+          CERT_PATH=$RUNNER_TEMP/cert.p12
+          echo -n "$P12_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+          security create-keychain -p "temp_kc_pass_2024" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "temp_kc_pass_2024" build.keychain
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -k "temp_kc_pass_2024" build.keychain
+          rm -f "$CERT_PATH"
+
+      - name: Import Provisioning Profile
+        env:
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+        run: |
+          if [ -z "$IOS_PROFILE_BASE64" ]; then
+            echo "::error::IOS_PROFILE_BASE64 secret not configured"
+            exit 1
+          fi
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
+          echo -n "$IOS_PROFILE_BASE64" | base64 --decode -o "$PROFILE_PATH"
+          PROFILE_UUID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -o - -)
+          cp "$PROFILE_PATH" "$PROFILE_DIR/${PROFILE_UUID}.mobileprovision"
+          echo "Imported profile UUID: $PROFILE_UUID"
+          rm -f "$PROFILE_PATH"
+
+      - name: Archive
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_CODE_SIGN_IDENTITY: ${{ secrets.IOS_CODE_SIGN_IDENTITY }}
+        run: |
+          cd ios
+          mkdir -p output
+          xcodebuild \
+            -project KumoneIOS.xcodeproj \
+            -scheme KumoneIOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath output/KumoneIOS.xcarchive \
+            archive \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+            CODE_SIGN_IDENTITY="$IOS_CODE_SIGN_IDENTITY" \
+            CODE_SIGN_STYLE=Manual
+
+      - name: Export IPA
+        env:
+          IOS_EXPORT_METHOD: ${{ secrets.IOS_EXPORT_METHOD }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          cd ios
+          METHOD="${IOS_EXPORT_METHOD:-development}"
+          cat > exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>$METHOD</string>
+              <key>teamID</key>
+              <string>$IOS_TEAM_ID</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild \
+            -exportArchive \
+            -archivePath output/KumoneIOS.xcarchive \
+            -exportPath output \
+            -exportOptionsPlist exportOptions.plist
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: KumoneIOS.ipa
+          path: ios/output/*.ipa
+          if-no-files-found: error
