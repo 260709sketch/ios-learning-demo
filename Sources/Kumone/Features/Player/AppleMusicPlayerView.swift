@@ -136,49 +136,6 @@ struct AppleMusicPlayerView: View {
                             }
                         }
                     }
-                    .overlayPreferenceValue(AppleMusicTextFrameKey.self) { textFrames in
-                        GeometryReader { proxy in
-                            if let titleExpanded = textFrames[.titleExpanded],
-                               let titleCompact = textFrames[.titleCompact],
-                               let artistExpanded = textFrames[.artistExpanded],
-                               let artistCompact = textFrames[.artistCompact] {
-                                let titleFrame = showLyrics ? proxy[titleCompact] : proxy[titleExpanded]
-                                let artistFrame = showLyrics ? proxy[artistCompact] : proxy[artistExpanded]
-                                let titleFont: Font = showLyrics ? .system(size: 15, weight: .semibold) : .system(size: 22, weight: .bold)
-                                let artistFont: Font = showLyrics ? .system(size: 12, weight: .medium) : .system(size: 13.5, weight: .medium)
-
-                                // 歌名
-                                Text(track?.name ?? "未在播放")
-                                    .font(titleFont)
-                                    .foregroundStyle(primaryColor)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.7)
-                                    .frame(width: titleFrame.width, height: titleFrame.height, alignment: .leading)
-                                    .position(x: titleFrame.midX, y: titleFrame.midY)
-
-                                // 歌手
-                                Group {
-                                    if let t = track {
-                                        NowPlayingTrackDestinationLinks(
-                                            track: t,
-                                            font: artistFont,
-                                            color: secondaryColor,
-                                            onOpenDestination: onOpenDestination
-                                        )
-                                    } else {
-                                        Text(subtitle)
-                                            .font(artistFont)
-                                            .foregroundStyle(secondaryColor)
-                                            .lineLimit(1)
-                                    }
-                                }
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .frame(width: artistFrame.width, height: artistFrame.height, alignment: .leading)
-                                .position(x: artistFrame.midX, y: artistFrame.midY)
-                            }
-                        }
-                    }
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showLyrics)
                     .animation(.spring(response: 0.36, dampingFraction: 0.84), value: player.isPlaying)
 
@@ -600,18 +557,31 @@ struct AppleMusicPlayerView: View {
 
             if showLyricPreview {
                 HStack(spacing: 12) {
-                    // 歌名+歌手占位符（记录位置）
                     VStack(alignment: .leading, spacing: 5) {
-                        Color.clear
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 28)
-                            .anchorPreference(key: AppleMusicTextFrameKey.self, value: .bounds) { [.titleExpanded: $0] }
-                        Color.clear
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 18)
-                            .anchorPreference(key: AppleMusicTextFrameKey.self, value: .bounds) { [.artistExpanded: $0] }
+                        HStack(spacing: 9) {
+                            Text(track?.name ?? "未在播放")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(primaryColor)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        Group {
+                            if let t = track {
+                                NowPlayingTrackDestinationLinks(
+                                    track: t,
+                                    font: .system(size: 13.5, weight: .medium),
+                                    color: secondaryColor,
+                                    onOpenDestination: onOpenDestination
+                                )
+                            } else {
+                                Text(subtitle)
+                                    .font(.system(size: 13.5, weight: .medium))
+                                    .foregroundStyle(secondaryColor)
+                            }
+                        }
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     }
-                    .frame(maxWidth: .infinity)
                     Spacer(minLength: 8)
                     compactActionButton(
                         icon: isLiked ? "heart.fill" : "heart",
@@ -756,16 +726,30 @@ struct AppleMusicPlayerView: View {
                 ) { [.compact: $0] }
 
             VStack(alignment: .leading, spacing: 3) {
-                Color.clear
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 20)
-                    .anchorPreference(key: AppleMusicTextFrameKey.self, value: .bounds) { [.titleCompact: $0] }
-                Color.clear
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 16)
-                    .anchorPreference(key: AppleMusicTextFrameKey.self, value: .bounds) { [.artistCompact: $0] }
+                HStack(spacing: 7) {
+                    Text(track?.name ?? "未在播放")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(primaryColor)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Group {
+                    if let t = track {
+                        NowPlayingTrackDestinationLinks(
+                            track: t,
+                            font: .system(size: 12, weight: .medium),
+                            color: secondaryColor,
+                            onOpenDestination: onOpenDestination
+                        )
+                    } else {
+                        Text(subtitle)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(secondaryColor)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
             }
-            .frame(maxWidth: .infinity)
             Spacer(minLength: 0)
             compactActionButton(
                 icon: isLiked ? "heart.fill" : "heart",
