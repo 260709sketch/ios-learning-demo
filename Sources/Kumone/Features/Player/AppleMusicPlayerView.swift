@@ -133,10 +133,12 @@ struct AppleMusicPlayerView: View {
                                 .scaleEffect(showLyrics ? 1 : (player.isPlaying ? 1 : 0.965))
                                 .position(x: targetFrame.midX, y: targetFrame.midY)
                                 .contentShape(Rectangle())
+                                .allowsHitTesting(showLyrics)
                                 .onTapGesture {
+                                    guard showLyrics else { return }
                                     WellHaptics.tap()
                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                        showLyrics.toggle()
+                                        showLyrics = false
                                     }
                                 }
                             }
