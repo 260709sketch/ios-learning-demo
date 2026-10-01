@@ -501,7 +501,7 @@ struct AppleMusicPlayerView: View {
         let artworkSize = min(contentWidth, min(size.height * 0.50, 390))
 
         return VStack(spacing: 0) {
-            Color.clear.frame(height: 70)
+            Color.clear.frame(height: 100)
 
             CoverImage(
                 url: coverURL,
@@ -559,7 +559,7 @@ struct AppleMusicPlayerView: View {
                     WellHaptics.tap()
                     showLyrics = true
                 }
-                .padding(.top, 18)
+                .padding(.top, 36)
                 .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.previewLyric)))
             } else {
                 compactTrackHeader

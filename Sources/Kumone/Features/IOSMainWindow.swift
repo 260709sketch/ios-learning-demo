@@ -125,18 +125,10 @@ public struct IOSMainWindow: View {
 
     @ViewBuilder
     private var systemNowPlayingPresentation: some View {
-        if #available(iOS 16.4, *) {
-            nowPlayingPresentation(
-                usesSystemInteractiveDismissal: true,
-                dismissAnimation: nil
-            )
-            .presentationBackground(.clear)
-        } else {
-            nowPlayingPresentation(
-                usesSystemInteractiveDismissal: true,
-                dismissAnimation: nil
-            )
-        }
+        nowPlayingPresentation(
+            usesSystemInteractiveDismissal: true,
+            dismissAnimation: nil
+        )
     }
 
     private var legacyPresentationRoot: some View {

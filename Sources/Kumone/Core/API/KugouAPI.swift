@@ -34,14 +34,14 @@ enum KugouAPI {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
         }.filter { !$0.isEmpty }
         if parts.count <= 1 {
-            return [ArtistRef(id: singerID, name: trimmed, singerMid: String(singerID))]
+            return [ArtistRef(id: singerID, name: trimmed, singerMid: singerID > 0 ? String(singerID) : nil)]
         }
-        // 多歌手：第一个用真正的 singerID，其他用歌手名作为 singerMid（用于搜索）
+        // 多歌手：只有第一个用真正的 singerID，其他 singerMid 为 nil（避免跳转错误歌手）
         return parts.enumerated().map { idx, name in
             if idx == 0 && singerID > 0 {
                 return ArtistRef(id: singerID, name: name, singerMid: String(singerID))
             }
-            return ArtistRef(id: abs(name.hashValue), name: name, singerMid: name)
+            return ArtistRef(id: abs(name.hashValue), name: name, singerMid: nil)
         }
     }
 
