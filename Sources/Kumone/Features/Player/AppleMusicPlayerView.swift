@@ -133,13 +133,7 @@ struct AppleMusicPlayerView: View {
                                 .shadow(color: .black.opacity(showLyrics ? 0.26 : 0.46), radius: showLyrics ? 9 : 36, y: showLyrics ? 4 : 18)
                                 .scaleEffect(showLyrics ? 1 : (player.isPlaying ? 1 : 0.965))
                                 .position(x: targetFrame.midX, y: targetFrame.midY)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    WellHaptics.tap()
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                        showLyrics.toggle()
-                                    }
-                                }
+                                .allowsHitTesting(false)
                             }
                         }
                     }
@@ -282,47 +276,6 @@ struct AppleMusicPlayerView: View {
                 }
             }
         }
-        .presentationDetentsSafe()
-    }
-
-    private var volumeSheet: some View {
-        VStack(spacing: 20) {
-            Capsule()
-                .fill(Color.secondary.opacity(0.3))
-                .frame(width: 36, height: 5)
-                .padding(.top, 10)
-
-            Text("音量")
-                .font(.headline)
-                .foregroundStyle(.primary)
-
-            GeometryReader { geo in
-                let height = geo.size.height
-                let fraction = min(max(CGFloat(player.volume), 0), 1)
-                ZStack(alignment: .bottom) {
-                    Capsule().fill(Color.secondary.opacity(0.2))
-                    Capsule().fill(accentColor)
-                        .frame(height: height * fraction)
-                }
-                .frame(width: 8)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            player.volume = Float(min(max(1 - value.location.y / height, 0), 1))
-                        }
-                )
-            }
-            .frame(width: 60, height: 180)
-
-            Text("\(Int((player.volume * 100).rounded()))%")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-        }
-        .padding(.horizontal, 24)
         .presentationDetentsSafe()
     }
 
@@ -870,8 +823,20 @@ struct AppleMusicPlayerView: View {
                 referenceActionButton(icon: "list.bullet") {
                     showQueue = true
                 }
-                referenceActionButton(icon: volumeIcon, active: false) {
-                    showVolumePopover = true
+                ZStack {
+                    referenceActionButton(icon: volumeIcon, active: showVolumePopover) {
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                            showVolumePopover.toggle()
+                        }
+                    }
+                    .overlay(alignment: .top) {
+                        if showVolumePopover {
+                            CompactVolumePopover()
+                                .offset(y: -16)
+                                .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
+                                .zIndex(1)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: 420)
@@ -1419,6 +1384,88 @@ private extension View {
             self.presentationDetents([.medium])
         } else {
             self
+        }
+    }
+}
+
+// MARK: - 音量弹窗（照搬沉浸模式）
+
+private struct CompactVolumePopover: View {
+    @EnvironmentObject private var player: PlayerService
+    @State private var isDragging = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "speaker.wave.3.fill")
+                .font(.system(size: 16, weight: .medium))
+
+            GeometryReader { geo in
+                let height = geo.size.height
+                let fraction = min(max(CGFloat(player.volume), 0), 1)
+                ZStack(alignment: .bottom) {
+                    Capsule().fill(.white.opacity(0.22))
+                    Capsule().fill(.white.opacity(0.82))
+                        .frame(height: height * fraction)
+                }
+                .frame(width: isDragging ? 12 : 8)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            isDragging = true
+                            updateVolume(at: value.location.y, height: height)
+                        }
+                        .onEnded { value in
+                            updateVolume(at: value.location.y, height: height)
+                            isDragging = false
+                        }
+                )
+                .animation(.spring(response: 0.24, dampingFraction: 0.82), value: isDragging)
+            }
+            .frame(width: 32, height: 132)
+            .accessibilityElement()
+            .accessibilityLabel("音量")
+            .accessibilityValue("\(Int((player.volume * 100).rounded()))%")
+            .accessibilityAdjustableAction(adjustVolume)
+
+            Image(systemName: player.volume == 0 ? "speaker.slash.fill" : "speaker.fill")
+                .font(.system(size: 14, weight: .medium))
+        }
+        .foregroundStyle(.white.opacity(0.85))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(alignment: .bottom) {
+            Triangle()
+                .fill(.white.opacity(0.18))
+                .frame(width: 16, height: 8)
+                .offset(y: 8)
+        }
+    }
+
+    private func updateVolume(at location: CGFloat, height: CGFloat) {
+        guard height > 0 else { return }
+        player.volume = Float(min(max(1 - location / height, 0), 1))
+    }
+
+    private func adjustVolume(_ direction: AccessibilityAdjustmentDirection) {
+        let step: Float = 0.05
+        switch direction {
+        case .increment: player.volume = min(player.volume + step, 1)
+        case .decrement: player.volume = max(player.volume - step, 0)
+        @unknown default: break
+        }
+    }
+}
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            path.move(to: CGPoint(x: rect.midX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.closeSubpath()
         }
     }
 }
