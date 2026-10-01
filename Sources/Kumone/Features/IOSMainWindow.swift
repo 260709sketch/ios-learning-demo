@@ -125,20 +125,41 @@ public struct IOSMainWindow: View {
 
     @ViewBuilder
     private var systemNowPlayingPresentation: some View {
-        nowPlayingPresentation(
-            usesSystemInteractiveDismissal: true,
-            dismissAnimation: nil
-        )
+        if #available(iOS 16.4, *) {
+            nowPlayingPresentation(
+                usesSystemInteractiveDismissal: true,
+                dismissAnimation: nil
+            )
+            .presentationBackground(.clear)
+        } else {
+            nowPlayingPresentation(
+                usesSystemInteractiveDismissal: true,
+                dismissAnimation: nil
+            )
+        }
     }
 
     private var legacyPresentationRoot: some View {
-        appContent
-            .fullScreenCover(isPresented: $player.showNowPlaying) {
+        ZStack {
+            appContent
+
+            if player.showNowPlaying {
+                // Present full-screen with a bottom slide-up. A previous version
+                // used `matchedGeometryEffect(.frame, isSource: false)` here to
+                // zoom out of the mini player, but that copies the *source*
+                // (mini-bar) frame onto this view — shrinking the whole
+                // now-playing page to bar size, so on iOS 16/17 nothing
+                // full-screen appeared (#28). The slide-up matches the
+                // pull-down-to-dismiss gesture; iOS 18+ still gets the zoom.
                 nowPlayingPresentation(
-                    usesSystemInteractiveDismissal: true,
-                    dismissAnimation: nil
+                    usesSystemInteractiveDismissal: false,
+                    dismissAnimation: NowPlayingPresentationMetrics.presentationAnimation
                 )
+                .transition(.move(edge: .bottom))
+                .zIndex(1)
             }
+        }
+        .animation(NowPlayingPresentationMetrics.presentationAnimation, value: player.showNowPlaying)
     }
 
     @ViewBuilder
