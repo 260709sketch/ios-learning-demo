@@ -182,9 +182,22 @@ struct ArtistDetailView: View {
             return
         }
 
-        if isKugou, let authorID = singerMid {
-            // 酷狗歌手：先获取详情（头像、歌曲数、专辑数），再加载歌曲和专辑
-            let detail = try? await KugouAPI.artistDetail(authorID: authorID)
+        if isKugou {
+            // 酷狗歌手：先尝试用 singerMid 获取详情，如果失败则用歌手名搜索获取真实 ID
+            var realAuthorID = singerMid
+            var detail = try? await KugouAPI.artistDetail(authorID: realAuthorID ?? "")
+            if detail == nil, let searchName = initialArtist?.name, !searchName.isEmpty {
+                // 用歌手名搜索获取真实 singerid
+                if let searched = try? await KugouAPI.searchArtists(searchName, limit: 5),
+                   let match = searched.first(where: { $0.name == searchName }) ?? searched.first {
+                    realAuthorID = match.singerMid
+                    detail = try? await KugouAPI.artistDetail(authorID: realAuthorID ?? "")
+                }
+            }
+            guard let authorID = realAuthorID else {
+                isLoading = false
+                return
+            }
             let singerName = detail?.name ?? initialArtist?.name ?? "歌手"
             let avatar = detail?.avatar ?? initialArtist?.picUrl
             let songCount = detail?.songCount ?? 0

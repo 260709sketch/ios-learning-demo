@@ -81,17 +81,11 @@ struct AppleMusicPlayerView: View {
                         if showLyrics {
                             lyricsPage
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .transition(.asymmetric(
-                                    insertion: .move(edge: .bottom).combined(with: .opacity),
-                                    removal: .move(edge: .top).combined(with: .opacity)
-                                ))
+                                .transition(.opacity)
                         } else {
                             coverPage(size: geometry.size)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .transition(.asymmetric(
-                                    insertion: .move(edge: .top).combined(with: .opacity),
-                                    removal: .move(edge: .top).combined(with: .opacity)
-                                ))
+                                .transition(.opacity)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
