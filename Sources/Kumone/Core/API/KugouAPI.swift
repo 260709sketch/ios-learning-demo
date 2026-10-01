@@ -498,27 +498,19 @@ enum KugouAPI {
         return nil
     }
 
-    /// 酷狗评论（legacy 接口，无需签名）
+    /// 酷狗评论（照搬 wellmusic：mcomment.kugou.com + 移动端UA + extdata=hash）
     static func comments(hash: String, page: Int = 1, limit: Int = 30) async throws -> KugouCommentPage {
-        let childrenID: String
-        if let audioID = try await commentAudioID(hash: hash) {
-            childrenID = audioID
-        } else {
-            childrenID = "\(abs(hash.hashValue))"
-        }
-        var components = URLComponents(string: "http://m.comment.service.kugou.com/index.php")!
-        components.queryItems = [
-            URLQueryItem(name: "r", value: "commentsv2/getCommentWithLike"),
-            URLQueryItem(name: "childrenid", value: childrenID),
-            URLQueryItem(name: "code", value: "fc4be23b4e972707f36b8a828a93ba8a"),
-            URLQueryItem(name: "extdata", value: "0"),
-            URLQueryItem(name: "p", value: "\(max(page, 1))"),
-            URLQueryItem(name: "pagesize", value: "\(min(max(limit, 1), 30))"),
-        ]
-        guard let url = components.url else {
+        let cleanHash = hash.replacingOccurrences(of: "kugou_", with: "").replacingOccurrences(of: "kg_", with: "")
+        let urlString = "https://mcomment.kugou.com/index.php?r=commentsv2/getCommentWithLike&code=fc4be23b4e972707f36b8a828a93ba8a&extdata=\(cleanHash)&p=\(max(page, 1))&pagesize=\(min(max(limit, 1), 30))"
+        guard let url = URL(string: urlString) else {
             throw NSError(domain: "KugouAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "URL 无效"])
         }
-        let json = try await getJSON(url)
+        var request = URLRequest(url: url)
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return KugouCommentPage(comments: [], total: 0, hasMore: false)
+        }
         return parseComments(json: json, page: page)
     }
 
@@ -539,22 +531,31 @@ enum KugouAPI {
             let rawID = (raw["commentid"] as? String) ?? (raw["comment_id"] as? String) ?? ((raw["id"] as? Int).map { "\($0)" }) ?? ""
             let content = (raw["content"] as? String) ?? (raw["comment_content"] as? String) ?? ""
             guard !content.isEmpty else { return nil }
-            let nickname = (raw["nick"] as? String) ?? (raw["nickname"] as? String) ?? (raw["username"] as? String) ?? "酷狗用户"
-            let avatar = (raw["avatarurl"] as? String) ?? (raw["avatar_url"] as? String) ?? (raw["avatar"] as? String) ?? ""
-            let timestamp: Double
+            let nickname = (raw["user_name"] as? String) ?? (raw["nick"] as? String) ?? (raw["nickname"] as? String) ?? (raw["username"] as? String) ?? "酷狗用户"
+            let avatar = (raw["user_pic"] as? String) ?? (raw["avatarurl"] as? String) ?? (raw["avatar_url"] as? String) ?? (raw["avatar"] as? String) ?? ""
+            // 时间：addtime 可能是时间戳或字符串 "2024-01-01 12:00:00"
+            var timestamp: Double = 0
             if let addtime = raw["addtime"] as? Double {
                 timestamp = addtime
             } else if let addtime = raw["addtime"] as? Int {
                 timestamp = Double(addtime)
+            } else if let addtimeStr = raw["addtime"] as? String {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+                if let date = formatter.date(from: addtimeStr) {
+                    timestamp = date.timeIntervalSince1970
+                }
             } else if let time = raw["time"] as? Double {
                 timestamp = time
-            } else {
-                timestamp = 0
             }
             let seconds = timestamp > 10_000_000_000 ? timestamp / 1000 : timestamp
             let id = rawID.isEmpty ? abs(content.hashValue) : abs(rawID.hashValue)
             guard seen.insert(id).inserted else { return nil }
-            let likedCount = (raw["praisenum"] as? Int) ?? (raw["like_count"] as? Int) ?? 0
+            // 点赞数：like.likenum 或 praisenum 或 like_count
+            var likedCount = (raw["praisenum"] as? Int) ?? (raw["like_count"] as? Int) ?? 0
+            if likedCount == 0, let like = raw["like"] as? [String: Any], let likenum = like["likenum"] as? Int {
+                likedCount = likenum
+            }
             return SongComment(
                 id: id,
                 content: content,
