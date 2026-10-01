@@ -135,10 +135,9 @@ public struct IOSMainWindow: View {
         appContent
             .fullScreenCover(isPresented: $player.showNowPlaying) {
                 nowPlayingPresentation(
-                    usesSystemInteractiveDismissal: false,
-                    dismissAnimation: NowPlayingPresentationMetrics.presentationAnimation
+                    usesSystemInteractiveDismissal: true,
+                    dismissAnimation: nil
                 )
-                .interactiveDismissDisabled(true)
             }
     }
 
