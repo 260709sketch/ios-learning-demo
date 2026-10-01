@@ -603,14 +603,15 @@ struct AppleMusicPlayerView: View {
                     // 歌名+歌手占位符（记录位置）
                     VStack(alignment: .leading, spacing: 5) {
                         Color.clear
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(maxWidth: .infinity)
                             .frame(height: 28)
                             .anchorPreference(key: AppleMusicTextFrameKey.self, value: .bounds) { [.titleExpanded: $0] }
                         Color.clear
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(maxWidth: .infinity)
                             .frame(height: 18)
                             .anchorPreference(key: AppleMusicTextFrameKey.self, value: .bounds) { [.artistExpanded: $0] }
                     }
+                    .frame(maxWidth: .infinity)
                     Spacer(minLength: 8)
                     compactActionButton(
                         icon: isLiked ? "heart.fill" : "heart",
@@ -756,14 +757,15 @@ struct AppleMusicPlayerView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Color.clear
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
                     .frame(height: 20)
                     .anchorPreference(key: AppleMusicTextFrameKey.self, value: .bounds) { [.titleCompact: $0] }
                 Color.clear
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
                     .frame(height: 16)
                     .anchorPreference(key: AppleMusicTextFrameKey.self, value: .bounds) { [.artistCompact: $0] }
             }
+            .frame(maxWidth: .infinity)
             Spacer(minLength: 0)
             compactActionButton(
                 icon: isLiked ? "heart.fill" : "heart",
