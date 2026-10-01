@@ -800,7 +800,6 @@ struct AppleMusicPlayerView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(active ? accentColor : primaryColor.opacity(0.78))
                 .frame(width: 58, height: 58)
-                .background { Circle().fill(.ultraThinMaterial) }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
