@@ -984,6 +984,8 @@ final class PlayerService: ObservableObject {
                     generation: generation,
                     preloadOnly: preloadOnly
                 )
+                // 被新任务取代时静默退出，不记录失败、不触发切歌
+                if case .superseded = loadResult { return true }
                 guard case .loaded = loadResult else {
                     let log = LXRequestLog(
                         date: Date(), trackName: track.name, trackArtist: track.artistNames,
