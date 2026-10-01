@@ -999,9 +999,8 @@ struct AppleMusicPlayerView: View {
                     }
                 }
                 resumeTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 2_500_000_000)
-                    guard !Task.isCancelled else { return }
-                    isDraggingLyrics = false
+                    defer { isDraggingLyrics = false }
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
                 }
             }
     }
