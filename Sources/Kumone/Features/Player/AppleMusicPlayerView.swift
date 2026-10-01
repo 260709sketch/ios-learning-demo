@@ -10,6 +10,18 @@ private struct ReferenceLyricCenterKey: PreferenceKey {
     }
 }
 
+private enum AppleMusicArtworkAnchor: Hashable {
+    case expanded
+    case compact
+}
+
+private struct AppleMusicArtworkFrameKey: PreferenceKey {
+    static var defaultValue: [AppleMusicArtworkAnchor: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [AppleMusicArtworkAnchor: Anchor<CGRect>], nextValue: () -> [AppleMusicArtworkAnchor: Anchor<CGRect>]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
 private struct ReferencePlaybackPresentationMetrics {
     static let headerTopSpacing: CGFloat = 20
 }
@@ -89,7 +101,38 @@ struct AppleMusicPlayerView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .animation(.easeInOut(duration: 0.22), value: showLyrics)
+                    .overlayPreferenceValue(AppleMusicArtworkFrameKey.self) { frames in
+                        GeometryReader { proxy in
+                            if let expanded = frames[.expanded],
+                               let compact = frames[.compact] {
+                                let expandedFrame = proxy[expanded]
+                                let compactFrame = proxy[compact]
+                                let targetFrame = showLyrics ? compactFrame : expandedFrame
+                                let cornerRadius: CGFloat = showLyrics ? 10 : 18
+
+                                CoverImage(
+                                    url: coverURL,
+                                    size: targetFrame.width,
+                                    cornerRadius: cornerRadius,
+                                    emptyHint: player.isBuffering ? "等待开始播放…" : nil
+                                )
+                                .frame(width: targetFrame.width, height: targetFrame.height)
+                                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                                .shadow(color: .black.opacity(showLyrics ? 0.26 : 0.46), radius: showLyrics ? 9 : 36, y: showLyrics ? 4 : 18)
+                                .scaleEffect(showLyrics ? 1 : (player.isPlaying ? 1 : 0.965))
+                                .position(x: targetFrame.midX, y: targetFrame.midY)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    WellHaptics.tap()
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                        showLyrics.toggle()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showLyrics)
+                    .animation(.spring(response: 0.36, dampingFraction: 0.84), value: player.isPlaying)
 
                     playbackControls(bottomInset: geometry.safeAreaInsets.bottom)
                 }
@@ -499,18 +542,13 @@ struct AppleMusicPlayerView: View {
         return VStack(spacing: 0) {
             Color.clear.frame(height: 100)
 
-            CoverImage(
-                url: coverURL,
-                size: artworkSize,
-                cornerRadius: 18,
-                emptyHint: player.isBuffering ? "等待开始播放…" : nil
-            )
-            .frame(width: artworkSize, height: artworkSize)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: .black.opacity(0.46), radius: 36, y: 18)
-            .scaleEffect(player.isPlaying ? 1 : 0.965)
-            .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.cover)))
-            .animation(.spring(response: 0.36, dampingFraction: 0.84), value: player.isPlaying)
+            // 大封面占位符（记录位置）
+            Color.clear
+                .frame(width: artworkSize, height: artworkSize)
+                .anchorPreference(
+                    key: AppleMusicArtworkFrameKey.self,
+                    value: .bounds
+                ) { [.expanded: $0] }
 
             if showLyricPreview {
                 HStack(spacing: 12) {
@@ -674,14 +712,13 @@ struct AppleMusicPlayerView: View {
 
     private var lyricsHeader: some View {
         HStack(spacing: 12) {
-            Button {
-                WellHaptics.tap()
-                showLyrics = false
-            } label: {
-                CoverImage(url: coverURL, size: 48, cornerRadius: 10)
-                    .shadow(color: .black.opacity(0.26), radius: 9, y: 4)
-            }
-            .buttonStyle(GlassPressButtonStyle(scale: 0.94))
+            // 小封面占位符（记录位置）
+            Color.clear
+                .frame(width: 48, height: 48)
+                .anchorPreference(
+                    key: AppleMusicArtworkFrameKey.self,
+                    value: .bounds
+                ) { [.compact: $0] }
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 7) {
