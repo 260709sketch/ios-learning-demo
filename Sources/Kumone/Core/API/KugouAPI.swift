@@ -124,9 +124,16 @@ enum KugouAPI {
             let duration = (item["Duration"] as? Int) ?? 0
             let songID = (item["Audioid"] as? Int) ?? (item["SongID"] as? Int) ?? abs(hash.hashValue)
 
-            // 歌手：Singers 数组（lx-music 格式），兜底 SingerName 字符串
+            // 歌手：优先 SingerId 数组（真实ID），然后 Singers 数组，兜底 SingerName 字符串
             var artists: [ArtistRef] = []
-            if let singers = item["Singers"] as? [[String: Any]] {
+            if let singerIds = item["SingerId"] as? [Int], !singerIds.isEmpty,
+               let singerName = item["SingerName"] as? String {
+                let names = singerName.components(separatedBy: "、").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                for (idx, sid) in singerIds.enumerated() {
+                    let sname = idx < names.count ? names[idx] : singerName
+                    artists.append(ArtistRef(id: sid, name: sname, singerMid: String(sid)))
+                }
+            } else if let singers = item["Singers"] as? [[String: Any]] {
                 artists = singers.compactMap { s in
                     let sname = (s["name"] as? String) ?? ""
                     guard !sname.isEmpty else { return nil }
