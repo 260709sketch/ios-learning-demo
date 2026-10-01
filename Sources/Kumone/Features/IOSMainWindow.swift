@@ -132,21 +132,14 @@ public struct IOSMainWindow: View {
     }
 
     private var legacyPresentationRoot: some View {
-        ZStack {
-            appContent
-
-            if player.showNowPlaying {
+        appContent
+            .fullScreenCover(isPresented: $player.showNowPlaying) {
                 nowPlayingPresentation(
                     usesSystemInteractiveDismissal: false,
                     dismissAnimation: NowPlayingPresentationMetrics.presentationAnimation
                 )
-                .transition(.move(edge: .bottom))
-                .zIndex(1)
+                .interactiveDismissDisabled(true)
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
-        .animation(NowPlayingPresentationMetrics.presentationAnimation, value: player.showNowPlaying)
     }
 
     @ViewBuilder
