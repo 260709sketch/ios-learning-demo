@@ -22,6 +22,20 @@ private struct AppleMusicArtworkFrameKey: PreferenceKey {
     }
 }
 
+private enum AppleMusicTextAnchor: Hashable {
+    case titleExpanded
+    case titleCompact
+    case artistExpanded
+    case artistCompact
+}
+
+private struct AppleMusicTextFrameKey: PreferenceKey {
+    static var defaultValue: [AppleMusicTextAnchor: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [AppleMusicTextAnchor: Anchor<CGRect>], nextValue: () -> [AppleMusicTextAnchor: Anchor<CGRect>]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
 private struct ReferencePlaybackPresentationMetrics {
     static let headerTopSpacing: CGFloat = 20
 }
@@ -90,15 +104,12 @@ struct AppleMusicPlayerView: View {
                     Color.clear.frame(height: ReferencePlaybackPresentationMetrics.headerTopSpacing)
 
                     ZStack {
-                        if showLyrics {
-                            lyricsPage
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .transition(.opacity)
-                        } else {
-                            coverPage(size: geometry.size)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .transition(.opacity)
-                        }
+                        coverPage(size: geometry.size)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .opacity(showLyrics ? 0 : 1)
+                        lyricsPage
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .opacity(showLyrics ? 1 : 0)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlayPreferenceValue(AppleMusicArtworkFrameKey.self) { frames in
