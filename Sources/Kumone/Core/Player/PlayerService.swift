@@ -187,6 +187,11 @@ final class PlayerService: ObservableObject {
     private var scrobbled = false
     private var startScrobbled = false
 
+    // MARK: - 播放错误宽限重试（照搬wellmusic）
+    private var consecutivePlaybackErrors = 0
+    private var lastPlaybackErrorTime: Date?
+    private var playbackGraceTask: Task<Void, Never>?
+
     // MARK: - 预加载下一首
     /// 预加载的下一首歌 AVPlayerItem（旧机制，已弃用，保留避免编译错误）
     private var preloadedNextItem: AVPlayerItem?
@@ -1300,6 +1305,55 @@ final class PlayerService: ObservableObject {
               currentUnblockSourceID == sourceID
         else { return }
 
+        // 5秒窗口内才算连续错误（照搬wellmusic）
+        let now = Date()
+        if let last = lastPlaybackErrorTime, now.timeIntervalSince(last) < 5 {
+            consecutivePlaybackErrors += 1
+        } else {
+            consecutivePlaybackErrors = 1
+        }
+        lastPlaybackErrorTime = now
+
+        // 首次错误：宽限重试，不立即换源（照搬wellmusic）
+        if consecutivePlaybackErrors < 2 {
+            playbackGraceTask?.cancel()
+            playbackGraceTask = Task { @MainActor in
+                // 先等1.5秒，看是否自动恢复（瞬时网络抖动/播放器假死可能自愈）
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                guard !Task.isCancelled else { return }
+                guard generation == resolveGeneration, currentTrack?.id == track.id else { return }
+
+                // 检查是否已恢复
+                if engine.currentItem?.status == .readyToPlay, engine.timeControlStatus == .playing {
+                    consecutivePlaybackErrors = 0
+                    return
+                }
+
+                // 同一链接原位重试一次（不换源）
+                engine.play()
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                guard !Task.isCancelled else { return }
+                guard generation == resolveGeneration, currentTrack?.id == track.id else { return }
+
+                // 检查是否已恢复
+                if engine.currentItem?.status == .readyToPlay, engine.timeControlStatus == .playing {
+                    consecutivePlaybackErrors = 0
+                    return
+                }
+
+                // 确证失败，清除缓存URL并换源
+                preloadedURLs[preloadCacheKey(for: track)] = nil
+                doSourceSwitch(track: track, generation: generation, sourceID: sourceID)
+            }
+            return
+        }
+
+        // 连续错误：直接换源
+        preloadedURLs[preloadCacheKey(for: track)] = nil
+        doSourceSwitch(track: track, generation: generation, sourceID: sourceID)
+    }
+
+    private func doSourceSwitch(track: Track, generation: Int, sourceID: AudioSourceID) {
         itemStatusObservation?.invalidate()
         itemStatusObservation = nil
         currentUnblockSourceID = nil
@@ -1308,9 +1362,7 @@ final class PlayerService: ObservableObject {
         releaseCurrentPlaybackResources()
         AudioSpectrum.shared.beginPreparing()
 
-        guard isPlaying else {
-            return
-        }
+        guard isPlaying else { return }
 
         Task {
             let loaded = await resolveAndLoadUnblocked(
