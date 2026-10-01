@@ -509,7 +509,7 @@ enum KugouAPI {
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
         let (data, _) = try await URLSession.shared.data(for: request)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return KugouCommentPage(comments: [], total: 0, hasMore: false)
+            return KugouCommentPage(comments: [], total: 0)
         }
         return parseComments(json: json, page: page)
     }
