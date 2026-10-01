@@ -826,10 +826,10 @@ struct AppleMusicPlayerView: View {
                             showVolumePopover.toggle()
                         }
                     }
-                    .overlay(alignment: .top) {
+                    .overlay(alignment: .bottom) {
                         if showVolumePopover {
                             CompactVolumePopover()
-                                .offset(y: -16)
+                                .offset(y: -44)
                                 .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
                                 .zIndex(1)
                         }
