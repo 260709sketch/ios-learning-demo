@@ -180,9 +180,6 @@ struct AppleMusicPlayerView: View {
         .sheet(isPresented: $showPlayerSettings) {
             playerSettingsSheet
         }
-        .sheet(isPresented: $showVolumePopover) {
-            volumeSheet
-        }
     }
 
     // MARK: - 三点菜单
