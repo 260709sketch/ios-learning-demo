@@ -58,6 +58,7 @@ struct AppleMusicPlayerView: View {
     @State private var showComments = false
     @State private var showAddToPlaylist = false
     @State private var showPlayerSettings = false
+    @State private var showVolumePopover = false
     @State private var layoutMode = false
     @State private var appleLayoutPart: AppleMusicLayoutPart = .cover
     @AppStorage("wellmusic.lyricOffset") private var lyricOffset = 0.0
@@ -132,7 +133,13 @@ struct AppleMusicPlayerView: View {
                                 .shadow(color: .black.opacity(showLyrics ? 0.26 : 0.46), radius: showLyrics ? 9 : 36, y: showLyrics ? 4 : 18)
                                 .scaleEffect(showLyrics ? 1 : (player.isPlaying ? 1 : 0.965))
                                 .position(x: targetFrame.midX, y: targetFrame.midY)
-                                .allowsHitTesting(false)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    WellHaptics.tap()
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                        showLyrics.toggle()
+                                    }
+                                }
                             }
                         }
                     }
@@ -178,6 +185,9 @@ struct AppleMusicPlayerView: View {
         }
         .sheet(isPresented: $showPlayerSettings) {
             playerSettingsSheet
+        }
+        .sheet(isPresented: $showVolumePopover) {
+            volumeSheet
         }
     }
 
@@ -272,6 +282,47 @@ struct AppleMusicPlayerView: View {
                 }
             }
         }
+        .presentationDetentsSafe()
+    }
+
+    private var volumeSheet: some View {
+        VStack(spacing: 20) {
+            Capsule()
+                .fill(Color.secondary.opacity(0.3))
+                .frame(width: 36, height: 5)
+                .padding(.top, 10)
+
+            Text("音量")
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            GeometryReader { geo in
+                let height = geo.size.height
+                let fraction = min(max(CGFloat(player.volume), 0), 1)
+                ZStack(alignment: .bottom) {
+                    Capsule().fill(Color.secondary.opacity(0.2))
+                    Capsule().fill(accentColor)
+                        .frame(height: height * fraction)
+                }
+                .frame(width: 8)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            player.volume = Float(min(max(1 - value.location.y / height, 0), 1))
+                        }
+                )
+            }
+            .frame(width: 60, height: 180)
+
+            Text("\(Int((player.volume * 100).rounded()))%")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+        }
+        .padding(.horizontal, 24)
         .presentationDetentsSafe()
     }
 
@@ -808,7 +859,7 @@ struct AppleMusicPlayerView: View {
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            HStack(spacing: 48) {
+            HStack(spacing: 36) {
                 referenceActionButton(icon: "quote.bubble", active: showLyrics) {
                     guard !lyrics.isEmpty else { return }
                     showLyrics.toggle()
@@ -818,6 +869,9 @@ struct AppleMusicPlayerView: View {
                 }
                 referenceActionButton(icon: "list.bullet") {
                     showQueue = true
+                }
+                referenceActionButton(icon: volumeIcon, active: false) {
+                    showVolumePopover = true
                 }
             }
             .frame(maxWidth: 420)
@@ -903,6 +957,15 @@ struct AppleMusicPlayerView: View {
         case .one: return "repeat.1"
         case .all: return "repeat"
         case .off: return "repeat"
+        }
+    }
+
+    private var volumeIcon: String {
+        switch player.volume {
+        case 0: return "speaker.slash"
+        case ..<0.4: return "speaker.wave.1"
+        case ..<0.75: return "speaker.wave.2"
+        default: return "speaker.wave.3"
         }
     }
 
@@ -1004,8 +1067,10 @@ struct AppleMusicPlayerView: View {
                     }
                 }
                 resumeTask = Task { @MainActor in
-                    defer { isDraggingLyrics = false }
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    if !Task.isCancelled {
+                        isDraggingLyrics = false
+                    }
                 }
             }
     }
