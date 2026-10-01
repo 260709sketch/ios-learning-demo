@@ -132,15 +132,7 @@ struct AppleMusicPlayerView: View {
                                 .shadow(color: .black.opacity(showLyrics ? 0.26 : 0.46), radius: showLyrics ? 9 : 36, y: showLyrics ? 4 : 18)
                                 .scaleEffect(showLyrics ? 1 : (player.isPlaying ? 1 : 0.965))
                                 .position(x: targetFrame.midX, y: targetFrame.midY)
-                                .contentShape(Rectangle())
-                                .allowsHitTesting(showLyrics)
-                                .onTapGesture {
-                                    guard showLyrics else { return }
-                                    WellHaptics.tap()
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                        showLyrics = false
-                                    }
-                                }
+                                .allowsHitTesting(false)
                             }
                         }
                     }
