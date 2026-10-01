@@ -817,9 +817,6 @@ struct AppleMusicPlayerView: View {
                 referenceActionButton(icon: playbackModeIcon, active: player.shuffleEnabled) {
                     player.cyclePlaybackMode()
                 }
-                referenceActionButton(icon: "list.bullet") {
-                    showQueue = true
-                }
                 ZStack {
                     referenceActionButton(icon: volumeIcon, active: showVolumePopover) {
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
@@ -834,6 +831,9 @@ struct AppleMusicPlayerView: View {
                                 .zIndex(1)
                         }
                     }
+                }
+                referenceActionButton(icon: "list.bullet") {
+                    showQueue = true
                 }
             }
             .frame(maxWidth: 420)
