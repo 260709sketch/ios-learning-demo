@@ -660,4 +660,163 @@ enum QQMusicAPI {
         }
         return lines.isEmpty ? nil : lines
     }
+
+    // MARK: - 评论
+    struct QQCommentPage {
+        let comments: [SongComment]
+        let total: Int
+    }
+
+    static func comments(songID: Int, limit: Int = 25, pagenum: Int = 0) async throws -> QQCommentPage {
+        guard let url = URL(string: "https://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg?format=json&cid=205360772&reqtype=2") else {
+            throw NSError(domain: "QQMusicAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "URL 无效"])
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.allHTTPHeaderFields = headers.merging(["Content-Type": "application/x-www-form-urlencoded"]) { _, new in new }
+        request.timeoutInterval = 12
+
+        let bodyStr = "biztype=1&topid=\(songID)&LoginUin=0&cmd=8&pagenum=\(max(pagenum, 0))&pagesize=\(min(max(limit, 1), 25))"
+        request.httpBody = bodyStr.data(using: .utf8)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw NSError(domain: "QQMusicAPI", code: -2, userInfo: [NSLocalizedDescriptionKey: "解析失败"])
+        }
+
+        let hot = pagenum == 0 ? (((json["hot_comment"] as? [String: Any])?["commentlist"] as? [[String: Any]]) ?? []) : []
+        let normal = ((json["comment"] as? [String: Any])?["commentlist"] as? [[String: Any]]) ?? []
+        let commentTotal = ((json["comment"] as? [String: Any])?["commenttotal"] as? Int) ?? 0
+
+        var seen = Set<String>()
+        var result: [SongComment] = []
+        for item in hot + normal {
+            let rootID = item["rootcommentid"] as? String ?? ""
+            let commentID = item["commentid"] as? String ?? ""
+            let key = rootID + "_" + commentID
+            guard !key.isEmpty, !seen.contains(key) else { continue }
+            seen.insert(key)
+            var content = item["rootcommentcontent"] as? String ?? ""
+            content = content.replacingOccurrences(of: "\\n", with: "\n")
+            guard !content.isEmpty else { continue }
+            var nick = item["nick"] as? String ?? ""
+            if nick.isEmpty { nick = item["rootcommentnick"] as? String ?? "" }
+            if nick.hasPrefix("@") { nick = String(nick.dropFirst()) }
+            let avatar = item["avatarurl"] as? String ?? ""
+            let time = item["time"] as? TimeInterval ?? 0
+            result.append(SongComment(
+                id: key.hashValue,
+                content: content,
+                nickname: nick,
+                avatarURL: avatar.isEmpty ? nil : avatar,
+                time: time > 0 ? Date(timeIntervalSince1970: time) : Date(),
+                likedCount: item["praisenum"] as? Int ?? 0,
+                isHot: true
+            ))
+        }
+        return QQCommentPage(comments: result, total: commentTotal)
+    }
+
+    // MARK: - 用户歌单列表（QQ登录后自动导入）
+
+    struct QQPlaylistSummary: Identifiable, Hashable, Codable {
+        let id: String
+        let name: String
+        let coverURL: String?
+        let songCount: Int
+        let disstid: String
+    }
+
+    /// 获取 QQ 音乐用户歌单列表
+    static func userPlaylists(uin: String) async throws -> [QQPlaylistSummary] {
+        guard !uin.isEmpty, uin != "0" else { return [] }
+        let urlStr = "https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?cid=205360838&userid=\(uin)&reqfrom=1&g_tk=5381&loginUin=\(uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
+        guard let url = URL(string: urlStr) else { return [] }
+        var request = URLRequest(url: url)
+        request.allHTTPHeaderFields = headers
+        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+        request.setValue(QQMusicAuth.shared.cookieHeader, forHTTPHeaderField: "Cookie")
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataDict = json["data"] as? [String: Any],
+              let mymusic = dataDict["mymusic"] as? [String: Any],
+              let mydiss = mymusic["mydiss"] as? [[String: Any]] else {
+            return []
+        }
+
+        return mydiss.compactMap { item -> QQPlaylistSummary? in
+            let disstid = (item["disstid"] as? String) ?? ((item["dissid"] as? Int).map { "\($0)" }) ?? ""
+            let name = (item["dissname"] as? String) ?? (item["name"] as? String) ?? ""
+            guard !disstid.isEmpty, !name.isEmpty else { return nil }
+            let coverURL = (item["imgurl"] as? String) ?? (item["cover"] as? String)
+            let songCount = (item["song_count"] as? Int) ?? (item["songnum"] as? Int) ?? 0
+            return QQPlaylistSummary(id: disstid, name: name, coverURL: coverURL, songCount: songCount, disstid: disstid)
+        }
+    }
+
+    /// 获取 QQ 音乐歌单详情（歌曲列表）
+    static func playlistDetail(disstid: String) async throws -> (name: String, tracks: [Track]) {
+        guard !disstid.isEmpty else { throw NSError(domain: "QQMusicAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的歌单ID"]) }
+        let urlStr = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&disstid=\(disstid)&format=json"
+        guard let url = URL(string: urlStr) else {
+            throw NSError(domain: "QQMusicAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "URL无效"])
+        }
+        var request = URLRequest(url: url)
+        request.allHTTPHeaderFields = headers
+        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+        request.setValue(QQMusicAuth.shared.cookieHeader, forHTTPHeaderField: "Cookie")
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let cdlist = json["cdlist"] as? [[String: Any]],
+              let cd = cdlist.first else {
+            throw NSError(domain: "QQMusicAPI", code: -2, userInfo: [NSLocalizedDescriptionKey: "解析歌单失败"])
+        }
+
+        let playlistName = (cd["dissname"] as? String) ?? ""
+        let songs = (cd["songlist"] as? [[String: Any]]) ?? []
+
+        let tracks = songs.compactMap { song -> Track? in
+            let songID = (song["songid"] as? Int) ?? 0
+            let songMid = (song["songmid"] as? String) ?? ""
+            let name = (song["songname"] as? String) ?? ""
+            guard songID > 0 || !songMid.isEmpty else { return nil }
+
+            let singers = (song["singer"] as? [[String: Any]]) ?? []
+            let artistName = singers.map { ($0["name"] as? String) ?? "" }.filter { !$0.isEmpty }.joined(separator: " / ")
+            let albumName = (song["albumname"] as? String) ?? ""
+            let albumMid = (song["albummid"] as? String) ?? ""
+            let duration = (song["interval"] as? Int) ?? 0
+
+            let artists = singers.map { s -> ArtistRef in
+                let sname = (s["name"] as? String) ?? ""
+                let sid = (s["singerid"] as? Int) ?? abs(sname.hashValue)
+                let smid = (s["singermid"] as? String) ?? String(sid)
+                return ArtistRef(id: sid, name: sname, singerMid: smid)
+            }
+
+            var picUrl: String? = nil
+            if !albumMid.isEmpty {
+                picUrl = "https://y.gtimg.cn/music/photo_new/T002R300x300M000\(albumMid).jpg?max_age=2592000"
+            }
+
+            let album = AlbumRef(id: abs(albumMid.hashValue), name: albumName, picUrl: picUrl, albumMid: albumMid)
+            let dict: [String: Any] = [
+                "id": songID > 0 ? songID : abs(songMid.hashValue),
+                "name": name,
+                "ar": artists.map { ["id": $0.id, "name": $0.name, "singerMid": $0.singerMid ?? ""] },
+                "al": ["id": album.id, "name": album.name, "picUrl": album.picUrl ?? "", "albumMid": album.albumMid ?? ""],
+                "dt": duration * 1000,
+                "alia": [], "tns": [], "fee": 0, "mv": 0, "no": 0,
+                "sourcePlatform": "tx",
+                "platformSongId": songMid
+            ]
+            guard let trackData = try? JSONSerialization.data(withJSONObject: dict),
+                  let track = try? JSONDecoder().decode(Track.self, from: trackData) else { return nil }
+            return track
+        }
+
+        return (name: playlistName, tracks: tracks)
+    }
 }

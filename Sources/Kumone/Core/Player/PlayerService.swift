@@ -187,6 +187,11 @@ final class PlayerService: ObservableObject {
     private var scrobbled = false
     private var startScrobbled = false
 
+    // MARK: - 播放错误宽限重试（照搬wellmusic）
+    private var consecutivePlaybackErrors = 0
+    private var lastPlaybackErrorTime: Date?
+    private var playbackGraceTask: Task<Void, Never>?
+
     // MARK: - 预加载下一首
     /// 预加载的下一首歌 AVPlayerItem（旧机制，已弃用，保留避免编译错误）
     private var preloadedNextItem: AVPlayerItem?
@@ -248,6 +253,16 @@ final class PlayerService: ObservableObject {
                       let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue),
                       reason == .oldDeviceUnavailable, self.isPlaying else { return }
                 self.pause()
+            }
+        }
+
+        // 均衡器设置变化时立即重新应用到当前播放
+        NotificationCenter.default.addObserver(
+            forName: Equalizer.settingsDidChange,
+            object: Equalizer.shared, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.applyEqualizerToCurrentItem()
             }
         }
         #endif
@@ -493,6 +508,31 @@ final class PlayerService: ObservableObject {
         if let idx = shuffledQueue.firstIndex(where: { $0.id == track.id }) {
             shuffledQueue.remove(at: idx)
         }
+    }
+
+    /// 安全删除 queue 中指定索引的歌曲；不允许删除当前正在播放的歌曲。
+    /// 同步移除 shuffledQueue / playNextList 中同 id 的条目，并校正 currentIndex。
+    func removeFromQueue(at index: Int) {
+        guard queue.indices.contains(index) else { return }
+        let track = queue[index]
+        // 不允许删除当前正在播放的歌曲（按 activeQueue 中的实际播放条目判断）
+        if currentIndex >= 0, currentIndex < activeQueue.count,
+           activeQueue[currentIndex].id == track.id { return }
+        queue.remove(at: index)
+        if let shIdx = shuffledQueue.firstIndex(where: { $0.id == track.id }) {
+            shuffledQueue.remove(at: shIdx)
+            if shuffleEnabled, shIdx < currentIndex { currentIndex -= 1 }
+        }
+        playNextList.removeAll { $0.id == track.id }
+        if !shuffleEnabled, index < currentIndex { currentIndex -= 1 }
+    }
+
+    /// 清空整个播放队列（queue / shuffledQueue / playNextList），并重置 currentIndex。
+    func clearQueue() {
+        queue = []
+        shuffledQueue = []
+        playNextList = []
+        currentIndex = -1
     }
 
     // MARK: - Personal FM
@@ -949,6 +989,8 @@ final class PlayerService: ObservableObject {
                     generation: generation,
                     preloadOnly: preloadOnly
                 )
+                // 被新任务取代时静默退出，不记录失败、不触发切歌
+                if case .superseded = loadResult { return true }
                 guard case .loaded = loadResult else {
                     let log = LXRequestLog(
                         date: Date(), trackName: track.name, trackArtist: track.artistNames,
@@ -1045,7 +1087,22 @@ final class PlayerService: ObservableObject {
         // 预加载不重置连续失败计数，不影响当前播放状态
         if !preloadOnly { consecutiveFailures = 0 }
 
-        var asset = AVURLAsset(url: url)
+        // LX音源返回的URL可能需要特定请求头才能播放（如User-Agent、Referer）
+        // 某些CDN（如IP直连地址）会校验请求头，缺少则返回403或空数据
+        var headers: [String: String] = [
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ]
+        // 根据URL域名动态设置Referer
+        let host = url.host?.lowercased() ?? ""
+        if host.contains("kugou") || host.contains("kg") || host.contains("酷狗") {
+            headers["Referer"] = "https://www.kugou.com/"
+        } else if host.contains("qq.com") || host.contains("tencent") || host.contains("isure") {
+            headers["Referer"] = "https://y.qq.com/"
+        } else if host.contains("163") || host.contains("netease") {
+            headers["Referer"] = "https://music.163.com/"
+        }
+        let assetOptions: [String: Any] = ["AVURLAssetHTTPHeaderFieldsKey": headers]
+        var asset = AVURLAsset(url: url, options: assetOptions)
         var resourceLoader: CachingAudioResourceLoader?
         // LX音源返回的URL可能有特殊字符，缓存层处理不了，直接用原始URL播放
         if SettingsManager.shared.enableAudioCache, !isTrial, unblockSource == nil {
@@ -1120,6 +1177,22 @@ final class PlayerService: ObservableObject {
         }
     }
 
+    /// 均衡器设置变化时重新应用到当前播放项
+    private func applyEqualizerToCurrentItem() {
+        guard let item = engine.currentItem else { return }
+        let assetTrack = item.asset.tracks(withMediaType: .audio).first
+        if Equalizer.shared.isEnabled,
+           let assetTrack,
+           let mix = Equalizer.shared.makeAudioMix(for: assetTrack) {
+            item.audioMix = mix
+        } else if let assetTrack,
+                  let mix = AudioSpectrum.shared.makeAudioMix(for: assetTrack) {
+            item.audioMix = mix
+        } else {
+            item.audioMix = nil
+        }
+    }
+
     private func installResolvedAsset(
         _ asset: AVURLAsset,
         for track: Track,
@@ -1153,8 +1226,12 @@ final class PlayerService: ObservableObject {
         }
 
         let item = AVPlayerItem(asset: asset)
-        if let assetTrack,
-           let mix = AudioSpectrum.shared.makeAudioMix(for: assetTrack) {
+        if Equalizer.shared.isEnabled,
+           let assetTrack,
+           let eqMix = Equalizer.shared.makeAudioMix(for: assetTrack) {
+            item.audioMix = eqMix
+        } else if let assetTrack,
+                  let mix = AudioSpectrum.shared.makeAudioMix(for: assetTrack) {
             item.audioMix = mix
         } else {
             AudioSpectrum.shared.markUntappable()
@@ -1228,6 +1305,55 @@ final class PlayerService: ObservableObject {
               currentUnblockSourceID == sourceID
         else { return }
 
+        // 5秒窗口内才算连续错误（照搬wellmusic）
+        let now = Date()
+        if let last = lastPlaybackErrorTime, now.timeIntervalSince(last) < 5 {
+            consecutivePlaybackErrors += 1
+        } else {
+            consecutivePlaybackErrors = 1
+        }
+        lastPlaybackErrorTime = now
+
+        // 首次错误：宽限重试，不立即换源（照搬wellmusic）
+        if consecutivePlaybackErrors < 2 {
+            playbackGraceTask?.cancel()
+            playbackGraceTask = Task { @MainActor in
+                // 先等1.5秒，看是否自动恢复（瞬时网络抖动/播放器假死可能自愈）
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                guard !Task.isCancelled else { return }
+                guard generation == resolveGeneration, currentTrack?.id == track.id else { return }
+
+                // 检查是否已恢复
+                if engine.currentItem?.status == .readyToPlay, engine.timeControlStatus == .playing {
+                    consecutivePlaybackErrors = 0
+                    return
+                }
+
+                // 同一链接原位重试一次（不换源）
+                engine.play()
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                guard !Task.isCancelled else { return }
+                guard generation == resolveGeneration, currentTrack?.id == track.id else { return }
+
+                // 检查是否已恢复
+                if engine.currentItem?.status == .readyToPlay, engine.timeControlStatus == .playing {
+                    consecutivePlaybackErrors = 0
+                    return
+                }
+
+                // 确证失败，清除缓存URL并换源
+                preloadedURLs[preloadCacheKey(for: track)] = nil
+                doSourceSwitch(track: track, generation: generation, sourceID: sourceID)
+            }
+            return
+        }
+
+        // 连续错误：直接换源
+        preloadedURLs[preloadCacheKey(for: track)] = nil
+        doSourceSwitch(track: track, generation: generation, sourceID: sourceID)
+    }
+
+    private func doSourceSwitch(track: Track, generation: Int, sourceID: AudioSourceID) {
         itemStatusObservation?.invalidate()
         itemStatusObservation = nil
         currentUnblockSourceID = nil
@@ -1236,9 +1362,7 @@ final class PlayerService: ObservableObject {
         releaseCurrentPlaybackResources()
         AudioSpectrum.shared.beginPreparing()
 
-        guard isPlaying else {
-            return
-        }
+        guard isPlaying else { return }
 
         Task {
             let loaded = await resolveAndLoadUnblocked(
@@ -1313,6 +1437,36 @@ final class PlayerService: ObservableObject {
         let response: LyricResponse?
         if track.sourcePlatform == "tx", let songmid = track.platformSongId {
             response = try? await QQMusicAPI.lyric(songmid: songmid)
+        } else if track.sourcePlatform == "kg", let hash = track.platformSongId {
+            // 酷狗歌词：优先用QQ音乐同名同歌手同专辑歌词替换（QQ音乐有逐字歌词）
+            if let qqLyrics = await fetchQQLyricsForKugou(track: track) {
+                guard generation == resolveGeneration else { return }
+                lyrics = qqLyrics
+                updateLyricsCursor(at: progress)
+                // 酷狗歌曲保底：无封面时向网易云搜索匹配
+                if (track.album.picUrl ?? "").isEmpty {
+                    await matchCoverFromNetEase(for: track, generation: generation)
+                }
+                return
+            }
+            // 兜底：酷狗原生歌词
+            let lrcText = await KugouAPI.lyric(hash: hash, duration: TimeInterval(track.durationMS) / 1000)
+            if !lrcText.isEmpty {
+                guard generation == resolveGeneration else { return }
+                let pairs = LyricsParser.parseLRC(lrcText)
+                var parsed = ParsedLyrics()
+                parsed.lines = pairs.enumerated().map { idx, pair in
+                    LyricLine(id: idx, time: pair.time, text: pair.text)
+                }
+                lyrics = parsed
+                updateLyricsCursor(at: progress)
+                // 酷狗歌曲保底：无封面时向网易云搜索匹配
+                if (track.album.picUrl ?? "").isEmpty {
+                    await matchCoverFromNetEase(for: track, generation: generation)
+                }
+                return
+            }
+            response = nil
         } else {
             response = try? await NeteaseAPI.lyric(id: track.id)
         }
@@ -1322,6 +1476,10 @@ final class PlayerService: ObservableObject {
 
         // QQ音乐歌曲保底：仅当本身无封面时，向网易云搜索同名同歌手匹配封面，供 AMLL 背景提取颜色
         if track.sourcePlatform == "tx", (track.album.picUrl ?? "").isEmpty {
+            await matchCoverFromNetEase(for: track, generation: generation)
+        }
+        // 酷狗歌曲保底：无封面时向网易云搜索匹配
+        if track.sourcePlatform == "kg", (track.album.picUrl ?? "").isEmpty {
             await matchCoverFromNetEase(for: track, generation: generation)
         }
     }
@@ -1364,6 +1522,57 @@ final class PlayerService: ObservableObject {
                 currentTrack = newTrack
             }
         }
+    }
+
+    // MARK: - 酷狗歌词用QQ音乐歌词替换
+    private func fetchQQLyricsForKugou(track: Track) async -> ParsedLyrics? {
+        // 构造搜索关键词：歌名 + 第一个歌手名
+        let artistName = track.artists.first?.name ?? ""
+        let keyword = "\(track.name) \(artistName)".trimmingCharacters(in: .whitespaces)
+        guard !keyword.isEmpty else { return nil }
+
+        // 搜索QQ音乐
+        guard let qqSongs = try? await QQMusicAPI.searchSongs(keyword, limit: 10),
+              !qqSongs.isEmpty else { return nil }
+
+        // 精准匹配：歌名相同 + 至少一个歌手名相同 + 专辑名相同（优先）
+        let targetArtistNames = Set(track.artists.map { $0.name })
+        let targetAlbumName = track.album.name
+
+        // 先尝试精确匹配（歌名+歌手+专辑）
+        let exactMatch = qqSongs.first { candidate in
+            let candidateArtists = Set(candidate.artists.map { $0.name })
+            let nameMatch = candidate.name == track.name || candidate.name.contains(track.name) || track.name.contains(candidate.name)
+            let artistMatch = !targetArtistNames.isDisjoint(with: candidateArtists)
+            let albumMatch = candidate.album.name == targetAlbumName || candidate.album.name.contains(targetAlbumName) || targetAlbumName.contains(candidate.album.name)
+            return nameMatch && artistMatch && albumMatch
+        }
+
+        // 再尝试宽松匹配（歌名+歌手）
+        let looseMatch = qqSongs.first { candidate in
+            let candidateArtists = Set(candidate.artists.map { $0.name })
+            let nameMatch = candidate.name == track.name || candidate.name.contains(track.name) || track.name.contains(candidate.name)
+            let artistMatch = !targetArtistNames.isDisjoint(with: candidateArtists)
+            return nameMatch && artistMatch
+        }
+
+        guard let matched = exactMatch ?? looseMatch ?? qqSongs.first,
+              let songmid = matched.platformSongId,
+              !songmid.isEmpty else { return nil }
+
+        // 优先获取QRC逐字歌词
+        if let qrcLines = await QQMusicAPI.wordLyric(songmid: songmid), !qrcLines.isEmpty {
+            var parsed = ParsedLyrics()
+            parsed.lines = qrcLines
+            return parsed
+        }
+
+        // 兜底：LRC歌词
+        if let response = try? await QQMusicAPI.lyric(songmid: songmid) {
+            return LyricsParser.parse(response)
+        }
+
+        return nil
     }
 
     // MARK: - Scrobble
