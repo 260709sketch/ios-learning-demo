@@ -64,6 +64,11 @@ struct SettingsView: View {
                         }
                     }
                 }
+                if QQMusicAuth.shared.isLoggedIn {
+                    Button("退出 QQ 音乐登录", role: .destructive) {
+                        QQMusicAuth.shared.logout()
+                    }
+                }
             }
 
             Section("导入外部歌单") {
