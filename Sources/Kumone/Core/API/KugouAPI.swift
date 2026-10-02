@@ -380,41 +380,58 @@ enum KugouAPI {
     // MARK: - 歌手专辑
     static func artistAlbums(authorID: String, page: Int = 1, limit: Int = 20) async throws -> (albums: [AlbumSummary], total: Int) {
         let id = authorID.replacingOccurrences(of: "kugou_", with: "")
-        guard let url = URL(string: "http://mobilecdn.kugou.com/api/v3/singer/album?singerid=\(id)&page=\(page)&pagesize=\(min(limit, 100))") else { return ([], 0) }
-        var request = URLRequest(url: url)
-        request.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dataDict = json["data"] as? [String: Any],
-              let list = dataDict["info"] as? [[String: Any]] else {
-            return ([], 0)
-        }
-        let total = (dataDict["total"] as? Int) ?? list.count
         let singerName = (try? await artistDetail(authorID: authorID))?.name ?? ""
 
-        let albums = list.compactMap { item -> AlbumSummary? in
-            let albumID = (item["albumid"] as? String) ?? (item["album_id"] as? String) ?? (item["albumid"] as? Int).map { String($0) } ?? (item["album_id"] as? Int).map { String($0) } ?? ""
-            let albumName = (item["albumname"] as? String) ?? (item["album_name"] as? String) ?? ""
-            guard !albumName.isEmpty, !albumID.isEmpty else { return nil }
-            var picUrl: String? = nil
-            if let img = item["imgurl"] as? String, !img.isEmpty {
-                picUrl = img.replacingOccurrences(of: "{size}", with: "400").replacingOccurrences(of: "http://", with: "https://")
+        // 循环请求所有页，一次性获取全部专辑（对齐 WellMusic 的懒加载效果）
+        var allAlbums: [AlbumSummary] = []
+        var currentPage = 1
+        var total = 0
+        let pageSize = 100 // 每页最大100
+
+        while true {
+            guard let url = URL(string: "http://mobilecdn.kugou.com/api/v3/singer/album?singerid=\(id)&page=\(currentPage)&pagesize=\(pageSize)") else { break }
+            var request = URLRequest(url: url)
+            request.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+            guard let (data, _) = try? await URLSession.shared.data(for: request),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let dataDict = json["data"] as? [String: Any],
+                  let list = dataDict["info"] as? [[String: Any]] else {
+                break
             }
-            if picUrl == nil, !albumID.isEmpty {
-                picUrl = "https://imge.kugou.com/stdmusic/400/album/\(albumID).jpg"
+            if total == 0 {
+                total = (dataDict["total"] as? Int) ?? list.count
             }
-            // 专辑类型：优先用 album_type，其次按歌曲数量判断
-            var subType = "专辑"
-            if let type = item["album_type"] as? Int, type > 0 {
-                if type == 1 { subType = "单曲" }
-                else if type == 2 { subType = "EP" }
-            } else if let songCount = item["songcount"] as? Int {
-                if songCount == 1 { subType = "单曲" }
-                else if songCount > 1 && songCount <= 5 { subType = "EP" }
+            let pageAlbums = list.compactMap { item -> AlbumSummary? in
+                let albumID = (item["albumid"] as? String) ?? (item["album_id"] as? String) ?? (item["albumid"] as? Int).map { String($0) } ?? (item["album_id"] as? Int).map { String($0) } ?? ""
+                let albumName = (item["albumname"] as? String) ?? (item["album_name"] as? String) ?? ""
+                guard !albumName.isEmpty, !albumID.isEmpty else { return nil }
+                var picUrl: String? = nil
+                if let img = item["imgurl"] as? String, !img.isEmpty {
+                    picUrl = img.replacingOccurrences(of: "{size}", with: "400").replacingOccurrences(of: "http://", with: "https://")
+                }
+                if picUrl == nil, !albumID.isEmpty {
+                    picUrl = "https://imge.kugou.com/stdmusic/400/album/\(albumID).jpg"
+                }
+                // 专辑类型：优先用 album_type，其次按歌曲数量判断（对齐 WellMusic）
+                var subType = "专辑"
+                if let type = item["album_type"] as? Int, type > 0 {
+                    if type == 1 { subType = "单曲" }
+                    else if type == 2 { subType = "EP" }
+                } else if let songCount = item["songcount"] as? Int {
+                    if songCount == 1 { subType = "单曲" }
+                    else if songCount > 1 && songCount <= 5 { subType = "EP" }
+                }
+                return makeAlbum(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, artistName: singerName, albumID: albumID, subType: subType)
             }
-            return makeAlbum(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, artistName: singerName, albumID: albumID, subType: subType)
+            allAlbums.append(contentsOf: pageAlbums)
+            // 本页不足100张，说明是最后一页
+            if list.count < pageSize { break }
+            currentPage += 1
+            // 安全上限，防止无限循环
+            if currentPage > 20 { break }
         }
-        return (albums, total)
+
+        return (allAlbums, total)
     }
 
     // MARK: - 专辑歌曲（来自 wellmusic: getKugouAlbumSongs）
