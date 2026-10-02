@@ -959,7 +959,8 @@ final class PlayerService: ObservableObject {
                 guard generation >= resolveGeneration else { return false }
                 DebugLogger.shared.log("LX", "音源[\(source.name)]返回 URL=\(result.url) 实际音质=\(result.quality) 耗时=\(String(format: "%.1f", Date().timeIntervalSince(startTime)))s", level: .success)
                 // LX音源返回的URL不做http→https替换——第三方音源服务器很多只支持HTTP，强制替换会导致无法播放
-                guard let url = URL(string: result.url) else {
+                // URL可能包含特殊字符（中文、空格等），先尝试直接解析，失败则编码
+                guard let url = URL(string: result.url) ?? URL(string: result.url.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? result.url) else {
                     DebugLogger.shared.log("LX", "音源[\(source.name)]返回URL无效", level: .error)
                     let log = LXRequestLog(
                         date: Date(), trackName: track.name, trackArtist: track.artistNames,
@@ -971,8 +972,8 @@ final class PlayerService: ObservableObject {
                     continue
                 }
 
-                // 异步获取文件大小（HEAD请求，3秒超时，不阻塞播放）
-                let fileSize = await fetchFileSize(from: url)
+                // lx-y方式：不等待文件大小，直接开始播放（HEAD请求异步获取，不阻塞）
+                Task { let _ = await self.fetchFileSize(from: url) }
 
                 // 全局状态只在正常播放时修改，预加载不干扰当前播放
                 if !preloadOnly {
@@ -995,7 +996,7 @@ final class PlayerService: ObservableObject {
                     let log = LXRequestLog(
                         date: Date(), trackName: track.name, trackArtist: track.artistNames,
                         requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
-                        fileSize: fileSize,
+                        fileSize: nil,
                         duration: Date().timeIntervalSince(startTime), success: false,
                         errorMessage: "音频加载失败"
                     )
@@ -1007,7 +1008,7 @@ final class PlayerService: ObservableObject {
                 let log = LXRequestLog(
                     date: Date(), trackName: track.name, trackArtist: track.artistNames,
                     requestedQuality: targetQuality, actualQuality: result.quality, url: result.url,
-                    fileSize: fileSize,
+                    fileSize: nil,
                     duration: Date().timeIntervalSince(startTime), success: true, errorMessage: nil
                 )
                 await MainActor.run { lxStore.addRequestLog(log) }
@@ -1212,7 +1213,7 @@ final class PlayerService: ObservableObject {
         // the custom render pipeline on every rapid cache-to-cache switch.
         let assetTrack = asset.url.isFileURL
             ? nil
-            : await loadAudioTrack(from: asset, timeout: 2)
+            : await loadAudioTrack(from: asset, timeout: 8)
         #else
         let assetTrack = await loadAudioTrack(from: asset, timeout: 2)
         #endif
