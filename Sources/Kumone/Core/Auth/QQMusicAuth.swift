@@ -151,7 +151,7 @@ final class QQMusicAuth: ObservableObject {
         Task { await self.fetchUserPlaylists() }
     }
 
-    /// 登录后自动获取用户 QQ 音乐歌单列表
+    /// 登录后自动获取用户 QQ 音乐歌单列表并导入外部歌单
     @MainActor
     func fetchUserPlaylists() async {
         guard isLoggedIn, !uin.isEmpty, uin != "0" else { return }
@@ -162,7 +162,33 @@ final class QQMusicAuth: ObservableObject {
                 if let data = try? JSONEncoder().encode(playlists) {
                     defaults.set(data, forKey: playlistsKey)
                 }
-                DebugLogger.shared.log("QQ音乐", "自动导入歌单 \(playlists.count) 个", level: .success)
+                DebugLogger.shared.log("QQ音乐", "获取歌单列表 \(playlists.count) 个", level: .success)
+
+                // 导入到外部歌单（"我的"页面外部歌单那组）
+                let externalStore = ExternalPlaylistStore.shared
+                for qqPlaylist in playlists {
+                    // 避免重复导入：检查是否已有同名同平台的歌单
+                    if externalStore.playlists.contains(where: { $0.name == qqPlaylist.name && $0.sourcePlatform == "tx" }) {
+                        continue
+                    }
+                    // 异步获取歌单歌曲
+                    Task {
+                        do {
+                            let detail = try await QQMusicAPI.playlistDetail(disstid: qqPlaylist.disstid)
+                            guard !detail.tracks.isEmpty else { return }
+                            await MainActor.run {
+                                externalStore.addPlaylist(
+                                    name: detail.name.isEmpty ? qqPlaylist.name : detail.name,
+                                    sourcePlatform: "tx",
+                                    coverURL: qqPlaylist.coverURL,
+                                    tracks: detail.tracks
+                                )
+                            }
+                        } catch {
+                            DebugLogger.shared.log("QQ音乐", "歌单[\(qqPlaylist.name)]歌曲获取失败: \(error.localizedDescription)", level: .error)
+                        }
+                    }
+                }
             }
         } catch {
             DebugLogger.shared.log("QQ音乐", "获取歌单失败: \(error.localizedDescription)", level: .error)

@@ -403,19 +403,15 @@ enum KugouAPI {
             if picUrl == nil, !albumID.isEmpty {
                 picUrl = "https://imge.kugou.com/stdmusic/400/album/\(albumID).jpg"
             }
-            // 专辑类型：单曲/EP/专辑
-            var subType = ""
+            // 专辑类型：单曲/EP/专辑（酷狗API的album_type和songcount字段不稳定，默认按专辑处理）
+            var subType = "专辑"
             if let type = item["album_type"] as? Int {
                 if type == 1 { subType = "单曲" }
                 else if type == 2 { subType = "EP" }
-            } else if let songCount = item["songcount"] as? Int {
-                if songCount == 1 { subType = "单曲" }
-                else if songCount > 1 && songCount <= 5 { subType = "EP" }
-                else { subType = "专辑" }
             }
             return makeAlbum(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, artistName: singerName, albumID: albumID, subType: subType)
         }
-        return (Array(albums.prefix(limit)), total)
+        return (albums, total)
     }
 
     // MARK: - 专辑歌曲（来自 wellmusic: getKugouAlbumSongs）
