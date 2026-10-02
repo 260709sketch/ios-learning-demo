@@ -51,24 +51,6 @@ struct SettingsView: View {
                     Text("网易云未登录")
                         .foregroundStyle(.secondary)
                 }
-                NavigationLink {
-                    QQWebLoginView(onSuccess: {})
-                } label: {
-                    HStack {
-                        Text("QQ 音乐登录")
-                        Spacer()
-                        if QQMusicAuth.shared.isLoggedIn {
-                            Text(QQMusicAuth.shared.nickname)
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
-                        }
-                    }
-                }
-                if QQMusicAuth.shared.isLoggedIn {
-                    Button("退出 QQ 音乐登录", role: .destructive) {
-                        QQMusicAuth.shared.logout()
-                    }
-                }
             }
 
             Section("导入外部歌单") {

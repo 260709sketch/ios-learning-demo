@@ -122,7 +122,6 @@ final class AccountStore: ObservableObject {
 
     func logout() async {
         await NeteaseAPI.logout()
-        QQMusicAuth.shared.logout()
         profile = nil
         likedTrackIDs = []
         userPlaylists = []
