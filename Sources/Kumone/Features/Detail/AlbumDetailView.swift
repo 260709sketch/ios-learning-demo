@@ -19,7 +19,8 @@ struct AlbumDetailView: View {
     @EnvironmentObject private var account: AccountStore
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-    private var isQQ: Bool { albumMid != nil }
+    private var isQQ: Bool { initialAlbum?.sourcePlatform == "tx" || (albumMid != nil && initialAlbum?.sourcePlatform != "kg") }
+    private var isKugou: Bool { initialAlbum?.sourcePlatform == "kg" }
 
     init(albumID: Int, albumMid: String? = nil, initialAlbum: AlbumSummary? = nil) {
         self.albumID = albumID
@@ -125,6 +126,43 @@ struct AlbumDetailView: View {
             }
             isLoading = false
             tracks = (try? await QQMusicAPI.albumInfo(albumMid: mid)) ?? []
+            otherAlbums = []
+            return
+        }
+
+        if isKugou, let albumIDStr = albumMid {
+            // 酷狗专辑：先加载歌曲，从歌曲中获取歌手信息
+            let albumName = initialAlbum?.name ?? ""
+            let artistName = initialAlbum?.artistName ?? ""
+            let loadedTracks = (try? await KugouAPI.albumInfo(albumID: albumIDStr, albumName: albumName, artistName: artistName)) ?? []
+            tracks = loadedTracks
+
+            // 从第一首歌获取歌手信息
+            let firstArtist = loadedTracks.first?.artists.first
+            let artistSingerMid = firstArtist?.singerMid
+            let artistID = firstArtist?.id ?? 0
+            let resolvedArtistName = firstArtist?.name ?? initialAlbum?.artistName ?? ""
+
+            if let initAlbum = initialAlbum {
+                var artistDict: [String: Any] = [
+                    "id": artistID, "name": resolvedArtistName,
+                    "albumSize": 0, "musicSize": 0, "followed": false, "alias": [],
+                    "sourcePlatform": "kg"
+                ]
+                if let mid = artistSingerMid, !mid.isEmpty { artistDict["singerMid"] = mid }
+                var dict: [String: Any] = [
+                    "id": initAlbum.id, "name": initAlbum.name,
+                    "artist": artistDict,
+                    "publishTime": initAlbum.publishTime,
+                    "size": loadedTracks.count
+                ]
+                if let pic = initAlbum.picUrl { dict["picUrl"] = pic }
+                if let data = try? JSONSerialization.data(withJSONObject: dict),
+                   let detail = try? JSONDecoder().decode(AlbumDetail.self, from: data) {
+                    album = detail
+                }
+            }
+            isLoading = false
             otherAlbums = []
             return
         }

@@ -32,6 +32,7 @@ final class HomeViewModel: ObservableObject {
     @Published var toplists: [ToplistItem] = []
     @Published var newAlbums: [AlbumSummary] = []
     @Published var topArtists: [ArtistSummary] = []
+    @Published var showingFollowedArtists = false
     @Published var dailyFirstCover: String?
 
     func load(loggedIn: Bool) async {
@@ -41,7 +42,6 @@ final class HomeViewModel: ObservableObject {
         async let playlistsTask = fetchRecommendPlaylists(loggedIn: loggedIn)
         async let toplistsTask = try? NeteaseAPI.toplists()
         async let albumsTask = try? NeteaseAPI.newAlbums(limit: 20)
-        async let artistsTask = try? NeteaseAPI.topArtists()
 
         let playlists = await playlistsTask
         recommendPlaylists = playlists
@@ -49,8 +49,30 @@ final class HomeViewModel: ObservableObject {
             [19_723_756, 3_779_629, 2_884_035, 3_778_678, 60198].contains($0.id)
         }
         newAlbums = await albumsTask ?? []
-        let artists = await artistsTask ?? []
-        topArtists = Array(artists.shuffled().prefix(6))
+
+        // 关注歌手：登录用户显示网易云关注的歌手，未登录显示热门歌手
+        if loggedIn, let uid = AccountStore.shared.profile?.userId {
+            // 分页获取所有关注歌手
+            var allFollowed: [ArtistSummary] = []
+            var offset = 0
+            let pageSize = 30
+            while true {
+                if let page = try? await NeteaseAPI.userFollowedArtists(uid: uid, limit: pageSize, offset: offset), !page.isEmpty {
+                    allFollowed.append(contentsOf: page)
+                    if page.count < pageSize { break }
+                    offset += pageSize
+                    if offset > 500 { break } // 安全上限
+                } else {
+                    break
+                }
+            }
+            topArtists = allFollowed
+            showingFollowedArtists = true
+        } else {
+            let artists = try? await NeteaseAPI.topArtists()
+            topArtists = Array((artists ?? []).shuffled().prefix(6))
+            showingFollowedArtists = false
+        }
 
         if loggedIn {
             if let daily = try? await NeteaseAPI.dailyRecommendSongs() {
@@ -198,7 +220,7 @@ struct HomeView: View {
             }
 
             if !model.topArtists.isEmpty {
-                Shelf(title: "推荐歌手", rowHeight: Theme.Layout.artistShelfHeight) {
+                Shelf(title: model.showingFollowedArtists ? "关注歌手" : "热门歌手", rowHeight: Theme.Layout.artistShelfHeight) {
                     ForEach(model.topArtists) { artist in
                         artistCard(artist)
                     }

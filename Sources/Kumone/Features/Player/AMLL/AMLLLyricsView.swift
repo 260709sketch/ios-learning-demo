@@ -107,6 +107,8 @@ private struct AMLLWebViewRepresentable: PlatformViewRepresentable {
         AMLLLyricsManager.shared.getWebView(backgroundMode: backgroundMode, onSeek: onSeek)
     }
     func updateUIView(_ webView: WKWebView, context: Context) {
+        // 强制全屏 frame，修复全局单例 WebView 复用时背景只渲染一半的问题
+        webView.frame = UIScreen.main.bounds
         AMLLLyricsManager.shared.updateLayout(
             top: lyricTop, bottom: lyricBottom, horizontal: lyricHorizontal,
             fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFamily,

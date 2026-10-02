@@ -331,12 +331,13 @@ final class LXSourceStore: ObservableObject {
 
     // MARK: 音源测试
 
-    /// 测试音源：加载后实际发起 musicUrl 请求，同时测试网易云和QQ音乐两个平台。
+    /// 测试音源：加载后实际发起 musicUrl 请求，同时测试网易云、QQ音乐、酷狗三个平台。
     /// 测试完成后恢复之前激活的音源。
     func test(_ source: LXSourceInfo) async -> LXSourceInfo.TestStatus {
         setTestStatus(id: source.id, status: .testing)
         setPlatformTestResult(id: source.id, platform: "wy", result: nil)
         setPlatformTestResult(id: source.id, platform: "tx", result: nil)
+        setPlatformTestResult(id: source.id, platform: "kg", result: nil)
         guard let script = script(for: source.id) else {
             setTestStatus(id: source.id, status: .failed)
             return .failed
@@ -349,15 +350,18 @@ final class LXSourceStore: ObservableObject {
                 setTestStatus(id: source.id, status: .failed)
                 return .failed
             }
-            // 同时测试网易云和QQ音乐两个平台
+            // 同时测试网易云、QQ音乐、酷狗三个平台
             async let wyResult = engine.testMusicURL(platform: "wy")
             async let txResult = engine.testMusicURL(platform: "tx")
+            async let kgResult = engine.testMusicURL(platform: "kg")
             let canPlayWY = await wyResult
             let canPlayTX = await txResult
+            let canPlayKG = await kgResult
             setPlatformTestResult(id: source.id, platform: "wy", result: canPlayWY)
             setPlatformTestResult(id: source.id, platform: "tx", result: canPlayTX)
+            setPlatformTestResult(id: source.id, platform: "kg", result: canPlayKG)
             // 任一平台可用即为 working
-            let status: LXSourceInfo.TestStatus = (canPlayWY || canPlayTX) ? .working : .failed
+            let status: LXSourceInfo.TestStatus = (canPlayWY || canPlayTX || canPlayKG) ? .working : .failed
             setTestStatus(id: source.id, status: status)
         } catch {
             setTestStatus(id: source.id, status: .failed)

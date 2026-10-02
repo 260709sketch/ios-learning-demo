@@ -26,7 +26,8 @@ struct ArtistDetailView: View {
     @EnvironmentObject private var account: AccountStore
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-    private var isQQ: Bool { singerMid != nil }
+    private var isQQ: Bool { initialArtist?.sourcePlatform == "tx" || (singerMid != nil && initialArtist?.sourcePlatform != "kg") }
+    private var isKugou: Bool { initialArtist?.sourcePlatform == "kg" }
 
     private var isCompact: Bool {
         #if os(iOS)
@@ -178,6 +179,42 @@ struct ArtistDetailView: View {
             epsAndSingles = allAlbums.filter { $0.subType == "EP" || $0.subType == "单曲" }
             DebugLogger.shared.log("歌手页", "QQ音乐专辑分区 专辑=\(albums.count) EP/单曲=\(epsAndSingles.count)")
             similar = []
+            return
+        }
+
+        if isKugou {
+            // 酷狗歌手：先尝试用 singerMid 获取详情，如果失败则用歌手名搜索获取真实 ID
+            var realAuthorID = singerMid
+            var detail = try? await KugouAPI.artistDetail(authorID: realAuthorID ?? "")
+            if detail == nil, let searchName = initialArtist?.name, !searchName.isEmpty {
+                // 用歌手名搜索获取真实 singerid
+                if let searched = try? await KugouAPI.searchArtists(searchName, limit: 5),
+                   let match = searched.first(where: { $0.name == searchName }) ?? searched.first {
+                    realAuthorID = match.singerMid
+                    detail = try? await KugouAPI.artistDetail(authorID: realAuthorID ?? "")
+                }
+            }
+            guard let authorID = realAuthorID else {
+                isLoading = false
+                return
+            }
+            let singerName = detail?.name ?? initialArtist?.name ?? "歌手"
+            let avatar = detail?.avatar ?? initialArtist?.picUrl
+            let songCount = detail?.songCount ?? 0
+            let albumCount = detail?.albumCount ?? 0
+            artist = ArtistSummary(id: initialArtist?.id ?? abs(authorID.hashValue), name: singerName, picUrl: avatar, albumSize: albumCount, musicSize: songCount, followed: false, alias: [], sourcePlatform: "kg", singerMid: authorID)
+
+            // 加载歌曲和专辑
+            let songsResult = try? await KugouAPI.artistSongs(authorID: authorID, limit: 50)
+            let albumsResult = try? await KugouAPI.artistAlbums(authorID: authorID, limit: 60)
+
+            hotSongs = songsResult?.tracks ?? []
+            // 根据 subType 区分专辑和 EP/单曲
+            let allAlbums = albumsResult?.albums ?? []
+            albums = allAlbums.filter { ($0.subType ?? "专辑") == "专辑" || $0.subType?.isEmpty == true }
+            epsAndSingles = allAlbums.filter { $0.subType == "EP" || $0.subType == "单曲" }
+            similar = []
+            isLoading = false
             return
         }
 

@@ -15,6 +15,7 @@ final class SearchViewModel: ObservableObject {
     enum Platform: String, CaseIterable, Identifiable {
         case netease = "网易云"
         case qq = "QQ音乐"
+        case kugou = "酷狗"
 
         var id: String { rawValue }
     }
@@ -85,6 +86,14 @@ final class SearchViewModel: ObservableObject {
                 artists = await artistsTask ?? []
                 albums = await albumsTask ?? []
                 playlists = []
+            } else if platform == .kugou {
+                async let songsTask = try? KugouAPI.searchSongs(trimmed, limit: 12)
+                async let artistsTask = try? KugouAPI.searchArtists(trimmed, limit: 10)
+                async let albumsTask = try? KugouAPI.searchAlbums(trimmed, limit: 10)
+                songs = await songsTask ?? []
+                artists = await artistsTask ?? []
+                albums = await albumsTask ?? []
+                playlists = []
             } else {
                 async let songsTask = try? NeteaseAPI.search(trimmed, type: .songs, limit: 12)
                 async let artistsTask = try? NeteaseAPI.search(trimmed, type: .artists, limit: 10)
@@ -98,23 +107,29 @@ final class SearchViewModel: ObservableObject {
         case .songs:
             if platform == .qq {
                 songs = (try? await QQMusicAPI.searchSongs(trimmed, limit: 50)) ?? songs
+            } else if platform == .kugou {
+                songs = (try? await KugouAPI.searchSongs(trimmed, limit: 50)) ?? songs
             } else {
                 songs = (try? await NeteaseAPI.search(trimmed, type: .songs, limit: 100))?.songs ?? songs
             }
         case .artists:
             if platform == .qq {
                 artists = (try? await QQMusicAPI.searchArtists(trimmed, limit: 50)) ?? artists
+            } else if platform == .kugou {
+                artists = (try? await KugouAPI.searchArtists(trimmed, limit: 50)) ?? artists
             } else {
                 artists = (try? await NeteaseAPI.search(trimmed, type: .artists, limit: 50))?.artists ?? artists
             }
         case .albums:
             if platform == .qq {
                 albums = (try? await QQMusicAPI.searchAlbums(trimmed, limit: 50)) ?? albums
+            } else if platform == .kugou {
+                albums = (try? await KugouAPI.searchAlbums(trimmed, limit: 50)) ?? albums
             } else {
                 albums = (try? await NeteaseAPI.search(trimmed, type: .albums, limit: 50))?.albums ?? albums
             }
         case .playlists:
-            if platform == .qq {
+            if platform == .qq || platform == .kugou {
                 playlists = []
             } else {
                 playlists = (try? await NeteaseAPI.search(trimmed, type: .playlists, limit: 50))?.playlists ?? playlists
@@ -127,6 +142,7 @@ struct SearchView: View {
     @StateObject private var model: SearchViewModel
     @State private var searchText: String = ""
     @EnvironmentObject private var player: PlayerService
+    @Environment(\.openDestination) private var openDestination
 
     init(query: String) {
         _model = StateObject(wrappedValue: SearchViewModel(query: query))
@@ -281,8 +297,12 @@ struct SearchView: View {
 
     private func artistCards(_ items: some Collection<ArtistSummary>) -> some View {
         ForEach(Array(items)) { artist in
-            NavigationLink {
-                ArtistDetailView(artistID: artist.id, singerMid: artist.singerMid, initialArtist: artist)
+            Button {
+                if let mid = artist.singerMid, !mid.isEmpty {
+                    openDestination(.artistWithMid(artist.id, mid, artist))
+                } else {
+                    openDestination(.artist(artist.id))
+                }
             } label: {
                 VStack(spacing: 10) {
                     CachedAsyncImage(url: artist.picUrl?.resizedImageURL(256))
@@ -301,8 +321,12 @@ struct SearchView: View {
 
     private func albumCards(_ items: some Collection<AlbumSummary>) -> some View {
         ForEach(Array(items)) { album in
-            NavigationLink {
-                AlbumDetailView(albumID: album.id, albumMid: album.albumMid, initialAlbum: album)
+            Button {
+                if let mid = album.albumMid, !mid.isEmpty {
+                    openDestination(.albumWithMid(album.id, mid, album))
+                } else {
+                    openDestination(.album(album.id))
+                }
             } label: {
                 CoverCardBody(
                     coverURL: album.picUrl?.resizedImageURL(384),
@@ -316,8 +340,8 @@ struct SearchView: View {
 
     private func playlistCards(_ items: some Collection<PlaylistSummary>) -> some View {
         ForEach(Array(items)) { playlist in
-            NavigationLink {
-                PlaylistDetailView(playlistID: playlist.id)
+            Button {
+                openDestination(.playlist(playlist.id))
             } label: {
                 CoverCardBody(
                     coverURL: playlist.coverURL?.resizedImageURL(384),

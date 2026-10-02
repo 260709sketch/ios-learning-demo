@@ -13,18 +13,24 @@ struct NowPlayingTrackDestinationLinks: View {
         track.artists.filter { !$0.name.isEmpty }
     }
 
-    private func destination(for artist: ArtistRef) -> Destination {
+    private func destination(for artist: ArtistRef) -> Destination? {
         if let mid = artist.singerMid, !mid.isEmpty {
-            let summary = ArtistSummary(id: artist.id, name: artist.name, picUrl: nil, sourcePlatform: "tx", singerMid: mid)
+            let platform = track.sourcePlatform ?? "tx"
+            let summary = ArtistSummary(id: artist.id, name: artist.name, picUrl: nil, sourcePlatform: platform, singerMid: mid)
             return .artistWithMid(artist.id, mid, summary)
         }
-        return .artist(artist.id)
+        // 网易云歌手用 id 跳转
+        if track.sourcePlatform == nil || track.sourcePlatform == "nc" {
+            return .artist(artist.id)
+        }
+        return nil
     }
 
     private var albumDestination: Destination? {
         guard track.album.id > 0, !track.album.name.isEmpty else { return nil }
         if let mid = track.album.albumMid, !mid.isEmpty {
-            let summary = AlbumSummary(id: track.album.id, name: track.album.name, picUrl: track.album.picUrl, sourcePlatform: "tx", albumMid: mid)
+            let platform = track.sourcePlatform ?? "tx"
+            let summary = AlbumSummary(id: track.album.id, name: track.album.name, picUrl: track.album.picUrl, sourcePlatform: platform, albumMid: mid)
             return .albumWithMid(track.album.id, mid, summary)
         }
         return .album(track.album.id)
@@ -37,31 +43,60 @@ struct NowPlayingTrackDestinationLinks: View {
                 if artists.isEmpty {
                     Text(track.artistNames)
                 } else if artists.count == 1, let first = artists.first {
-                    // 单名歌手：直接点击跳转（用 Text + onTapGesture，避免 Button 在嵌套视图中点击失效）
-                    Text(first.name)
-                        .contentShape(Rectangle())
-                        .padding(.vertical, 4)
-                        .padding(.trailing, 4)
-                        .onTapGesture {
-                            onOpenDestination(destination(for: first))
-                        }
-                        .accessibilityLabel("打开歌手：\(first.name)")
-                        .accessibilityAddTraits(.isButton)
-                } else {
-                    // 多名歌手：Menu 紧凑菜单，不占位置
-                    Menu {
-                        ForEach(artists, id: \.id) { artist in
-                            Button(artist.name) {
-                                onOpenDestination(destination(for: artist))
-                            }
-                        }
-                    } label: {
-                        Text(artists.map(\.name).joined(separator: " / "))
+                    if let dest = destination(for: first) {
+                        // 单名歌手：直接点击跳转
+                        Text(first.name)
                             .contentShape(Rectangle())
                             .padding(.vertical, 4)
                             .padding(.trailing, 4)
+                            .onTapGesture {
+                                onOpenDestination(dest)
+                            }
+                            .accessibilityLabel("打开歌手：\(first.name)")
+                            .accessibilityAddTraits(.isButton)
+                    } else {
+                        Text(first.name)
+                            .padding(.vertical, 4)
+                            .padding(.trailing, 4)
                     }
-                    .accessibilityLabel("选择歌手")
+                } else {
+                    // 多名歌手：Menu 紧凑菜单，只显示可跳转的歌手
+                    let clickable = artists.compactMap { artist -> (ArtistRef, Destination)? in
+                        destination(for: artist).map { (artist, $0) }
+                    }
+                    if clickable.count == 1, let (artist, dest) = clickable.first {
+                        // 只有一个可跳转歌手：显示所有歌手名，第一个可点击
+                        HStack(spacing: 0) {
+                            Text(artist.name)
+                                .contentShape(Rectangle())
+                                .padding(.vertical, 4)
+                                .onTapGesture { onOpenDestination(dest) }
+                                .accessibilityLabel("打开歌手：\(artist.name)")
+                                .accessibilityAddTraits(.isButton)
+                            if artists.count > 1 {
+                                Text(" / " + artists.dropFirst().map(\.name).joined(separator: " / "))
+                                    .padding(.vertical, 4)
+                            }
+                        }
+                    } else if clickable.count > 1 {
+                        Menu {
+                            ForEach(Array(clickable), id: \.0.id) { (artist, dest) in
+                                Button(artist.name) {
+                                    onOpenDestination(dest)
+                                }
+                            }
+                        } label: {
+                            Text(artists.map(\.name).joined(separator: " / "))
+                                .contentShape(Rectangle())
+                                .padding(.vertical, 4)
+                                .padding(.trailing, 4)
+                        }
+                        .accessibilityLabel("选择歌手")
+                    } else {
+                        Text(artists.map(\.name).joined(separator: " / "))
+                            .padding(.vertical, 4)
+                            .padding(.trailing, 4)
+                    }
                 }
             }
 

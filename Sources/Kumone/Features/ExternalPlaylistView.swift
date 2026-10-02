@@ -1,13 +1,18 @@
 import SwiftUI
 
-/// 收藏歌单详情页：完全照抄我喜欢的音乐（PlaylistDetailView）代码，只改数据源
-struct LocalPlaylistView: View {
-    @StateObject private var localStore = LocalPlaylistStore.shared
+/// 外部歌单详情页：完全照抄收藏歌单（LocalPlaylistView）代码，只改数据源
+struct ExternalPlaylistView: View {
+    let playlist: ExternalPlaylist
+    @StateObject private var externalStore = ExternalPlaylistStore.shared
     @EnvironmentObject private var player: PlayerService
     @EnvironmentObject private var account: AccountStore
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.colorScheme) private var colorScheme
     @State private var filter = ""
+
+    private var playlistTracks: [Track] {
+        externalStore.getTracks(for: playlist.id)
+    }
 
     private var isCompact: Bool {
         #if os(iOS)
@@ -19,8 +24,8 @@ struct LocalPlaylistView: View {
 
     private var filteredTracks: [Track] {
         let query = filter.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return localStore.tracks }
-        return localStore.tracks.filter {
+        guard !query.isEmpty else { return playlistTracks }
+        return playlistTracks.filter {
             $0.name.lowercased().contains(query)
                 || $0.artistNames.lowercased().contains(query)
                 || $0.album.name.lowercased().contains(query)
@@ -40,16 +45,13 @@ struct LocalPlaylistView: View {
                         .padding(.top, 16)
                 }
 
-                if localStore.tracks.isEmpty {
+                if playlistTracks.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "music.note.list")
                             .font(.system(size: 40))
                             .foregroundStyle(.secondary)
-                        Text("还没有收藏的歌曲")
+                        Text("歌单为空")
                             .font(.headline)
-                            .foregroundStyle(.secondary)
-                        Text("收藏歌曲时会自动保存一份到收藏的音乐")
-                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -59,7 +61,7 @@ struct LocalPlaylistView: View {
                         tracks: filteredTracks,
                         source: .none,
                         onRemoved: { track in
-                            localStore.removeTrack(track)
+                            externalStore.removeTrack(from: playlist.id, track: track)
                         }
                     )
                     .padding(.horizontal, isCompact ? 6 : Theme.Layout.contentInset - 10)
@@ -72,12 +74,12 @@ struct LocalPlaylistView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if !localStore.tracks.isEmpty {
+                if !playlistTracks.isEmpty {
                     Menu {
                         Button(role: .destructive) {
-                            localStore.removeAll()
+                            externalStore.removePlaylist(playlist)
                         } label: {
-                            Label("清空收藏的音乐", systemImage: "trash")
+                            Label("删除歌单", systemImage: "trash")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -92,9 +94,8 @@ struct LocalPlaylistView: View {
     private var compactHeader: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 14) {
-                // 封面：有歌曲时显示第一首歌封面，没歌曲时显示默认渐变封面
                 ZStack {
-                    if let firstTrack = localStore.tracks.first, let coverUrl = firstTrack.album.picUrl {
+                    if let firstTrack = playlistTracks.first, let coverUrl = firstTrack.album.picUrl ?? playlist.coverURL {
                         CachedAsyncImage(url: coverUrl.resizedImageURL(384), animated: false)
                             .aspectRatio(contentMode: .fill)
                     } else {
@@ -114,18 +115,17 @@ struct LocalPlaylistView: View {
                 .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("收藏的音乐")
+                    Text(playlist.name)
                         .font(.system(size: 16, weight: .bold))
                         .lineLimit(3)
 
-                    Text("\(localStore.count) 首")
+                    Text("\(playlistTracks.count) 首")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.top, 4)
             }
 
-            // Compact Action Bar
             HStack(spacing: 10) {
                 Button {
                     player.play(tracks: playable, source: .none)
@@ -142,7 +142,7 @@ struct LocalPlaylistView: View {
                     .shadow(color: Theme.accent.opacity(0.3), radius: 6, y: 2)
                 }
                 .buttonStyle(.pressable)
-                .disabled(localStore.tracks.isEmpty)
+                .disabled(playlistTracks.isEmpty)
             }
         }
     }
@@ -152,7 +152,7 @@ struct LocalPlaylistView: View {
     private var regularHeader: some View {
         HStack(alignment: .bottom, spacing: 24) {
             ZStack {
-                if let firstTrack = localStore.tracks.first, let coverUrl = firstTrack.album.picUrl {
+                if let firstTrack = playlistTracks.first, let coverUrl = firstTrack.album.picUrl ?? playlist.coverURL {
                     CachedAsyncImage(url: coverUrl.resizedImageURL(512), animated: false)
                         .aspectRatio(contentMode: .fill)
                 } else {
@@ -172,15 +172,15 @@ struct LocalPlaylistView: View {
             .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("收藏的音乐")
+                Text("外部歌单")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                Text("收藏的音乐")
+                Text(playlist.name)
                     .font(.title.weight(.bold))
                     .lineLimit(2)
 
-                Text("\(localStore.count) 首")
+                Text("\(playlistTracks.count) 首")
                     .font(.system(size: 11.5))
                     .foregroundStyle(.tertiary)
 
@@ -207,7 +207,7 @@ struct LocalPlaylistView: View {
                     .shadow(color: Theme.accent.opacity(0.3), radius: 6, y: 2)
             }
             .buttonStyle(.pressable)
-            .disabled(localStore.tracks.isEmpty)
+            .disabled(playlistTracks.isEmpty)
 
             Spacer()
 
@@ -227,8 +227,8 @@ struct LocalPlaylistView: View {
     }
 
     private var playable: [Track] {
-        if LXSourceStore.shared.activeSourceID != nil { return localStore.tracks }
-        return localStore.tracks.filter {
+        if LXSourceStore.shared.activeSourceID != nil { return playlistTracks }
+        return playlistTracks.filter {
             $0.playability(privilege: nil, isLoggedIn: account.isLoggedIn, vipType: account.vipType) == .playable
         }
     }

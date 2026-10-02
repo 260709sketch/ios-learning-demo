@@ -6,6 +6,8 @@ struct SettingsView: View {
     @State private var audioCacheUsage: String = String(localized: "计算中…")
     @State private var imageCacheUsage: String = String(localized: "计算中…")
     @State private var cacheError: String?
+    @State private var showLayoutAdjustment = false
+    @State private var showAMLLLyricAdjustment = false
 
     var body: some View {
         Form {
@@ -20,6 +22,11 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 NavigationLink {
+                    EqualizerView()
+                } label: {
+                    Text("均衡器")
+                }
+                NavigationLink {
                     LXSourceManageView()
                 } label: {
                     Text("自定义音源")
@@ -32,6 +39,39 @@ struct SettingsView: View {
                 Text("激活自定义音源后，所有歌曲（包括网易云歌曲）均通过自定义音源解析播放，不再走网易云官方通道，网易云 VIP 将不生效。无损音质取决于音源脚本实际返回的质量。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("账号") {
+                if let profile = account.profile {
+                    LabeledContent("网易云账号", value: profile.nickname)
+                    Button("退出网易云登录", role: .destructive) {
+                        Task { await AccountStore.shared.logout() }
+                    }
+                } else {
+                    Text("网易云未登录")
+                        .foregroundStyle(.secondary)
+                }
+                NavigationLink {
+                    QQWebLoginView(onSuccess: {})
+                } label: {
+                    HStack {
+                        Text("QQ 音乐登录")
+                        Spacer()
+                        if QQMusicAuth.shared.isLoggedIn {
+                            Text(QQMusicAuth.shared.nickname)
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+
+            Section("导入外部歌单") {
+                NavigationLink {
+                    PlaylistImportView()
+                } label: {
+                    Text("歌单导入")
+                }
             }
 
             Section("外观") {
@@ -107,193 +147,246 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    // 歌词顶部位置
-                    VStack(alignment: .leading, spacing: 4) {
+                    // MARK: AMLL歌词调整
+                    Divider()
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showAMLLLyricAdjustment.toggle()
+                        }
+                    } label: {
                         HStack {
-                            Text("歌词顶部位置")
+                            Text("AMLL歌词调整")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
                             Spacer()
-                            Text("\(settings.amllLyricTop)px")
+                            Image(systemName: showAMLLLyricAdjustment ? "chevron.up" : "chevron.down")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.amllLyricTop) },
-                            set: { settings.amllLyricTop = Int($0) }
-                        ), in: 50...400, step: 5)
                     }
-                    .padding(.top, 4)
+                    .buttonStyle(.plain)
 
-                    // 歌词底部位置
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌词底部位置")
-                            Spacer()
-                            Text("\(settings.amllLyricBottom)px")
-                                .foregroundStyle(.secondary)
+                    if showAMLLLyricAdjustment {
+                        // 歌词顶部位置
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌词顶部位置")
+                                Spacer()
+                                Text("\(settings.amllLyricTop)px")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.amllLyricTop) },
+                                set: { settings.amllLyricTop = Int($0) }
+                            ), in: 50...400, step: 5)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.amllLyricBottom) },
-                            set: { settings.amllLyricBottom = Int($0) }
-                        ), in: 100...500, step: 5)
-                    }
+                        .padding(.top, 4)
 
-                    // 歌词左右位置
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌词左右位置")
-                            Spacer()
-                            Text(settings.amllLyricHorizontal > 0 ? "+\(settings.amllLyricHorizontal)" : "\(settings.amllLyricHorizontal)")
-                                .foregroundStyle(.secondary)
+                        // 歌词底部位置
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌词底部位置")
+                                Spacer()
+                                Text("\(settings.amllLyricBottom)px")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.amllLyricBottom) },
+                                set: { settings.amllLyricBottom = Int($0) }
+                            ), in: 100...500, step: 5)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.amllLyricHorizontal) },
-                            set: { settings.amllLyricHorizontal = Int($0) }
-                        ), in: -200...200, step: 5)
-                    }
 
-                    // 歌词字号
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌词字号")
-                            Spacer()
-                            Text("\(settings.amllFontSize)pt")
-                                .foregroundStyle(.secondary)
+                        // 歌词左右位置
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌词左右位置")
+                                Spacer()
+                                Text(settings.amllLyricHorizontal > 0 ? "+\(settings.amllLyricHorizontal)" : "\(settings.amllLyricHorizontal)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.amllLyricHorizontal) },
+                                set: { settings.amllLyricHorizontal = Int($0) }
+                            ), in: -200...200, step: 5)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.amllFontSize) },
-                            set: { settings.amllFontSize = Int($0) }
-                        ), in: 14...40, step: 1)
-                    }
 
-                    // 歌词字重
-                    Picker("歌词字重", selection: Binding(
-                        get: { settings.amllFontWeight },
-                        set: { settings.amllFontWeight = $0 }
-                    )) {
-                        Text("常规").tag(400)
-                        Text("中等").tag(500)
-                        Text("半粗").tag(600)
-                        Text("粗体").tag(700)
-                        Text("特粗").tag(800)
-                        Text("超粗").tag(900)
-                    }
+                        // 歌词字号
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌词字号")
+                                Spacer()
+                                Text("\(settings.amllFontSize)pt")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.amllFontSize) },
+                                set: { settings.amllFontSize = Int($0) }
+                            ), in: 14...40, step: 1)
+                        }
 
-                    // 歌词字体
-                    Picker("歌词字体", selection: Binding(
-                        get: { settings.amllFontFamily },
-                        set: { settings.amllFontFamily = $0 }
-                    )) {
-                        Text("系统默认").tag("")
-                        Text("黑体").tag("PingFang SC")
-                        Text("SF粗体").tag("SF Pro Display")
-                        if !settings.amllFontFamily.isEmpty,
-                           settings.amllFontFamily != "PingFang SC",
-                           settings.amllFontFamily != "SF Pro Display" {
-                            Text("自定义").tag(settings.amllFontFamily)
+                        // 歌词字重
+                        Picker("歌词字重", selection: Binding(
+                            get: { settings.amllFontWeight },
+                            set: { settings.amllFontWeight = $0 }
+                        )) {
+                            Text("常规").tag(400)
+                            Text("中等").tag(500)
+                            Text("半粗").tag(600)
+                            Text("粗体").tag(700)
+                            Text("特粗").tag(800)
+                            Text("超粗").tag(900)
+                        }
+
+                        // 歌词字体
+                        Picker("歌词字体", selection: Binding(
+                            get: { settings.amllFontFamily },
+                            set: { settings.amllFontFamily = $0 }
+                        )) {
+                            Text("系统默认").tag("")
+                            Text("黑体").tag("PingFang SC")
+                            Text("SF粗体").tag("SF Pro Display")
+                            if !settings.amllFontFamily.isEmpty,
+                               settings.amllFontFamily != "PingFang SC",
+                               settings.amllFontFamily != "SF Pro Display" {
+                                Text("自定义").tag(settings.amllFontFamily)
+                            }
                         }
                     }
 
                     // MARK: 播放器组件位置调整
                     Divider()
-                    Text("播放器组件位置调整")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    // 大封面顶部偏移
-                    VStack(alignment: .leading, spacing: 4) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showLayoutAdjustment.toggle()
+                        }
+                    } label: {
                         HStack {
-                            Text("大封面上下位置")
+                            Text("播放器组件位置调整")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
                             Spacer()
-                            Text(settings.playerArtworkTopOffset > 0 ? "+\(settings.playerArtworkTopOffset)" : "\(settings.playerArtworkTopOffset)")
+                            Image(systemName: showLayoutAdjustment ? "chevron.up" : "chevron.down")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerArtworkTopOffset) },
-                            set: { settings.playerArtworkTopOffset = Int($0) }
-                        ), in: -300...300, step: 5)
                     }
+                    .buttonStyle(.plain)
 
-                    // 大封面尺寸
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("大封面尺寸")
-                            Spacer()
-                            Text(String(format: "%.0f%%", settings.playerArtworkScale * 100))
+                    if showLayoutAdjustment {
+                        // 大封面顶部偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("大封面上下位置")
+                                Spacer()
+                                Text(settings.playerArtworkTopOffset > 0 ? "+\(settings.playerArtworkTopOffset)" : "\(settings.playerArtworkTopOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerArtworkTopOffset) },
+                                set: { settings.playerArtworkTopOffset = Int($0) }
+                            ), in: -300...300, step: 5)
+                        }
+
+                        // 大封面尺寸
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("大封面尺寸")
+                                Spacer()
+                                Text(String(format: "%.0f%%", settings.playerArtworkScale * 100))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { settings.playerArtworkScale },
+                                set: { settings.playerArtworkScale = $0 }
+                            ), in: 0.7...1.3, step: 0.05)
+                        }
+
+                        // 歌曲信息与封面间距
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌曲信息与封面间距")
+                                Spacer()
+                                Text("\(settings.playerTrackInfoSpacing)px")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerTrackInfoSpacing) },
+                                set: { settings.playerTrackInfoSpacing = Int($0) }
+                            ), in: 0...60, step: 2)
+                        }
+
+                        // 控制区域底部偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("控制条上下位置")
+                                Spacer()
+                                Text(settings.playerControlsBottomOffset > 0 ? "+\(settings.playerControlsBottomOffset)" : "\(settings.playerControlsBottomOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerControlsBottomOffset) },
+                                set: { settings.playerControlsBottomOffset = Int($0) }
+                            ), in: -200...200, step: 5)
+                        }
+
+                        // 歌曲信息上下偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌曲信息上下位置")
+                                Spacer()
+                                Text(settings.playerTrackInfoTopOffset > 0 ? "+\(settings.playerTrackInfoTopOffset)" : "\(settings.playerTrackInfoTopOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerTrackInfoTopOffset) },
+                                set: { settings.playerTrackInfoTopOffset = Int($0) }
+                            ), in: -300...300, step: 5)
+                        }
+
+                        // 左侧歌曲信息左右偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("歌曲名/歌手左右位置")
+                                Spacer()
+                                Text(settings.playerTrackInfoLeftOffset > 0 ? "+\(settings.playerTrackInfoLeftOffset)" : "\(settings.playerTrackInfoLeftOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerTrackInfoLeftOffset) },
+                                set: { settings.playerTrackInfoLeftOffset = Int($0) }
+                            ), in: -200...200, step: 5)
+                        }
+
+                        // 右侧按钮左右偏移
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("爱心/更多按钮左右位置")
+                                Spacer()
+                                Text(settings.playerTrackInfoRightOffset > 0 ? "+\(settings.playerTrackInfoRightOffset)" : "\(settings.playerTrackInfoRightOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.playerTrackInfoRightOffset) },
+                                set: { settings.playerTrackInfoRightOffset = Int($0) }
+                            ), in: -200...200, step: 5)
+                        }
+
+                        // 键盘弹出时迷你播放器位置
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("键盘弹出迷你播放器位置")
+                                Spacer()
+                                Text(settings.keyboardMiniPlayerOffset > 0 ? "+\(settings.keyboardMiniPlayerOffset)" : "\(settings.keyboardMiniPlayerOffset)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.keyboardMiniPlayerOffset) },
+                                set: { settings.keyboardMiniPlayerOffset = Int($0) }
+                            ), in: -300...300, step: 5)
+                            Text("正数上移，负数下移，调到键盘上方合适位置")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: Binding(
-                            get: { settings.playerArtworkScale },
-                            set: { settings.playerArtworkScale = $0 }
-                        ), in: 0.7...1.3, step: 0.05)
-                    }
-
-                    // 歌曲信息与封面间距
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌曲信息与封面间距")
-                            Spacer()
-                            Text("\(settings.playerTrackInfoSpacing)px")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoSpacing) },
-                            set: { settings.playerTrackInfoSpacing = Int($0) }
-                        ), in: 0...60, step: 2)
-                    }
-
-                    // 控制区域底部偏移
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("控制条上下位置")
-                            Spacer()
-                            Text(settings.playerControlsBottomOffset > 0 ? "+\(settings.playerControlsBottomOffset)" : "\(settings.playerControlsBottomOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerControlsBottomOffset) },
-                            set: { settings.playerControlsBottomOffset = Int($0) }
-                        ), in: -200...200, step: 5)
-                    }
-
-                    // 歌曲信息上下偏移
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌曲信息上下位置")
-                            Spacer()
-                            Text(settings.playerTrackInfoTopOffset > 0 ? "+\(settings.playerTrackInfoTopOffset)" : "\(settings.playerTrackInfoTopOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoTopOffset) },
-                            set: { settings.playerTrackInfoTopOffset = Int($0) }
-                        ), in: -300...300, step: 5)
-                    }
-
-                    // 左侧歌曲信息左右偏移
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("歌曲名/歌手左右位置")
-                            Spacer()
-                            Text(settings.playerTrackInfoLeftOffset > 0 ? "+\(settings.playerTrackInfoLeftOffset)" : "\(settings.playerTrackInfoLeftOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoLeftOffset) },
-                            set: { settings.playerTrackInfoLeftOffset = Int($0) }
-                        ), in: -200...200, step: 5)
-                    }
-
-                    // 右侧按钮左右偏移
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("爱心/更多按钮左右位置")
-                            Spacer()
-                            Text(settings.playerTrackInfoRightOffset > 0 ? "+\(settings.playerTrackInfoRightOffset)" : "\(settings.playerTrackInfoRightOffset)")
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(settings.playerTrackInfoRightOffset) },
-                            set: { settings.playerTrackInfoRightOffset = Int($0) }
-                        ), in: -200...200, step: 5)
                     }
                 }
                 Picker("日文歌词读音", selection: $settings.lyricsAnnotation) {
@@ -336,17 +429,19 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 #endif
-            }
-
-            Section("底部栏") {
                 NavigationLink {
                     BottomBarSettingsView()
                 } label: {
-                    Label("底部栏页面显示", systemImage: "rectangle.bottomthird.inset.filled")
+                    Text("底部栏页面显示")
                 }
             }
 
             Section("存储") {
+                NavigationLink {
+                    DataBackupView()
+                } label: {
+                    Text("数据备份")
+                }
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle(
                         "歌曲缓存",
@@ -409,23 +504,6 @@ struct SettingsView: View {
                     Text(cacheError)
                         .font(.caption)
                         .foregroundStyle(.red)
-                }
-                NavigationLink {
-                    DataBackupView()
-                } label: {
-                    Label("数据备份", systemImage: "externaldrive.connected.to.line.below")
-                }
-            }
-
-            Section("账号") {
-                if let profile = account.profile {
-                    LabeledContent("当前账号", value: profile.nickname)
-                    Button("退出登录", role: .destructive) {
-                        Task { await AccountStore.shared.logout() }
-                    }
-                } else {
-                    Text("未登录")
-                        .foregroundStyle(.secondary)
                 }
             }
 

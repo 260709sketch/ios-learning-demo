@@ -28,6 +28,25 @@ struct NowPlayingView: View {
     @State private var showQueueOnMobile = false
 
     var body: some View {
+        Group {
+            #if os(iOS)
+            if settings.nowPlayingMode == .appleMusic {
+                AppleMusicPlayerView(
+                    onOpenDestination: onOpenDestination,
+                    onDismiss: { close() }
+                )
+            } else {
+                standardPlayerBody
+            }
+            #else
+            standardPlayerBody
+            #endif
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var standardPlayerBody: some View {
         GeometryReader { geo in
             let isCompact = geo.size.width < 720
             ZStack {
@@ -256,6 +275,8 @@ struct NowPlayingView: View {
                 immersiveCompactLayout(size: size)
             case .minimal:
                 minimalCompactLayout(size: size)
+            case .appleMusic:
+                classicCompactLayout(size: size)
             }
         }
         #else
@@ -1330,6 +1351,7 @@ private struct CompactTrackHeader: View {
     @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var settings: SettingsManager
     @State private var showAddToPlaylist = false
+    @State private var showComments = false
 
     let showsExpandedArtwork: Bool
     let onOpenDestination: (Destination) -> Void
@@ -1405,6 +1427,12 @@ private struct CompactTrackHeader: View {
 
                     Menu {
                         Button {
+                            showComments = true
+                        } label: {
+                            Label("评论", systemImage: "bubble.left")
+                        }
+
+                        Button {
                             player.addToPlayNext(track)
                         } label: {
                             Label("下一首播放", systemImage: "text.line.first.and.arrowtriangle.forward")
@@ -1450,6 +1478,18 @@ private struct CompactTrackHeader: View {
         .sheet(isPresented: $showAddToPlaylist) {
             if let track = player.currentTrack {
                 AddToPlaylistSheet(track: track)
+            }
+        }
+        .sheet(isPresented: $showComments) {
+            if let track = player.currentTrack {
+                Group {
+                    if #available(iOS 16.0, *) {
+                        CommentsView(track: track)
+                            .presentationDetents([.medium, .large])
+                    } else {
+                        CommentsView(track: track)
+                    }
+                }
             }
         }
     }
@@ -2124,6 +2164,7 @@ private struct MinimalTrackInfoRow: View {
     @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var settings: SettingsManager
     @State private var showAddToPlaylist = false
+    @State private var showComments = false
     @State private var airPlayRequest = 0
     let onOpenDestination: (Destination) -> Void
     var metadataOnly = false
@@ -2157,6 +2198,18 @@ private struct MinimalTrackInfoRow: View {
         .sheet(isPresented: $showAddToPlaylist) {
             if let track = player.currentTrack {
                 AddToPlaylistSheet(track: track)
+            }
+        }
+        .sheet(isPresented: $showComments) {
+            if let track = player.currentTrack {
+                Group {
+                    if #available(iOS 16.0, *) {
+                        CommentsView(track: track)
+                            .presentationDetents([.medium, .large])
+                    } else {
+                        CommentsView(track: track)
+                    }
+                }
             }
         }
     }
@@ -2206,6 +2259,12 @@ private struct MinimalTrackInfoRow: View {
 
     private func moreMenu(for track: Track) -> some View {
         Menu {
+            Button {
+                showComments = true
+            } label: {
+                Label("评论", systemImage: "bubble.left")
+            }
+
             Button {
                 airPlayRequest += 1
             } label: {
