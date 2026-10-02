@@ -730,8 +730,60 @@ enum QQMusicAPI {
     /// 获取 QQ 音乐用户歌单列表
     static func userPlaylists(uin: String) async throws -> [QQPlaylistSummary] {
         guard !uin.isEmpty, uin != "0" else { return [] }
-        // QQ音乐专门获取用户歌单的API
-        let urlStr = "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_by_uin.fcg?uin=\(uin)&categoryId=10000000&sortId=5&sin=0&ein=99&format=json&inCharset=utf8&outCharset=utf-8"
+        // 用 musicu.fcg 通用接口获取用户歌单
+        let urlStr = "https://u.y.qq.com/cgi-bin/musicu.fcg?g_tk=5381&loginUin=\(uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
+        guard let url = URL(string: urlStr) else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.allHTTPHeaderFields = headers
+        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+        request.setValue(QQMusicAuth.shared.cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // 请求体：获取用户创建的歌单
+        let body: [String: Any] = [
+            "comm": ["uin": uin, "format": "json", "ct": 24, "cv": 0],
+            "req_1": [
+                "module": "music.srfDissInfo.UnionDissInfoSvr",
+                "method": "GetUserDiss",
+                "param": ["uin": uin, "offset": 0, "limit": 99]
+            ]
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let req1 = json["req_1"] as? [String: Any],
+              let dataDict = req1["data"] as? [String: Any] else {
+            // 兜底：用旧 API
+            return try await userPlaylistsFallback(uin: uin)
+        }
+
+        // 可能的字段：disslist / list / mydiss
+        let dissList: [[String: Any]]
+        if let list = dataDict["disslist"] as? [[String: Any]] {
+            dissList = list
+        } else if let list = dataDict["list"] as? [[String: Any]] {
+            dissList = list
+        } else if let mydiss = dataDict["mydiss"] as? [[String: Any]] {
+            dissList = mydiss
+        } else {
+            return try await userPlaylistsFallback(uin: uin)
+        }
+
+        return dissList.compactMap { item -> QQPlaylistSummary? in
+            let disstid = (item["dissid"] as? String) ?? ((item["tid"] as? Int).map { "\($0)" }) ?? ((item["dissid"] as? Int).map { "\($0)" }) ?? ""
+            let name = (item["dissname"] as? String) ?? (item["title"] as? String) ?? (item["name"] as? String) ?? ""
+            guard !disstid.isEmpty, !name.isEmpty else { return nil }
+            let coverURL = (item["imgurl"] as? String) ?? (item["cover"] as? String) ?? (item["picurl"] as? String)
+            let songCount = (item["song_count"] as? Int) ?? (item["songnum"] as? Int) ?? 0
+            return QQPlaylistSummary(id: disstid, name: name, coverURL: coverURL, songCount: songCount, disstid: disstid)
+        }
+    }
+
+    /// 兜底：旧版 API 获取用户歌单
+    private static func userPlaylistsFallback(uin: String) async throws -> [QQPlaylistSummary] {
+        let urlStr = "https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?cid=205360838&userid=\(uin)&reqfrom=1&g_tk=5381&loginUin=\(uin)&format=json&inCharset=utf8&outCharset=utf-8"
         guard let url = URL(string: urlStr) else { return [] }
         var request = URLRequest(url: url)
         request.allHTTPHeaderFields = headers
@@ -740,19 +792,19 @@ enum QQMusicAPI {
 
         let (data, _) = try await URLSession.shared.data(for: request)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dataDict = json["data"] as? [String: Any],
-              let disslist = dataDict["disslist"] as? [[String: Any]] else {
-            return []
-        }
+              let dataDict = json["data"] as? [String: Any] else { return [] }
 
-        return disslist.compactMap { item -> QQPlaylistSummary? in
-            let disstid = (item["dissid"] as? String) ?? ((item["tid"] as? Int).map { "\($0)" }) ?? ""
-            let name = (item["dissname"] as? String) ?? (item["title"] as? String) ?? ""
-            guard !disstid.isEmpty, !name.isEmpty else { return nil }
-            let coverURL = (item["imgurl"] as? String) ?? (item["cover"] as? String)
-            let songCount = (item["song_count"] as? Int) ?? (item["songnum"] as? Int) ?? 0
-            return QQPlaylistSummary(id: disstid, name: name, coverURL: coverURL, songCount: songCount, disstid: disstid)
+        // 尝试多种可能的字段路径
+        if let mymusic = dataDict["mymusic"] as? [String: Any],
+           let mydiss = mymusic["mydiss"] as? [[String: Any]] {
+            return mydiss.compactMap { item -> QQPlaylistSummary? in
+                let disstid = (item["disstid"] as? String) ?? ((item["dissid"] as? Int).map { "\($0)" }) ?? ""
+                let name = (item["dissname"] as? String) ?? (item["name"] as? String) ?? ""
+                guard !disstid.isEmpty, !name.isEmpty else { return nil }
+                return QQPlaylistSummary(id: disstid, name: name, coverURL: item["imgurl"] as? String, songCount: (item["song_count"] as? Int) ?? 0, disstid: disstid)
+            }
         }
+        return []
     }
 
     /// 获取 QQ 音乐歌单详情（歌曲列表）
