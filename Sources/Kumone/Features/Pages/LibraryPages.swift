@@ -130,13 +130,8 @@ struct RecentPlaysView: View {
                     EmptyStateView(icon: "clock", title: "暂无最近播放")
                         .frame(minHeight: 300)
                 } else {
-                    // 和播放队列（QueuePanel）一致的简洁样式
-                    LazyVStack(alignment: .leading, spacing: 2) {
-                        ForEach(Array(mergedTracks.enumerated()), id: \.element.id) { _, track in
-                            RecentPlayRow(track: track)
-                        }
-                    }
-                    .padding(.horizontal, Theme.Layout.contentInset - 10)
+                    TrackListView(tracks: mergedTracks)
+                        .padding(.horizontal, Theme.Layout.contentInset - 10)
                 }
                 PlayerClearanceSpacer()
             }
@@ -146,50 +141,6 @@ struct RecentPlaysView: View {
             // 后台请求网易云最近播放作为补充
             neteaseTracks = (try? await NeteaseAPI.recentSongs(limit: 100)) ?? []
         }
-    }
-}
-
-// 和 QueueRow 一致的简洁行样式
-private struct RecentPlayRow: View {
-    let track: Track
-    @EnvironmentObject private var player: PlayerService
-    @State private var isHovering = false
-
-    private var isCurrent: Bool { player.currentTrack?.id == track.id }
-
-    var body: some View {
-        Button {
-            player.play(tracks: [track], source: .none, context: .recents)
-        } label: {
-            HStack(spacing: 10) {
-                CachedAsyncImage(url: track.album.picUrl?.resizedImageURL(96), animated: false)
-                    .frame(width: 36, height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(track.name)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(isCurrent ? Theme.accent : .primary)
-                        .lineLimit(1)
-                    Text(track.artistNames)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                if isCurrent {
-                    PlayingIndicator(animating: player.isPlaying)
-                } else {
-                    Text(Formatters.duration(track.duration))
-                        .font(.system(size: 10.5).monospacedDigit())
-                        .foregroundStyle(.quaternary)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.interactiveRow)
-        .onHover { isHovering = $0 }
     }
 }
 
