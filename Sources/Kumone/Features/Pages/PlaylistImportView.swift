@@ -31,21 +31,35 @@ struct PlaylistImportView: View {
                 TextField("粘贴歌单链接或输入歌单ID", text: $playlistURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                Button {
-                    Task { await importPlaylist() }
-                } label: {
-                    HStack {
-                        Spacer()
-                        if isLoading {
-                            ProgressView()
-                        } else {
-                            Text("解析并导入")
-                                .foregroundStyle(.blue)
+                HStack(spacing: 12) {
+                    Button {
+                        pasteFromClipboard()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Image(systemName: "doc.on.clipboard")
+                            Text("粘贴")
+                            Spacer()
                         }
-                        Spacer()
                     }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        Task { await importPlaylist() }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isLoading {
+                                ProgressView()
+                            } else {
+                                Text("解析并导入")
+                                    .foregroundStyle(.blue)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(playlistURL.trimmingCharacters(in: .whitespaces).isEmpty || isLoading)
                 }
-                .disabled(playlistURL.trimmingCharacters(in: .whitespaces).isEmpty || isLoading)
             }
 
             if !errorMessage.isEmpty {
@@ -97,6 +111,18 @@ struct PlaylistImportView: View {
         }
     }
 
+    private func pasteFromClipboard() {
+        #if os(iOS)
+        if let text = UIPasteboard.general.string {
+            playlistURL = text
+        }
+        #elseif os(macOS)
+        if let text = NSPasteboard.general.string(forType: .string) {
+            playlistURL = text
+        }
+        #endif
+    }
+
     private func importPlaylist() async {
         isLoading = true
         errorMessage = ""
@@ -109,8 +135,20 @@ struct PlaylistImportView: View {
             return
         }
 
+        // 先解析短链接（如 163cn.tv），获取真实链接
+        var resolvedInput = input
+        if let shortURL = extractShortURL(from: input) {
+            do {
+                resolvedInput = try await resolveShortURL(shortURL)
+            } catch {
+                errorMessage = "短链接解析失败：\(error.localizedDescription)"
+                isLoading = false
+                return
+            }
+        }
+
         // 从链接中提取ID
-        let playlistID = extractPlaylistID(from: input)
+        let playlistID = extractPlaylistID(from: resolvedInput)
 
         do {
             switch platform {
@@ -126,6 +164,43 @@ struct PlaylistImportView: View {
         }
 
         isLoading = false
+    }
+
+    /// 从输入中提取短链接（如 163cn.tv/xxx）
+    private func extractShortURL(from input: String) -> String? {
+        let patterns = [
+            "https?://163cn\\.tv/[a-zA-Z0-9]+",
+            "https?://t\\.cn/[a-zA-Z0-9]+"
+        ]
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               let match = regex.firstMatch(in: input, range: NSRange(input.startIndex..., in: input)),
+               let range = Range(match.range, in: input) {
+                return String(input[range])
+            }
+        }
+        return nil
+    }
+
+    /// 解析短链接，跟随重定向获取真实URL
+    private func resolveShortURL(_ shortURL: String) async throws -> String {
+        guard let url = URL(string: shortURL) else { return shortURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse,
+           let location = httpResponse.allHeaderFields["Location"] as? String {
+            return location
+        }
+        // HEAD 不行就用 GET
+        request.httpMethod = "GET"
+        let (_, response2) = try await URLSession.shared.data(for: request)
+        if let httpResponse2 = response2 as? HTTPURLResponse,
+           let location2 = httpResponse2.allHeaderFields["Location"] as? String {
+            return location2
+        }
+        return shortURL
     }
 
     private func extractPlaylistID(from input: String) -> String {

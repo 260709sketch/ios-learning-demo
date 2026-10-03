@@ -85,6 +85,7 @@ struct AppleMusicPlayerView: View {
     @State private var lyricsViewportHeight: CGFloat = 0
     @State private var isDraggingLyrics = false
     @State private var resumeTask: Task<Void, Never>?
+    @State private var dragOffset: CGFloat = 0
 
     private var track: Track? { player.currentTrack }
     private var lyrics: [LyricLine] { player.lyrics?.lines ?? [] }
@@ -147,6 +148,7 @@ struct AppleMusicPlayerView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .ignoresSafeArea()
+        .offset(y: dragOffset)
         .simultaneousGesture(swipeDownToDismissGesture)
         .onDisappear { resumeTask?.cancel() }
         .sheet(isPresented: $showQueue) {
@@ -791,13 +793,28 @@ struct AppleMusicPlayerView: View {
     }
 
     private var swipeDownToDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 30)
+        DragGesture(minimumDistance: 10, coordinateSpace: .global)
+            .onChanged { value in
+                // 只响应下滑，且垂直滑动为主
+                let translation = value.translation.height
+                guard translation > 0,
+                      abs(translation) > abs(value.translation.width) else { return }
+                dragOffset = translation
+            }
             .onEnded { value in
-                // 下滑超过100pt且垂直滑动为主时关闭播放器
-                guard value.translation.height > 100,
-                      abs(value.translation.height) > abs(value.translation.width) else { return }
-                WellHaptics.tap()
-                onDismiss()
+                let translation = value.translation.height
+                let predicted = value.predictedEndTranslation.height
+                // 超过110pt或预测超过190pt则关闭，否则回弹
+                if translation > 110 || predicted > 190 {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        dragOffset = 0
+                    }
+                    onDismiss()
+                } else {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        dragOffset = 0
+                    }
+                }
             }
     }
 
