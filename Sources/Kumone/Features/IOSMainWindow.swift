@@ -67,11 +67,14 @@ public struct IOSMainWindow: View {
             .environment(\.openLogin, { showLogin = true })
             .environment(\.openDestination, openDestination)
             // 启动动画：从底部向上浮动 + 淡入
-            .offset(y: hasAppeared ? 0 : 28)
+            .offset(y: hasAppeared ? 0 : 24)
             .opacity(hasAppeared ? 1 : 0)
             .onAppear {
-                withAnimation(.spring(response: 0.65, dampingFraction: 0.82)) {
-                    hasAppeared = true
+                // 延迟50ms，等视图布局完成后再触发，避免和其他动画冲突
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    withAnimation(.easeOut(duration: 0.45)) {
+                        hasAppeared = true
+                    }
                 }
             }
             .task {

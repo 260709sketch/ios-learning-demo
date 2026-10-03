@@ -81,7 +81,13 @@ final class HomeViewModel: ObservableObject {
             await loadRadarPlaylists()
         }
 
-        state = playlists.isEmpty && newAlbums.isEmpty ? .error(String(localized: "网络连接失败")) : .loaded
+        if playlists.isEmpty && newAlbums.isEmpty {
+            // 未登录时数据可能为空（登录态还在恢复中），保持loading等登录态变化后自动重载
+            // 已登录时数据为空才显示网络错误
+            state = loggedIn ? .error(String(localized: "网络连接失败")) : .loading
+        } else {
+            state = .loaded
+        }
     }
 
     func reload(loggedIn: Bool) async {
