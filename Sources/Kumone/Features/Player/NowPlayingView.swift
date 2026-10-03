@@ -1351,6 +1351,7 @@ private struct CompactTrackHeader: View {
     @EnvironmentObject private var settings: SettingsManager
     @State private var showAddToPlaylist = false
     @State private var showComments = false
+    @State private var showPlayerModeSheet = false
 
     let showsExpandedArtwork: Bool
     let onOpenDestination: (Destination) -> Void
@@ -2173,6 +2174,7 @@ private struct MinimalTrackInfoRow: View {
     @EnvironmentObject private var settings: SettingsManager
     @State private var showAddToPlaylist = false
     @State private var showComments = false
+    @State private var showPlayerModeSheet = false
     @State private var airPlayRequest = 0
     let onOpenDestination: (Destination) -> Void
     var metadataOnly = false
