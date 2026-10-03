@@ -29,6 +29,7 @@ public struct IOSMainWindow: View {
     @State private var iPadPath: [Destination] = []
     /// 播放器内部导航路径（点击歌手/专辑在播放器内打开，不退出播放器）
     @State private var playerNavPath: [Destination] = []
+    @State private var hasAppeared = false
 
     /// 可见的底部栏 tab（"我的"强制显示，不可隐藏）
     private var visibleTabs: [IOSTab] {
@@ -65,6 +66,14 @@ public struct IOSMainWindow: View {
             .environment(\.locale, Locale(identifier: "zh_CN"))
             .environment(\.openLogin, { showLogin = true })
             .environment(\.openDestination, openDestination)
+            // 启动动画：从底部向上浮动 + 淡入
+            .offset(y: hasAppeared ? 0 : 28)
+            .opacity(hasAppeared ? 1 : 0)
+            .onAppear {
+                withAnimation(.spring(response: 0.65, dampingFraction: 0.82)) {
+                    hasAppeared = true
+                }
+            }
             .task {
                 await account.bootstrap()
             }
