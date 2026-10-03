@@ -122,11 +122,11 @@ struct NowPlayingView: View {
         #endif
         #if os(iOS)
         .onAppear {
-            showLyricsOnMobile = settings.nowPlayingMode == .immersive
+            showLyricsOnMobile = settings.nowPlayingMode == .immersive || settings.nowPlayingMode == .immersiveV2
             showQueueOnMobile = false
         }
         .onChange(of: settings.nowPlayingMode) { _ in
-            showLyricsOnMobile = settings.nowPlayingMode == .immersive
+            showLyricsOnMobile = settings.nowPlayingMode == .immersive || settings.nowPlayingMode == .immersiveV2
             showQueueOnMobile = false
         }
         .onChange(of: player.currentTrack?.id) { _ in
@@ -263,21 +263,19 @@ struct NowPlayingView: View {
     @ViewBuilder
     private func compactLayout(size: CGSize) -> some View {
         #if os(iOS)
-        if settings.useAMLLImmersive {
+        switch settings.nowPlayingMode {
+        case .vinyl:
+            vinylCompactLayout(size: size)
+        case .classic:
+            classicCompactLayout(size: size)
+        case .immersive:
+            immersiveCompactLayout(size: size)
+        case .minimal:
+            minimalCompactLayout(size: size)
+        case .appleMusic:
+            classicCompactLayout(size: size)
+        case .immersiveV2:
             amllCompactLayout(size: size)
-        } else {
-            switch settings.nowPlayingMode {
-            case .vinyl:
-                vinylCompactLayout(size: size)
-            case .classic:
-                classicCompactLayout(size: size)
-            case .immersive:
-                immersiveCompactLayout(size: size)
-            case .minimal:
-                minimalCompactLayout(size: size)
-            case .appleMusic:
-                classicCompactLayout(size: size)
-            }
         }
         #else
         switch settings.nowPlayingMode {

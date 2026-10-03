@@ -104,17 +104,11 @@ struct SettingsView: View {
                     }
                 }
                 #endif
-                if settings.useAMLLImmersive {
-                    Text("AMLL 沉浸式歌词开启时，播放页模式固定为沉浸模式；如需使用黑胶/经典/简洁模式，请先关闭 AMLL 沉浸式歌词")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
                 Toggle("显示歌词翻译", isOn: $settings.showLyricsTranslation)
                 Toggle("显示 VIP 歌曲标识", isOn: $settings.showVIPBadge)
                 Toggle("逐字歌词（卡拉OK）", isOn: $settings.verbatimLyrics)
-                Toggle("AMLL 沉浸式歌词（流动背景+扫光）", isOn: $settings.useAMLLImmersive)
-                if settings.useAMLLImmersive {
-                    Text("通过 WKWebView 嵌入开源 AMLL 组件；播放页将切换为 AMLL 流动背景和逐字扫光歌词")
+                if settings.nowPlayingMode == .immersiveV2 {
+                    Text("沉浸模式V2使用 AMLL 流动背景和逐字扫光歌词")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -240,7 +234,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    // MARK: 播放器组件位置调整
+                    // MARK: 沉浸模式V2参数调整
                     Divider()
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -248,7 +242,7 @@ struct SettingsView: View {
                         }
                     } label: {
                         HStack {
-                            Text("播放器组件位置调整")
+                            Text("沉浸模式V2参数调整")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.primary)
                             Spacer()
