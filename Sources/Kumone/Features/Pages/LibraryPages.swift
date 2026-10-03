@@ -53,7 +53,8 @@ struct RecentsView: View {
                 PlayerClearanceSpacer()
             }
         }
-        .navigationTitle("历史播放")
+        // 听歌排行（即历史播放记录）
+        .navigationTitle("听歌排行")
         .task(id: week) {
             await load()
         }

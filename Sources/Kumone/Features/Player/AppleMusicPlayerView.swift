@@ -57,7 +57,7 @@ struct AppleMusicPlayerView: View {
     @State private var showQueue = false
     @State private var showComments = false
     @State private var showAddToPlaylist = false
-    @State private var showPlayerSettings = false
+    @State private var showSleepTimerSheet = false
     @State private var showVolumePopover = false
     @State private var layoutMode = false
     @State private var appleLayoutPart: AppleMusicLayoutPart = .cover
@@ -68,7 +68,7 @@ struct AppleMusicPlayerView: View {
     @AppStorage("wellmusic.appleMusic.accentHex") private var accentHex = ""
     @AppStorage("wellmusic.appleMusic.volumeHex") private var volumeHex = ""
     @AppStorage("wellmusic.showSongVIPBadge") private var showSongVIPBadge = true
-    @AppStorage("wellmusic.appleMusic.showLyricPreview") private var showLyricPreview = true
+    @AppStorage("wellmusic.appleMusic.showLyricPreview") private var showLyricPreview = false
     @AppStorage("wellmusic.player.autoSkipOnFailure") private var autoSkipOnFailure = true
     @AppStorage("wellmusic.player.swipeSwitchSong") private var swipeSwitchSong = true
     @AppStorage("wellmusic.player.breath") private var breath = 0.6
@@ -177,8 +177,8 @@ struct AppleMusicPlayerView: View {
                 AddToPlaylistSheet(track: t)
             }
         }
-        .sheet(isPresented: $showPlayerSettings) {
-            playerSettingsSheet
+        .sheet(isPresented: $showSleepTimerSheet) {
+            SleepTimerSheet(player: player)
         }
     }
 
@@ -213,8 +213,12 @@ struct AppleMusicPlayerView: View {
 
             Divider()
 
-            // 睡眠定时（用独立组件，避免嵌套Menu自动关闭）
-            SleepTimerMenu(player: player)
+            // 睡眠定时（用 sheet 避免嵌套 Menu 自动关闭）
+            Button {
+                showSleepTimerSheet = true
+            } label: {
+                Label("睡眠定时", systemImage: player.sleepTimer.state.isActive ? "timer.circle.fill" : "timer")
+            }
 
             Divider()
 
@@ -236,283 +240,8 @@ struct AppleMusicPlayerView: View {
             } label: {
                 Label("复制链接", systemImage: "link")
             }
-
-            Button {
-                WellHaptics.tap()
-                showPlayerSettings = true
-            } label: {
-                Label("播放器设置", systemImage: "gearshape")
-            }
         } label: {
             compactActionButton(icon: "ellipsis") {}
-        }
-    }
-
-    @ViewBuilder
-    private var playerSettingsSheet: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    playingSettingsCard
-                    appleMusicSettingsCard
-                    lyricDisplaySettingsCard
-                    coverSettingsCard
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 16)
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("播放器设置")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
-                        showPlayerSettings = false
-                    }
-                    .foregroundStyle(.blue)
-                }
-            }
-        }
-        .presentationDetentsSafe()
-    }
-
-    private var playingSettingsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("播放")
-                .font(.system(size: 17, weight: .semibold))
-            Toggle("播放失败自动下一首", isOn: $autoSkipOnFailure)
-                .font(.system(size: 15))
-            Divider().opacity(0.5)
-            Toggle("左右滑动切歌", isOn: $swipeSwitchSong)
-                .font(.system(size: 15))
-            Divider().opacity(0.5)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("背景光晕强度")
-                        .font(.system(size: 15))
-                    Spacer()
-                    Text("\(Int((breath * 100).rounded()))%")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                }
-                Slider(value: $breath, in: 0...1, step: 0.05)
-            }
-            Divider().opacity(0.5)
-            progressStyleGrid
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemGray6))
-        }
-    }
-
-    private var progressStyleGrid: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("进度条样式")
-                .font(.system(size: 15))
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                ForEach([(0, "流光", "rays"), (1, "辉光", "sun.max"), (2, "极光", "sparkles"), (3, "波浪", "waveform")], id: \.0) { idx, name, icon in
-                    Button {
-                        progressBarStyle = idx
-                    } label: {
-                        VStack(spacing: 5) {
-                            Image(systemName: icon)
-                                .font(.system(size: 15, weight: .medium))
-                            Text(name)
-                                .font(.system(size: 11))
-                        }
-                        .foregroundStyle(progressBarStyle == idx ? Color.accentColor : Color.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            (progressBarStyle == idx ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.05)),
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private var appleMusicSettingsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Apple Music 样式")
-                .font(.system(size: 17, weight: .semibold))
-            Toggle("显示封面页歌词预览", isOn: $showLyricPreview)
-                .font(.system(size: 15))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemGray6))
-        }
-    }
-
-    private var lyricDisplaySettingsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("歌词显示")
-                .font(.system(size: 17, weight: .semibold))
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("歌词字号")
-                        .font(.system(size: 15))
-                    Spacer()
-                    Text("\(Int(lyricFontSize))")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                }
-                Slider(value: $lyricFontSize, in: 12...28, step: 1)
-            }
-            Divider().opacity(0.5)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("歌词行距")
-                        .font(.system(size: 15))
-                    Spacer()
-                    Text("\(Int(lyricLineSpacing))")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                }
-                Slider(value: $lyricLineSpacing, in: 14...40, step: 1)
-            }
-            Divider().opacity(0.5)
-            Toggle("显示翻译", isOn: $lyricTranslation)
-                .font(.system(size: 15))
-            Divider().opacity(0.5)
-            Picker("歌词发光", selection: $lyricGlowLevel) {
-                Text("关闭").tag(0)
-                Text("弱").tag(1)
-                Text("中").tag(2)
-                Text("强").tag(3)
-            }
-            .pickerStyle(.segmented)
-            Divider().opacity(0.5)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("歌词偏移")
-                        .font(.system(size: 15))
-                    Spacer()
-                    Text(lyricOffsetText)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                }
-                Slider(value: $lyricOffset, in: -5...5, step: 0.1)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemGray6))
-        }
-    }
-
-    private var lyricOffsetText: String {
-        if lyricOffset == 0 { return "同步" }
-        return lyricOffset > 0 ? "提前 \(String(format: "%.1f", lyricOffset))s" : "延后 \(String(format: "%.1f", -lyricOffset))s"
-    }
-
-    private var coverSettingsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("封面")
-                    .font(.system(size: 17, weight: .semibold))
-                Spacer()
-            }
-            Text("播放器风格")
-                .font(.system(size: 15))
-            playerStyleOption(icon: "square", title: "经典封面", subtitle: "封面、歌名和预览歌词分层显示", mode: .classic)
-            playerStyleOption(icon: "music.note", title: "Apple Music", subtitle: "大封面、细进度条和简洁播放控制", mode: .appleMusic)
-            playerStyleOption(icon: "circle.circle", title: "唱片模式", subtitle: "参考唱片界面、歌词、队列和播放控制", mode: .vinyl)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemGray6))
-        }
-    }
-
-    private func playerStyleOption(icon: String, title: String, subtitle: String, mode: NowPlayingMode) -> some View {
-        Button {
-            settings.nowPlayingMode = mode
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(settings.nowPlayingMode == mode ? Color.red.opacity(0.15) : Color(.systemGray5))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(settings.nowPlayingMode == mode ? .red : .primary)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.primary)
-                    Text(subtitle)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if settings.nowPlayingMode == mode {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.red)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(settings.nowPlayingMode == mode ? Color.red.opacity(0.08) : Color(.systemGray5))
-            }
-            .overlay {
-                if settings.nowPlayingMode == mode {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.red.opacity(0.5), lineWidth: 1)
-                }
-            }
-        }
-    }
-
-    private func layoutSlider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double, format: String, display: @escaping (Double) -> String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.primary)
-                Spacer()
-                Text(display(value.wrappedValue))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.red)
-            }
-            Slider(value: value, in: range, step: step)
-                .tint(.red)
-        }
-    }
-
-    private func layoutSliderInt(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double, suffix: String = "") -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.primary)
-                Spacer()
-                Text("\(Int(value.wrappedValue))\(suffix)")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.red)
-            }
-            Slider(value: value, in: range, step: step)
-                .tint(.red)
         }
     }
 
@@ -1468,5 +1197,100 @@ private struct Triangle: Shape {
             path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
             path.closeSubpath()
         }
+    }
+}
+
+// MARK: - 睡眠定时 Sheet
+
+struct SleepTimerSheet: View {
+    @ObservedObject private var player: PlayerService
+    @ObservedObject private var sleepTimer: SleepTimer
+    @Environment(\.dismiss) private var dismiss
+
+    init(player: PlayerService) {
+        _player = ObservedObject(wrappedValue: player)
+        _sleepTimer = ObservedObject(wrappedValue: player.sleepTimer)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let status = activeStatus {
+                    Section {
+                        Label(status, systemImage: "timer")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("定时关闭") {
+                    ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in
+                        Button {
+                            sleepTimer.schedule(afterMinutes: minutes)
+                            dismiss()
+                        } label: {
+                            HStack {
+                                Text("\(minutes) 分钟")
+                                Spacer()
+                                if isCountdown(minutes) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                        .disabled(!player.hasCurrentTrack)
+                    }
+
+                    Button {
+                        sleepTimer.scheduleAtEndOfCurrentTrack()
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Label("当前歌曲结束时停止", systemImage: "music.note")
+                            Spacer()
+                            if case .endOfCurrentTrack = sleepTimer.state {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                    }
+                    .disabled(!player.hasCurrentTrack)
+                }
+
+                if sleepTimer.state.isActive {
+                    Section {
+                        Button("取消睡眠定时", role: .destructive) {
+                            sleepTimer.cancel()
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .navigationTitle("睡眠定时")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .presentationDetentsSafe()
+    }
+
+    private var activeStatus: String? {
+        switch sleepTimer.state {
+        case .inactive:
+            return nil
+        case .countdown(let deadline):
+            let remaining = max(0, deadline.timeIntervalSinceNow)
+            return "剩余 \(Formatters.duration(remaining))"
+        case .endOfCurrentTrack:
+            return "将在当前歌曲结束时停止"
+        }
+    }
+
+    private func isCountdown(_ minutes: Int) -> Bool {
+        guard case .countdown(let deadline) = sleepTimer.state else { return false }
+        let remaining = deadline.timeIntervalSinceNow
+        return abs(remaining - Double(minutes * 60)) < 30
     }
 }

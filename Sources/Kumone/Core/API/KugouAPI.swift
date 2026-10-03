@@ -382,14 +382,15 @@ enum KugouAPI {
         let id = authorID.replacingOccurrences(of: "kugou_", with: "")
         let singerName = (try? await artistDetail(authorID: authorID))?.name ?? ""
 
-        // 循环请求所有页，一次性获取全部专辑（对齐 WellMusic 的懒加载效果）
+        // 对齐 LX-Y-Music：用 v5 接口，循环分页获取全部专辑（含EP、单曲）
         var allAlbums: [AlbumSummary] = []
         var currentPage = 1
         var total = 0
-        let pageSize = 100 // 每页最大100
+        let pageSize = 30
 
         while true {
-            guard let url = URL(string: "http://mobilecdn.kugou.com/api/v3/singer/album?singerid=\(id)&page=\(currentPage)&pagesize=\(pageSize)") else { break }
+            // v5 接口：mobiles.kugou.com/api/v5/singer/album（LX-Y 同款，返回更完整）
+            guard let url = URL(string: "http://mobiles.kugou.com/api/v5/singer/album?singerid=\(id)&page=\(currentPage)&pagesize=\(pageSize)") else { break }
             var request = URLRequest(url: url)
             request.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
             guard let (data, _) = try? await URLSession.shared.data(for: request),
@@ -412,23 +413,21 @@ enum KugouAPI {
                 if picUrl == nil, !albumID.isEmpty {
                     picUrl = "https://imge.kugou.com/stdmusic/400/album/\(albumID).jpg"
                 }
-                // 专辑类型：优先用 album_type，其次按歌曲数量判断（对齐 WellMusic）
+                // 专辑类型：按歌曲数量区分（1首=单曲，2-5首=EP，其他=专辑）
+                // 不过滤任何类型，全部返回
                 var subType = "专辑"
-                if let type = item["album_type"] as? Int, type > 0 {
-                    if type == 1 { subType = "单曲" }
-                    else if type == 2 { subType = "EP" }
-                } else if let songCount = item["songcount"] as? Int {
+                if let songCount = item["songcount"] as? Int {
                     if songCount == 1 { subType = "单曲" }
                     else if songCount > 1 && songCount <= 5 { subType = "EP" }
                 }
                 return makeAlbum(id: abs(albumID.hashValue), name: albumName, picUrl: picUrl, artistName: singerName, albumID: albumID, subType: subType)
             }
             allAlbums.append(contentsOf: pageAlbums)
-            // 本页不足100张，说明是最后一页
+            // 本页不足pageSize，说明是最后一页
             if list.count < pageSize { break }
             currentPage += 1
-            // 安全上限，防止无限循环
-            if currentPage > 20 { break }
+            // 安全上限，防止无限循环（最多300张）
+            if currentPage > 10 { break }
         }
 
         return (allAlbums, total)
