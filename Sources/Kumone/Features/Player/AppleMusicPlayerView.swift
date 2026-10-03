@@ -282,11 +282,11 @@ struct AppleMusicPlayerView: View {
     // MARK: - 封面页
 
     private func coverPage(size: CGSize) -> some View {
-        let contentWidth = max(size.width - 64, 0)
-        let artworkSize = min(contentWidth, min(size.height * 0.50, 390))
+        let contentWidth = max(size.width - ScreenAdapter.w(64), 0)
+        let artworkSize = min(contentWidth, min(size.height * 0.50, ScreenAdapter.h(390)))
 
         return VStack(spacing: 0) {
-            Color.clear.frame(height: 100)
+            Color.clear.frame(height: ScreenAdapter.h(100))
 
             // 大封面占位符（记录位置）
             Color.clear
@@ -297,11 +297,11 @@ struct AppleMusicPlayerView: View {
                 ) { [.expanded: $0] }
 
             if showLyricPreview {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(spacing: 9) {
+                HStack(spacing: ScreenAdapter.w(12)) {
+                    VStack(alignment: .leading, spacing: ScreenAdapter.h(5)) {
+                        HStack(spacing: ScreenAdapter.w(9)) {
                             Text(track?.name ?? "未在播放")
-                                .font(.system(size: 22, weight: .bold))
+                                .font(.system(size: ScreenAdapter.h(22), weight: .bold))
                                 .foregroundStyle(primaryColor)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
@@ -310,28 +310,28 @@ struct AppleMusicPlayerView: View {
                             if let t = track {
                                 NowPlayingTrackDestinationLinks(
                                     track: t,
-                                    font: .system(size: 13.5, weight: .medium),
+                                    font: .system(size: ScreenAdapter.h(13.5), weight: .medium),
                                     color: secondaryColor,
                                     onOpenDestination: onOpenDestination
                                 )
                             } else {
                                 Text(subtitle)
-                                    .font(.system(size: 13.5, weight: .medium))
+                                    .font(.system(size: ScreenAdapter.h(13.5), weight: .medium))
                                     .foregroundStyle(secondaryColor)
                             }
                         }
                         .lineLimit(1)
                         .truncationMode(.tail)
                     }
-                    Spacer(minLength: 8)
+                    Spacer(minLength: ScreenAdapter.w(8))
                     compactActionButton(
                         icon: isLiked ? "heart.fill" : "heart",
                         active: isLiked
                     ) { onFavorite() }
                     moreMenu
                 }
-                .frame(maxWidth: 420)
-                .padding(.top, 22)
+                .frame(maxWidth: ScreenAdapter.w(420))
+                .padding(.top, ScreenAdapter.h(22))
                 .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.title)))
 
                 MiniLyricsPreview {
@@ -339,36 +339,36 @@ struct AppleMusicPlayerView: View {
                     WellHaptics.tap()
                     showLyrics = true
                 }
-                .padding(.top, 36)
+                .padding(.top, ScreenAdapter.h(36))
                 .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.previewLyric)))
             } else {
                 compactTrackHeader
-                    .padding(.top, 22)
+                    .padding(.top, ScreenAdapter.h(22))
             }
 
-            Spacer(minLength: 0).frame(height: 24)
+            Spacer(minLength: 0).frame(height: ScreenAdapter.h(24))
         }
-        .padding(.horizontal, 32)
+        .padding(.horizontal, ScreenAdapter.w(32))
     }
 
     private var compactTrackHeader: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: ScreenAdapter.w(12)) {
+            VStack(alignment: .leading, spacing: ScreenAdapter.h(4)) {
                 Text(track?.name ?? "未在播放")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: ScreenAdapter.h(16), weight: .semibold))
                     .foregroundStyle(primaryColor)
                     .lineLimit(1)
                 Group {
                     if let t = track {
                         NowPlayingTrackDestinationLinks(
                             track: t,
-                            font: .system(size: 12, weight: .medium),
+                            font: .system(size: ScreenAdapter.h(12), weight: .medium),
                             color: secondaryColor,
                             onOpenDestination: onOpenDestination
                         )
                     } else {
                         Text(subtitle)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: ScreenAdapter.h(12), weight: .medium))
                             .foregroundStyle(secondaryColor)
                             .lineLimit(1)
                     }
@@ -381,26 +381,26 @@ struct AppleMusicPlayerView: View {
             ) { onFavorite() }
             moreMenu
         }
-        .frame(maxWidth: 420)
+        .frame(maxWidth: ScreenAdapter.w(420))
     }
 
     // MARK: - 歌词页
 
     private var lyricsPage: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: 60)
+            Color.clear.frame(height: ScreenAdapter.h(60))
 
             lyricsHeader
-                .padding(.horizontal, 24)
-                .padding(.bottom, 10)
+                .padding(.horizontal, ScreenAdapter.w(24))
+                .padding(.bottom, ScreenAdapter.h(10))
 
             if lyrics.isEmpty {
                 emptyLyricsView
             } else {
                 ScrollViewReader { proxy in
                     ScrollView(showsIndicators: false) {
-                        LazyVStack(alignment: .leading, spacing: 26) {
-                            Color.clear.frame(height: max(88, lyricsViewportHeight * 0.30))
+                        LazyVStack(alignment: .leading, spacing: ScreenAdapter.h(26)) {
+                            Color.clear.frame(height: max(ScreenAdapter.h(88), lyricsViewportHeight * 0.30))
                             ForEach(lyrics) { line in
                                 lyricLine(line, isFocused: line.id == currentVisualLyricID)
                                     .id(line.id)
@@ -462,19 +462,19 @@ struct AppleMusicPlayerView: View {
     }
 
     private var lyricsHeader: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: ScreenAdapter.w(12)) {
             // 小封面占位符（记录位置）
             Color.clear
-                .frame(width: 48, height: 48)
+                .frame(width: ScreenAdapter.h(48), height: ScreenAdapter.h(48))
                 .anchorPreference(
                     key: AppleMusicArtworkFrameKey.self,
                     value: .bounds
                 ) { [.compact: $0] }
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 7) {
+            VStack(alignment: .leading, spacing: ScreenAdapter.h(3)) {
+                HStack(spacing: ScreenAdapter.w(7)) {
                     Text(track?.name ?? "未在播放")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: ScreenAdapter.h(15), weight: .semibold))
                         .foregroundStyle(primaryColor)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -483,13 +483,13 @@ struct AppleMusicPlayerView: View {
                     if let t = track {
                         NowPlayingTrackDestinationLinks(
                             track: t,
-                            font: .system(size: 12, weight: .medium),
+                            font: .system(size: ScreenAdapter.h(12), weight: .medium),
                             color: secondaryColor,
                             onOpenDestination: onOpenDestination
                         )
                     } else {
                         Text(subtitle)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: ScreenAdapter.h(12), weight: .medium))
                             .foregroundStyle(secondaryColor)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -508,17 +508,17 @@ struct AppleMusicPlayerView: View {
     // MARK: - 播放控制栏
 
     private func playbackControls(bottomInset: CGFloat) -> some View {
-        VStack(spacing: 15) {
+        VStack(spacing: ScreenAdapter.h(15)) {
             ReferenceScrubber()
                 .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.progress)))
 
-            HStack(spacing: 28) {
+            HStack(spacing: ScreenAdapter.h(28)) {
                 Button {
                     WellHaptics.tap()
                     player.previous()
                 } label: {
                     Image(systemName: "backward.fill")
-                        .font(.system(size: 25, weight: .semibold))
+                        .font(.system(size: ScreenAdapter.h(25), weight: .semibold))
                 }
                 .buttonStyle(.plain)
                 .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.previous)))
@@ -527,8 +527,8 @@ struct AppleMusicPlayerView: View {
                     WellHaptics.tap()
                     player.togglePlayPause()
                 } label: {
-                    PlayPauseMorphIcon(isPlaying: player.isPlaying, size: 24)
-                        .frame(width: 66, height: 66)
+                    PlayPauseMorphIcon(isPlaying: player.isPlaying, size: ScreenAdapter.h(24))
+                        .frame(width: ScreenAdapter.h(66), height: ScreenAdapter.h(66))
                         .foregroundStyle(primaryColor)
                 }
                 .buttonStyle(GlassPressButtonStyle(scale: 0.92))
@@ -539,22 +539,22 @@ struct AppleMusicPlayerView: View {
                     player.next()
                 } label: {
                     Image(systemName: "forward.fill")
-                        .font(.system(size: 25, weight: .semibold))
+                        .font(.system(size: ScreenAdapter.h(25), weight: .semibold))
                 }
                 .buttonStyle(.plain)
                 .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.next)))
             }
             .foregroundStyle(primaryColor)
-            .frame(maxWidth: 320)
+            .frame(maxWidth: ScreenAdapter.w(320))
 
             if showVolumeControl {
                 ReferenceVolumeControl(accent: volumeColor, secondary: secondaryColor)
-                    .frame(maxWidth: 420)
+                    .frame(maxWidth: ScreenAdapter.w(420))
                     .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.volume)))
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            HStack(spacing: 36) {
+            HStack(spacing: ScreenAdapter.h(36)) {
                 referenceActionButton(icon: "quote.bubble", active: showLyrics) {
                     guard !lyrics.isEmpty else { return }
                     showLyrics.toggle()
@@ -571,7 +571,7 @@ struct AppleMusicPlayerView: View {
                     .overlay(alignment: .bottom) {
                         if showVolumePopover {
                             CompactVolumePopover()
-                                .offset(y: -44)
+                                .offset(y: -ScreenAdapter.h(44))
                                 .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
                                 .zIndex(1)
                         }
@@ -581,12 +581,12 @@ struct AppleMusicPlayerView: View {
                     showQueue = true
                 }
             }
-            .frame(maxWidth: 420)
+            .frame(maxWidth: ScreenAdapter.w(420))
             .modifier(AppleMusicLayoutTransform(entry: layoutEntry(.actions)))
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 10)
-        .padding(.bottom, 70)
+        .padding(.horizontal, ScreenAdapter.w(24))
+        .padding(.top, ScreenAdapter.h(10))
+        .padding(.bottom, ScreenAdapter.h(70))
         .gesture(commentsGesture)
     }
 
@@ -596,9 +596,9 @@ struct AppleMusicPlayerView: View {
             action()
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: ScreenAdapter.h(18), weight: .semibold))
                 .foregroundStyle(active ? accentColor : primaryColor.opacity(0.78))
-                .frame(width: 58, height: 58)
+                .frame(width: ScreenAdapter.h(58), height: ScreenAdapter.h(58))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -610,25 +610,25 @@ struct AppleMusicPlayerView: View {
             action()
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: ScreenAdapter.h(17), weight: .semibold))
                 .foregroundStyle(active ? accentColor : primaryColor.opacity(0.78))
-                .frame(width: 38, height: 38)
+                .frame(width: ScreenAdapter.h(38), height: ScreenAdapter.h(38))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
     private var emptyLyricsView: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: ScreenAdapter.h(10)) {
             Spacer()
             Image(systemName: "quote.bubble")
-                .font(.system(size: 34, weight: .light))
+                .font(.system(size: ScreenAdapter.h(34), weight: .light))
                 .foregroundStyle(.white.opacity(0.42))
             Text("暂无歌词")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: ScreenAdapter.h(15), weight: .semibold))
                 .foregroundStyle(.white.opacity(0.86))
             Text("点击封面区域返回歌曲页面")
-                .font(.system(size: 12))
+                .font(.system(size: ScreenAdapter.h(12)))
                 .foregroundStyle(.white.opacity(0.46))
             Spacer()
         }
@@ -1320,8 +1320,11 @@ struct PlayerModeSheet: View {
             List {
                 ForEach(availableModes) { mode in
                     Button {
-                        settings.nowPlayingMode = mode
                         dismiss()
+                        // 延迟切换模式，确保 sheet 先关闭再重建播放器视图
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            settings.nowPlayingMode = mode
+                        }
                     } label: {
                         HStack {
                             Text(mode.displayName)

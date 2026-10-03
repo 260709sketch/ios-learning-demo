@@ -295,7 +295,7 @@ struct NowPlayingView: View {
     /// 歌词状态：小封面+歌曲信息在上，AMLL 大歌词居中，进度条+控制在底部
     #if os(iOS)
     private func amllCompactLayout(size: CGSize) -> some View {
-        let baseDimension = min(size.width - 112, size.height * 0.3, 250)
+        let baseDimension = min(size.width - ScreenAdapter.w(112), size.height * 0.3, ScreenAdapter.h(250))
         let artworkDimension = baseDimension * CGFloat(settings.playerArtworkScale)
         let showsExpandedArtwork = !showLyricsOnMobile && !showQueueOnMobile
 
@@ -325,15 +325,15 @@ struct NowPlayingView: View {
                     leftHorizontalOffset: CGFloat(settings.playerTrackInfoLeftOffset),
                     rightHorizontalOffset: CGFloat(settings.playerTrackInfoRightOffset)
                 )
-                .padding(.bottom, 14)
+                .padding(.bottom, ScreenAdapter.h(14))
                 .offset(y: CGFloat(settings.playerTrackInfoTopOffset))
                 .contentShape(Rectangle())
                 .zIndex(2)
 
                 ZStack {
                     // 大封面占位（只有封面，歌曲信息在顶部 CompactTrackHeader）
-                    VStack(spacing: 18) {
-                        Spacer(minLength: 8)
+                    VStack(spacing: ScreenAdapter.h(18)) {
+                        Spacer(minLength: ScreenAdapter.h(8))
                         Color.clear
                             .frame(width: artworkDimension, height: artworkDimension)
                             .anchorPreference(
@@ -364,8 +364,8 @@ struct NowPlayingView: View {
                     .zIndex(1)
                     .contentShape(Rectangle())
             }
-            .frame(width: max(size.width - 64, 0))
-            .padding(.horizontal, 32)
+            .frame(width: max(size.width - ScreenAdapter.w(64), 0))
+            .padding(.horizontal, ScreenAdapter.w(32))
         }
         // 大封面渲染（compact anchor 来自顶部 CompactTrackHeader）
         .overlayPreferenceValue(ImmersiveArtworkFramePreferenceKey.self) { frames in
@@ -1382,8 +1382,8 @@ private struct CompactTrackHeader: View {
                     .onTapGesture { onTapArtwork?() }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: ScreenAdapter.h(4)) {
+                HStack(spacing: ScreenAdapter.w(6)) {
                     Text(player.currentTrack?.name ?? "")
                         .font(.headline.weight(.bold))
                         .foregroundStyle(.white)
@@ -1417,9 +1417,9 @@ private struct CompactTrackHeader: View {
                         Task { await account.toggleLike(trackID: track.id, track: track) }
                     } label: {
                         Image(systemName: liked ? "heart.fill" : "heart")
-                            .font(.system(size: 21, weight: .medium))
+                            .font(.system(size: ScreenAdapter.h(21), weight: .medium))
                             .foregroundStyle(liked ? Theme.accent : .white.opacity(0.88))
-                            .frame(width: 44, height: 44)
+                            .frame(width: ScreenAdapter.h(44), height: ScreenAdapter.h(44))
                     }
                     .buttonStyle(.pressable)
                     .accessibilityLabel(liked ? "取消收藏" : "收藏")
@@ -1468,9 +1468,9 @@ private struct CompactTrackHeader: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 21, weight: .medium))
+                            .font(.system(size: ScreenAdapter.h(21), weight: .medium))
                             .foregroundStyle(.white.opacity(0.88))
-                            .frame(width: 44, height: 44)
+                            .frame(width: ScreenAdapter.h(44), height: ScreenAdapter.h(44))
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.pressable)
@@ -1511,23 +1511,23 @@ private struct CompactTransportControls: View {
         HStack(spacing: 0) {
             Button(action: player.isFMMode ? player.fmTrash : player.previous) {
                 Image(systemName: player.isFMMode ? "trash" : "backward.fill")
-                    .font(.system(size: 25, weight: .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 58)
+                    .font(.system(size: ScreenAdapter.h(25), weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: ScreenAdapter.h(58))
             }
             .accessibilityLabel(player.isFMMode ? "不喜欢" : "上一首")
 
             Button(action: player.togglePlayPause) {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 36, weight: .bold))
+                    .font(.system(size: ScreenAdapter.h(36), weight: .bold))
                     .contentTransition(.opacity)
-                    .frame(maxWidth: .infinity, minHeight: 64)
+                    .frame(maxWidth: .infinity, minHeight: ScreenAdapter.h(64))
             }
             .accessibilityLabel(player.isPlaying ? "暂停" : "播放")
 
             Button(action: player.next) {
                 Image(systemName: "forward.fill")
-                    .font(.system(size: 25, weight: .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 58)
+                    .font(.system(size: ScreenAdapter.h(25), weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: ScreenAdapter.h(58))
             }
             .accessibilityLabel("下一首")
         }
@@ -1542,9 +1542,9 @@ private struct CompactVolumePopover: View {
     @State private var isDragging = false
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: ScreenAdapter.h(12)) {
             Image(systemName: "speaker.wave.3.fill")
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: ScreenAdapter.h(16), weight: .medium))
 
             GeometryReader { geo in
                 let height = geo.size.height
@@ -1554,7 +1554,7 @@ private struct CompactVolumePopover: View {
                     Capsule().fill(.white.opacity(0.82))
                         .frame(height: height * fraction)
                 }
-                .frame(width: isDragging ? 12 : 8)
+                .frame(width: isDragging ? ScreenAdapter.h(12) : ScreenAdapter.h(8))
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
                 .gesture(
@@ -1570,24 +1570,24 @@ private struct CompactVolumePopover: View {
                 )
                 .animation(.spring(response: 0.24, dampingFraction: 0.82), value: isDragging)
             }
-            .frame(width: 32, height: 132)
+            .frame(width: ScreenAdapter.h(32), height: ScreenAdapter.h(132))
             .accessibilityElement()
             .accessibilityLabel("音量")
             .accessibilityValue("\(Int((player.volume * 100).rounded()))%")
             .accessibilityAdjustableAction(adjustVolume)
 
             Image(systemName: player.volume == 0 ? "speaker.slash.fill" : "speaker.fill")
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: ScreenAdapter.h(14), weight: .medium))
         }
         .foregroundStyle(.white.opacity(0.85))
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.horizontal, ScreenAdapter.h(16))
+        .padding(.vertical, ScreenAdapter.h(14))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: ScreenAdapter.h(20), style: .continuous))
         .overlay(alignment: .bottom) {
             Triangle()
                 .fill(.white.opacity(0.18))
-                .frame(width: 16, height: 8)
-                .offset(y: 8)
+                .frame(width: ScreenAdapter.h(16), height: ScreenAdapter.h(8))
+                .offset(y: ScreenAdapter.h(8))
         }
     }
 
@@ -1625,7 +1625,7 @@ private struct CompactSecondaryControls: View {
                 isActive: showsLyrics && !showsQueue
             ) { onToggleLyrics() }
 
-            RoutePickerButton(diameter: 44, glyphSize: 17)
+            RoutePickerButton(diameter: ScreenAdapter.h(44), glyphSize: ScreenAdapter.h(17))
                 .frame(maxWidth: .infinity)
 
             secondaryButton(
@@ -1640,7 +1640,7 @@ private struct CompactSecondaryControls: View {
             .overlay(alignment: .bottom) {
                 if showsVolumeControl {
                     CompactVolumePopover()
-                        .offset(y: -44)
+                        .offset(y: -ScreenAdapter.h(44))
                         .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
                         .zIndex(1)
                 }
@@ -1669,9 +1669,9 @@ private struct CompactSecondaryControls: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 17, weight: .medium))
+                .font(.system(size: ScreenAdapter.h(17), weight: .medium))
                 .foregroundStyle(isActive ? Theme.accent : .white.opacity(0.72))
-                .frame(width: 44, height: 44)
+                .frame(width: ScreenAdapter.h(44), height: ScreenAdapter.h(44))
                 .background(.white.opacity(0.08), in: Circle())
                 .frame(maxWidth: .infinity)
         }

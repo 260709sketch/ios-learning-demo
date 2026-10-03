@@ -103,6 +103,7 @@ struct SettingsView: View {
                         Text(mode.displayName).tag(mode)
                     }
                 }
+                .pickerStyle(.navigationLink)
                 #endif
                 Toggle("显示歌词翻译", isOn: $settings.showLyricsTranslation)
                 Toggle("显示 VIP 歌曲标识", isOn: $settings.showVIPBadge)
