@@ -26,6 +26,7 @@ struct NowPlayingView: View {
     @State private var resumeTask: Task<Void, Never>?
     @State private var showLyricsOnMobile = false
     @State private var showQueueOnMobile = false
+    @State private var showPlayerModeSheet = false
 
     var body: some View {
         Group {
@@ -163,7 +164,7 @@ struct NowPlayingView: View {
 
     private func showsClassicChrome(isCompact: Bool) -> Bool {
         #if os(iOS)
-        return !isCompact || settings.nowPlayingMode == .classic
+        return !isCompact || settings.nowPlayingMode == .appleMusic
         #else
         return true
         #endif
@@ -266,8 +267,8 @@ struct NowPlayingView: View {
         switch settings.nowPlayingMode {
         case .vinyl:
             vinylCompactLayout(size: size)
-        case .classic:
-            classicCompactLayout(size: size)
+//        case .classic:  // 暂时停用经典模式
+//            classicCompactLayout(size: size)
         case .immersive:
             immersiveCompactLayout(size: size)
         case .minimal:
@@ -1445,6 +1446,12 @@ private struct CompactTrackHeader: View {
                         Divider()
 
                         #if os(iOS)
+                        Button {
+                            showPlayerModeSheet = true
+                        } label: {
+                            Label("播放器样式", systemImage: "music.note.tv")
+                        }
+
                         SleepTimerMenu(player: player)
 
                         Divider()
@@ -1477,6 +1484,9 @@ private struct CompactTrackHeader: View {
             if let track = player.currentTrack {
                 AddToPlaylistSheet(track: track)
             }
+        }
+        .sheet(isPresented: $showPlayerModeSheet) {
+            PlayerModeSheet()
         }
         .sheet(isPresented: $showComments) {
             if let track = player.currentTrack {
@@ -2198,6 +2208,9 @@ private struct MinimalTrackInfoRow: View {
                 AddToPlaylistSheet(track: track)
             }
         }
+        .sheet(isPresented: $showPlayerModeSheet) {
+            PlayerModeSheet()
+        }
         .sheet(isPresented: $showComments) {
             if let track = player.currentTrack {
                 Group {
@@ -2284,6 +2297,12 @@ private struct MinimalTrackInfoRow: View {
             Divider()
 
             #if os(iOS)
+            Button {
+                showPlayerModeSheet = true
+            } label: {
+                Label("播放器样式", systemImage: "music.note.tv")
+            }
+
             SleepTimerMenu(player: player)
 
             Divider()

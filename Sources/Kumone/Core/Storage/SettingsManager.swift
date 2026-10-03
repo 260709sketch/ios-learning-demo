@@ -71,7 +71,7 @@ enum LyricsAnnotation: String, CaseIterable, Identifiable {
 
 public enum NowPlayingMode: String, CaseIterable, Identifiable {
     case vinyl
-    case classic
+//    case classic  // 暂时停用经典模式
     case immersive
     case minimal
     case appleMusic
@@ -82,7 +82,7 @@ public enum NowPlayingMode: String, CaseIterable, Identifiable {
     public var displayName: String {
         switch self {
         case .vinyl: return String(localized: "黑胶模式")
-        case .classic: return String(localized: "经典模式")
+//        case .classic: return String(localized: "经典模式")
         case .immersive: return String(localized: "沉浸模式")
         case .minimal: return String(localized: "简洁模式")
         case .appleMusic: return "Apple Music"
@@ -537,7 +537,7 @@ final class SettingsManager: ObservableObject {
         audioCacheSizeMB = normalizedAudioCacheSizeMB
         defaults.set(normalizedAudioCacheSizeMB, forKey: Keys.audioCacheSizeMB)
         appearance = defaults.string(forKey: Keys.appearance).flatMap(AppAppearance.init) ?? .auto
-        nowPlayingMode = defaults.string(forKey: Keys.nowPlayingMode).flatMap(NowPlayingMode.init) ?? .immersive
+        nowPlayingMode = defaults.string(forKey: Keys.nowPlayingMode).flatMap(NowPlayingMode.init) ?? .appleMusic
         tabBarStyle = defaults.string(forKey: Keys.tabBarStyle).flatMap(TabBarStyle.init) ?? .default
         customLiquidGlassConfig = (defaults.data(forKey: Keys.customLiquidGlassConfig)
             .flatMap { try? JSONDecoder().decode(LiquidGlassConfig.self, from: $0) })

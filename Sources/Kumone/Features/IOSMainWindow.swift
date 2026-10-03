@@ -720,71 +720,79 @@ struct IOSLibraryView: View {
                         NavigationLink(value: Destination.playlist(liked.id)) {
                             Label("我喜欢的音乐", systemImage: "heart.fill")
                                 .foregroundStyle(Theme.accent)
+                                .font(.system(size: 15))
                         }
                     }
                     NavigationLink(value: Destination.daily) {
                         Label("每日推荐", systemImage: "calendar")
+                            .font(.system(size: 15))
                     }
                     NavigationLink(value: Destination.recentPlays) {
                         Label("最近播放", systemImage: "clock.fill")
+                            .font(.system(size: 15))
                     }
                     NavigationLink(value: Destination.recents) {
                         // 听歌排行（即历史播放记录）
                         Label("听歌排行", systemImage: "chart.bar.fill")
+                            .font(.system(size: 15))
                     }
                     NavigationLink(value: Destination.collections) {
                         Label("我的收藏", systemImage: "star.fill")
+                            .font(.system(size: 15))
                     }
                     NavigationLink(value: Destination.cloud) {
                         Label("音乐云盘", systemImage: "icloud.fill")
+                            .font(.system(size: 15))
                     }
                 }
 
                 // 本地歌单：收藏的歌曲自动保存一份到本地
                 Section {
                     NavigationLink(value: Destination.localPlaylist) {
-                        HStack(spacing: 10) {
+                        HStack(spacing: 12) {
                             Image(systemName: "tray.full.fill")
-                                .font(.system(size: 18))
+                                .font(.system(size: 22))
                                 .foregroundStyle(Theme.accent)
-                                .frame(width: 32, height: 32)
-                            VStack(alignment: .leading, spacing: 1) {
+                                .frame(width: 48, height: 48)
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text("收藏的音乐")
-                                    .font(.system(size: 14))
+                                    .font(.system(size: 15))
                                     .lineLimit(1)
                                 Text("\(localPlaylist.count) 首")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        .padding(.vertical, 4)
                     }
                     ForEach(externalPlaylists.playlists) { playlist in
                         NavigationLink(value: Destination.externalPlaylist(playlist)) {
-                            HStack(spacing: 10) {
+                            HStack(spacing: 12) {
                                 if let coverURL = playlist.coverURL {
-                                    CachedAsyncImage(url: coverURL.resizedImageURL(80), animated: false)
-                                        .frame(width: 32, height: 32)
-                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    CachedAsyncImage(url: coverURL.resizedImageURL(120), animated: false)
+                                        .frame(width: 48, height: 48)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 } else if let firstTrack = externalPlaylists.getTracks(for: playlist.id).first, let coverUrl = firstTrack.album.picUrl {
-                                    CachedAsyncImage(url: coverUrl.resizedImageURL(80), animated: false)
-                                        .frame(width: 32, height: 32)
-                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    CachedAsyncImage(url: coverUrl.resizedImageURL(120), animated: false)
+                                        .frame(width: 48, height: 48)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 } else {
                                     Image(systemName: "music.note.list")
-                                        .font(.system(size: 14))
+                                        .font(.system(size: 18))
                                         .foregroundStyle(.white)
-                                        .frame(width: 32, height: 32)
-                                        .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                        .frame(width: 48, height: 48)
+                                        .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 }
-                                VStack(alignment: .leading, spacing: 1) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(playlist.name)
-                                        .font(.system(size: 14))
+                                        .font(.system(size: 15))
                                         .lineLimit(1)
                                     Text("\(externalPlaylists.getTracks(for: playlist.id).count) 首")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            .padding(.vertical, 4)
                         }
                     }
                 } header: {
@@ -795,19 +803,20 @@ struct IOSLibraryView: View {
                     Section {
                         ForEach(account.createdPlaylists) { playlist in
                             NavigationLink(value: Destination.playlist(playlist.id)) {
-                                HStack(spacing: 10) {
-                                    CachedAsyncImage(url: playlist.coverURL?.resizedImageURL(80), animated: false)
-                                        .frame(width: 32, height: 32)
-                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                    VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 12) {
+                                    CachedAsyncImage(url: playlist.coverURL?.resizedImageURL(120), animated: false)
+                                        .frame(width: 48, height: 48)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    VStack(alignment: .leading, spacing: 2) {
                                         Text(playlist.name)
-                                            .font(.system(size: 14))
+                                            .font(.system(size: 15))
                                             .lineLimit(1)
                                         Text("\(playlist.trackCount) 首")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
                                 }
+                                .padding(.vertical, 4)
                             }
                         }
                     } header: {
@@ -828,19 +837,20 @@ struct IOSLibraryView: View {
                     Section("收藏的歌单") {
                         ForEach(account.subscribedPlaylists) { playlist in
                             NavigationLink(value: Destination.playlist(playlist.id)) {
-                                HStack(spacing: 10) {
-                                    CachedAsyncImage(url: playlist.coverURL?.resizedImageURL(80), animated: false)
-                                        .frame(width: 32, height: 32)
-                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                    VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 12) {
+                                    CachedAsyncImage(url: playlist.coverURL?.resizedImageURL(120), animated: false)
+                                        .frame(width: 48, height: 48)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    VStack(alignment: .leading, spacing: 2) {
                                         Text(playlist.name)
-                                            .font(.system(size: 14))
+                                            .font(.system(size: 15))
                                             .lineLimit(1)
                                         Text("\(playlist.trackCount) 首")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
                                 }
+                                .padding(.vertical, 4)
                             }
                         }
                     }
@@ -852,6 +862,7 @@ struct IOSLibraryView: View {
                     .listRowBackground(Color.clear)
             }
         }
+        .listSectionSpacing(8)
         .navigationTitle("我的")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

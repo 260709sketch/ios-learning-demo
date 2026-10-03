@@ -5,7 +5,7 @@ import CoreImage.CIFilterBuiltins
 // MARK: - 全局工具
 
 /// 秒数格式化为 m:ss
-func beansTimeString(_ seconds: Double) -> String {
+func wellamTimeString(_ seconds: Double) -> String {
     let total = max(0, Int(seconds))
     return String(format: "%d:%02d", total / 60, total % 60)
 }

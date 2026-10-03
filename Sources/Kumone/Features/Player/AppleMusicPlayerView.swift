@@ -41,7 +41,7 @@ private struct ReferencePlaybackPresentationMetrics {
 }
 
 /// Apple Music 风格全屏播放页：封面模糊背景 + 大封面/歌词页切换 + 底部控制栏。
-/// 移植自 Beans Music 的 ReferencePlaybackView，数据接入当前项目的 PlayerService / Track / AccountStore。
+/// 移植自 wellam 的 ReferencePlaybackView，数据接入当前项目的 PlayerService / Track / AccountStore。
 struct AppleMusicPlayerView: View {
     let onOpenDestination: (Destination) -> Void
     let onDismiss: () -> Void
@@ -58,6 +58,7 @@ struct AppleMusicPlayerView: View {
     @State private var showComments = false
     @State private var showAddToPlaylist = false
     @State private var showSleepTimerSheet = false
+    @State private var showPlayerModeSheet = false
     @State private var showVolumePopover = false
     @State private var layoutMode = false
     @State private var appleLayoutPart: AppleMusicLayoutPart = .cover
@@ -180,6 +181,9 @@ struct AppleMusicPlayerView: View {
         .sheet(isPresented: $showSleepTimerSheet) {
             SleepTimerSheet(player: player)
         }
+        .sheet(isPresented: $showPlayerModeSheet) {
+            PlayerModeSheet()
+        }
     }
 
     // MARK: - 三点菜单
@@ -212,6 +216,13 @@ struct AppleMusicPlayerView: View {
             }
 
             Divider()
+
+            // 播放器选择
+            Button {
+                showPlayerModeSheet = true
+            } label: {
+                Label("播放器样式", systemImage: "music.note.tv")
+            }
 
             // 睡眠定时（用 sheet 避免嵌套 Menu 自动关闭）
             Button {
@@ -711,7 +722,7 @@ struct AppleMusicPlayerView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     if isFocused && isDraggingLyrics {
                         Spacer(minLength: 8)
-                        Text(beansTimeString(line.time))
+                        Text(wellamTimeString(line.time))
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .foregroundStyle(secondaryColor.opacity(0.82))
                     }
@@ -849,7 +860,7 @@ private struct ReferenceScrubber: View {
                 )
                 .overlay(alignment: .topLeading) {
                     if scrubbing {
-                        Text(beansTimeString(scrubValue))
+                        Text(wellamTimeString(scrubValue))
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 9)
@@ -863,9 +874,9 @@ private struct ReferenceScrubber: View {
             .frame(height: 30)
 
             HStack {
-                Text(beansTimeString(scrubbing ? scrubValue : clock.progress))
+                Text(wellamTimeString(scrubbing ? scrubValue : clock.progress))
                 Spacer()
-                Text(beansTimeString(max(player.duration, player.currentTrack?.duration ?? 0)))
+                Text(wellamTimeString(max(player.duration, player.currentTrack?.duration ?? 0)))
             }
             .font(.system(size: 11, weight: .regular, design: .monospaced))
             .foregroundStyle(.white.opacity(0.52))
@@ -1292,5 +1303,46 @@ struct SleepTimerSheet: View {
         guard case .countdown(let deadline) = sleepTimer.state else { return false }
         let remaining = deadline.timeIntervalSinceNow
         return abs(remaining - Double(minutes * 60)) < 30
+    }
+}
+
+// MARK: - 播放器样式选择 Sheet
+
+struct PlayerModeSheet: View {
+    @EnvironmentObject private var settings: SettingsManager
+    @Environment(\.dismiss) private var dismiss
+
+    // 可用的播放器模式（已排除停用的经典模式）
+    private let availableModes: [NowPlayingMode] = [.appleMusic, .immersive, .immersiveV2, .vinyl, .minimal]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(availableModes) { mode in
+                    Button {
+                        settings.nowPlayingMode = mode
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(mode.displayName)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if settings.nowPlayingMode == mode {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("播放器样式")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .presentationDetentsSafe()
     }
 }
