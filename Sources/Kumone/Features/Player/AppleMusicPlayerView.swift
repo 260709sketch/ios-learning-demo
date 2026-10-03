@@ -147,6 +147,7 @@ struct AppleMusicPlayerView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .ignoresSafeArea()
+        .simultaneousGesture(swipeDownToDismissGesture)
         .onDisappear { resumeTask?.cancel() }
         .sheet(isPresented: $showQueue) {
             Group {
@@ -786,6 +787,17 @@ struct AppleMusicPlayerView: View {
                 guard track != nil else { return }
                 WellHaptics.medium()
                 showComments = true
+            }
+    }
+
+    private var swipeDownToDismissGesture: some Gesture {
+        DragGesture(minimumDistance: 30)
+            .onEnded { value in
+                // 下滑超过100pt且垂直滑动为主时关闭播放器
+                guard value.translation.height > 100,
+                      abs(value.translation.height) > abs(value.translation.width) else { return }
+                WellHaptics.tap()
+                onDismiss()
             }
     }
 
