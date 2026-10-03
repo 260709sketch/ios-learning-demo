@@ -862,7 +862,7 @@ struct IOSLibraryView: View {
                     .listRowBackground(Color.clear)
             }
         }
-        .listSectionSpacing(8)
+        .environment(\.defaultMinListHeaderHeight, 0)
         .navigationTitle("我的")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
