@@ -144,7 +144,7 @@ struct IOSNowPlayingPresentation<Content: View>: View {
 
     var body: some View {
         // 不用 GeometryReader，避免 fullScreenCover 动画过程中尺寸不正确导致播放器只展开一半
-        let isInteractive = horizontalSizeClass == .compact && mode != .appleMusic
+        let isInteractive = horizontalSizeClass == .compact
         let usesCustomDrag = isInteractive && !usesSystemInteractiveDismissal
 
         ZStack(alignment: .top) {

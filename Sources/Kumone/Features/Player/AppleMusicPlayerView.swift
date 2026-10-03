@@ -85,7 +85,6 @@ struct AppleMusicPlayerView: View {
     @State private var lyricsViewportHeight: CGFloat = 0
     @State private var isDraggingLyrics = false
     @State private var resumeTask: Task<Void, Never>?
-    @State private var dragOffset: CGFloat = 0
 
     private var track: Track? { player.currentTrack }
     private var lyrics: [LyricLine] { player.lyrics?.lines ?? [] }
@@ -148,8 +147,6 @@ struct AppleMusicPlayerView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .ignoresSafeArea()
-        .offset(y: dragOffset)
-        .simultaneousGesture(swipeDownToDismissGesture)
         .onDisappear { resumeTask?.cancel() }
         .sheet(isPresented: $showQueue) {
             Group {
@@ -789,32 +786,6 @@ struct AppleMusicPlayerView: View {
                 guard track != nil else { return }
                 WellHaptics.medium()
                 showComments = true
-            }
-    }
-
-    private var swipeDownToDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .global)
-            .onChanged { value in
-                // 只响应下滑，且垂直滑动为主
-                let translation = value.translation.height
-                guard translation > 0,
-                      abs(translation) > abs(value.translation.width) else { return }
-                dragOffset = translation
-            }
-            .onEnded { value in
-                let translation = value.translation.height
-                let predicted = value.predictedEndTranslation.height
-                // 超过110pt或预测超过190pt则关闭，否则回弹
-                if translation > 110 || predicted > 190 {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                        dragOffset = 0
-                    }
-                    onDismiss()
-                } else {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                        dragOffset = 0
-                    }
-                }
             }
     }
 

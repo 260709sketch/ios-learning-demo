@@ -186,19 +186,11 @@ struct PlaylistImportView: View {
     private func resolveShortURL(_ shortURL: String) async throws -> String {
         guard let url = URL(string: shortURL) else { return shortURL }
         var request = URLRequest(url: url)
-        request.httpMethod = "HEAD"
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+        // URLSession 会自动跟随重定向，最终的 response.url 就是真实链接
         let (_, response) = try await URLSession.shared.data(for: request)
-        if let httpResponse = response as? HTTPURLResponse,
-           let location = httpResponse.allHeaderFields["Location"] as? String {
-            return location
-        }
-        // HEAD 不行就用 GET
-        request.httpMethod = "GET"
-        let (_, response2) = try await URLSession.shared.data(for: request)
-        if let httpResponse2 = response2 as? HTTPURLResponse,
-           let location2 = httpResponse2.allHeaderFields["Location"] as? String {
-            return location2
+        if let finalURL = response.url?.absoluteString {
+            return finalURL
         }
         return shortURL
     }
