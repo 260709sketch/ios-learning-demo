@@ -761,12 +761,12 @@ struct IOSLibraryView: View {
                 // 本地歌单：收藏的歌曲自动保存一份到本地
                 Section {
                     NavigationLink(value: Destination.localPlaylist) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: 10) {
                             Image(systemName: "tray.full.fill")
-                                .font(.system(size: 18))
+                                .font(.system(size: 16))
                                 .foregroundStyle(Theme.accent)
                                 .frame(width: 32, height: 32)
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: 1) {
                                 Text("收藏的音乐")
                                     .font(.system(size: 14))
                                     .lineLimit(1)
@@ -775,11 +775,10 @@ struct IOSLibraryView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .padding(.vertical, 4)
                     }
                     ForEach(externalPlaylists.playlists) { playlist in
                         NavigationLink(value: Destination.externalPlaylist(playlist)) {
-                            HStack(spacing: 12) {
+                            HStack(spacing: 10) {
                                 if let coverURL = playlist.coverURL {
                                     CachedAsyncImage(url: coverURL.resizedImageURL(80), animated: false)
                                         .frame(width: 32, height: 32)
@@ -795,7 +794,7 @@ struct IOSLibraryView: View {
                                         .frame(width: 32, height: 32)
                                         .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                                 }
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: 1) {
                                     Text(playlist.name)
                                         .font(.system(size: 14))
                                         .lineLimit(1)
@@ -804,7 +803,6 @@ struct IOSLibraryView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
-                            .padding(.vertical, 4)
                         }
                     }
                 } header: {
@@ -815,11 +813,11 @@ struct IOSLibraryView: View {
                     Section {
                         ForEach(account.createdPlaylists) { playlist in
                             NavigationLink(value: Destination.playlist(playlist.id)) {
-                                HStack(spacing: 12) {
+                                HStack(spacing: 10) {
                                     CachedAsyncImage(url: playlist.coverURL?.resizedImageURL(80), animated: false)
                                         .frame(width: 32, height: 32)
                                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                    VStack(alignment: .leading, spacing: 2) {
+                                    VStack(alignment: .leading, spacing: 1) {
                                         Text(playlist.name)
                                             .font(.system(size: 14))
                                             .lineLimit(1)
@@ -828,7 +826,6 @@ struct IOSLibraryView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                 }
-                                .padding(.vertical, 4)
                             }
                         }
                     } header: {
@@ -849,11 +846,11 @@ struct IOSLibraryView: View {
                     Section("收藏的歌单") {
                         ForEach(account.subscribedPlaylists) { playlist in
                             NavigationLink(value: Destination.playlist(playlist.id)) {
-                                HStack(spacing: 12) {
+                                HStack(spacing: 10) {
                                     CachedAsyncImage(url: playlist.coverURL?.resizedImageURL(80), animated: false)
                                         .frame(width: 32, height: 32)
                                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                    VStack(alignment: .leading, spacing: 2) {
+                                    VStack(alignment: .leading, spacing: 1) {
                                         Text(playlist.name)
                                             .font(.system(size: 14))
                                             .lineLimit(1)
@@ -862,7 +859,6 @@ struct IOSLibraryView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                 }
-                                .padding(.vertical, 4)
                             }
                         }
                     }
